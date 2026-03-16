@@ -361,7 +361,7 @@ footer{background:var(--black);padding:52px 5% 28px}
             <h4>Message Received</h4>
             <p>We'll be in touch shortly to discuss your requirement.</p>
           </div>
-          <form id="execContactForm" action="https://formspree.io/f/xreyqnoz" method="POST" onsubmit="handleExecForm(event)">
+          <form id="execContactForm" action="https://formspree.io/f/xaqppdkz" method="POST">
             <div class="form-row">
               <div class="form-group"><label>First Name</label><input type="text" name="first_name" placeholder="Jane" required></div>
               <div class="form-group"><label>Last Name</label><input type="text" name="last_name" placeholder="Smith" required></div>
@@ -379,7 +379,9 @@ footer{background:var(--black);padding:52px 5% 28px}
               </select>
             </div>
             <div class="form-group"><label>Tell us about your requirement</label><textarea name="message" placeholder="Brief overview of the role, function, location and any key requirements..." rows="4"></textarea></div>
-            <button type="submit" class="form-submit">Send Enquiry →</button>
+            <input type="hidden" name="_subject" value="New Executive Search Enquiry - VoltConsulting">
+      <input type="hidden" name="_next" value="https://voltconsulting.solutions/executive-search.html">
+      <button type="submit" class="form-submit">Send Enquiry →</button>
           </form>
         </div>
       </div>
