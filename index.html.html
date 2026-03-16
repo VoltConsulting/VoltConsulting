@@ -177,9 +177,9 @@ footer{background:var(--black);padding:52px 5% 28px}
 /* EXECUTIVE SEARCH SECTION */
 #executive-search{background:var(--white);position:relative}
 .exec-inner{max-width:1180px;margin:0 auto;padding:88px 5% 60px}
-.exec-intro{text-align:center;margin-bottom:64px}
+.exec-intro{text-align:left;margin-bottom:64px}
 .exec-intro h2{font-size:clamp(1.8rem,3vw,2.6rem);font-weight:900;color:var(--black);line-height:1.15;margin-bottom:16px;letter-spacing:-.02em}
-.exec-sub{font-size:1rem;color:var(--gray);max-width:600px;margin:0 auto;line-height:1.7}
+.exec-sub{font-size:1rem;color:var(--gray);max-width:600px;margin:0;line-height:1.7}
 .exec-cap-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start;margin-bottom:64px}
 .exec-cap-grid h3{font-size:1.5rem;font-weight:900;color:var(--black);line-height:1.2;margin-bottom:16px;letter-spacing:-.02em}
 .exec-cap-grid p{font-size:.95rem;line-height:1.75;color:var(--gray);margin-bottom:14px}
@@ -289,7 +289,7 @@ section > *:not(.watermark){position:relative;z-index:1}
     <ul class="nav-links" id="navLinks">
       <li><a href="#about">About</a></li>
       <li><a href="#services">Services</a></li>
-      <li><a href="#executive-search">Executive Search — Europe</a></li>
+      <li><a href="#executive-search">Exec Search</a></li>
       <li><a href="#voltnetwork">VoltNETWORK</a></li>
       <li><a href="#team">Team</a></li>
       <li><a href="#contact">Contact</a></li>
@@ -441,7 +441,7 @@ section > *:not(.watermark){position:relative;z-index:1}
 <section id="executive-search">
   <div class="exec-inner">
     <div class="exec-intro reveal">
-      <span class="section-label">Executive Search — Europe</span>
+      <span class="section-label">Executive Search EU</span>
       <h2>Placing Leaders Who<br>Define the Future of Medicine</h2>
       <p class="exec-sub">Over 20 years of retained executive search experience across European pharmaceutical, biopharma and biotech — from Discovery to C-Suite. We don't just fill roles, we shape organisations.</p>
     </div>
@@ -465,7 +465,7 @@ section > *:not(.watermark){position:relative;z-index:1}
           <div class="brinda-role">Partner · Head of Executive Search, BioPharma R&amp;D</div>
           <p class="brinda-bio">With over 20 years' experience in executive search, Brinda brings a rare scientific background and a well-established network of senior scientists and physicians across the European pharmaceutical and biotech industry. Successfully completed retained mandates spanning Discovery, Preclinical Development, Clinical R&amp;D and Medical functions.</p>
           <div class="brinda-contact">
-            <a href="mailto:brinda@voltconsulting.solutions"><div class="contact-icon">✉</div>brinda@voltconsulting.solutions</a>
+            <a href="/cdn-cgi/l/email-protection#85e7f7ecebe1e4c5f3eae9f1e6eaebf6f0e9f1ecebe2abf6eae9f0f1eceaebf6"><div class="contact-icon">✉</div><span class="__cf_email__" data-cfemail="8eecfce7e0eaefcef8e1e2faede1e0fdfbe2fae7e0e9a0fde1e2fbfae7e1e0fd">[email&#160;protected]</span></a>
             <a href="tel:+447956125804"><div class="contact-icon">📞</div>+44 7956 125804 &nbsp;|&nbsp; +34 612 46 9561</a>
           </div>
         </div>
@@ -515,7 +515,7 @@ section > *:not(.watermark){position:relative;z-index:1}
 
   <div class="exec-ticker-wrap">
     <div class="exec-ticker-inner">
-      <p class="exec-ticker-label">A Track Record Across Leading Organisations</p>
+      <p class="exec-ticker-label">Our people have a track record across organisations such as</p>
     </div>
     <div class="ticker-wrap">
       <div class="ticker-track" id="tickerTrack">
@@ -800,7 +800,7 @@ VoltConsulting is a specialist executive search and recruitment firm focused on 
 </footer>
 
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) entry.target.classList.add('visible');
@@ -814,11 +814,4 @@ window.addEventListener('scroll', () => {
 });
 
 function toggleNav() {
-  document.getElementById('navLinks').classList.toggle('open');
-}
-
-const track = document.getElementById('tickerTrack');
-if (track) { track.innerHTML += track.innerHTML; }
-</script>
-
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></
+  document.getEle
