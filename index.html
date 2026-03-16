@@ -413,7 +413,7 @@ section > *:not(.watermark){position:relative;z-index:1}
         <div id="joinFormWrap">
           <h3>Join VoltNETWORK</h3>
           <p class="sub">Free to join. When you register, expect a single, personal message from our team &mdash; no spam, no hard sell, just a genuine conversation to understand your world and what matters to you. Importantly, when you&rsquo;re ready, we&rsquo;ll be here to support you. Properly. In confidence and with respect for your career move.</p>
-          <form id="joinForm" onsubmit="handleJoin(event)">
+          <form id="joinForm" action="https://formspree.io/f/xeergyrp" method="POST">
             <div class="form-row">
               <div class="form-group">
                 <label>First Name</label>
@@ -482,6 +482,8 @@ section > *:not(.watermark){position:relative;z-index:1}
                 <option>Open to exploring options, discreetly and with proper representation</option>
               </select>
             </div>
+            <input type="hidden" name="_subject" value="New VoltNETWORK Member - VoltConsulting">
+            <input type="hidden" name="_next" value="https://voltconsulting.solutions/#voltnetwork">
             <button type="submit" class="form-submit">Join VoltNETWORK &rarr;</button>
           </form>
         </div>
@@ -581,7 +583,7 @@ section > *:not(.watermark){position:relative;z-index:1}
 
       <div class="contact-form-card reveal">
         <h3>Send us a message</h3>
-        <form id="contactForm" onsubmit="handleContact(event)">
+        <form id="contactForm" action="https://formspree.io/f/xreyqnoz" method="POST">
           <div class="form-row">
             <div class="form-group">
               <label>First Name</label>
@@ -611,7 +613,9 @@ section > *:not(.watermark){position:relative;z-index:1}
             <label>Message</label>
             <textarea placeholder="Tell us what you&#39;re looking for..."></textarea>
           </div>
-          <button type="submit" class="form-submit">Send Message &rarr;</button>
+          <input type="hidden" name="_subject" value="New Contact Enquiry - VoltConsulting">
+            <input type="hidden" name="_next" value="https://voltconsulting.solutions/#contact">
+            <button type="submit" class="form-submit">Send Message &rarr;</button>
         </form>
       </div>
     </div>

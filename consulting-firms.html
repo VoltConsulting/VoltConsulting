@@ -375,36 +375,40 @@ footer{background:#0f1923;padding:56px 0 32px}
         <div class="contact-form-wrap">
           <h3>Tell Us About Your Firm</h3>
           <p class="form-sub">We'll respond within one business day.</p>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Your Name</label>
-              <input type="text" name="name" placeholder="Jane Smith">
+          <form action="https://formspree.io/f/mwvrrnjn" method="POST">
+            <input type="hidden" name="_subject" value="New Consulting Firms Enquiry - VoltConsulting">
+            <input type="hidden" name="_next" value="https://voltconsulting.solutions/consulting-firms.html">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Your Name</label>
+                <input type="text" name="name" placeholder="Jane Smith" required>
+              </div>
+              <div class="form-group">
+                <label>Firm Name</label>
+                <input type="text" name="firm" placeholder="Acme Consulting" required>
+              </div>
             </div>
             <div class="form-group">
-              <label>Firm Name</label>
-              <input type="text" name="firm" placeholder="Acme Consulting">
+              <label>Email</label>
+              <input type="email" name="email" placeholder="jane@firmname.com" required>
             </div>
-          </div>
-          <div class="form-group">
-            <label>Email</label>
-            <input type="email" name="email" placeholder="jane@firmname.com">
-          </div>
-          <div class="form-group">
-            <label>What are you looking for?</label>
-            <select name="service">
-              <option value="">Select a service</option>
-              <option value="executive-search">Executive Search - Partner / Senior hire</option>
-              <option value="voltteambuild">VoltTEAMbuild - Flat-fee team recruitment</option>
-              <option value="voltnetwork">VoltNETWORK - Talent pipeline access</option>
-              <option value="all">All three, let's discuss</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Tell us more</label>
-            <textarea name="message" placeholder="Brief overview of your firm, the roles you're looking to fill, and any timelines or constraints we should know about..."></textarea>
-          </div>
-          <button type="button" class="form-submit" onclick="submitConsultingForm()">Send Enquiry →</button>
-          <p class="form-note">No commitment. Just a conversation.</p>
+            <div class="form-group">
+              <label>What are you looking for?</label>
+              <select name="service">
+                <option value="">Select a service</option>
+                <option value="executive-search">Executive Search - Partner / Senior hire</option>
+                <option value="voltteambuild">VoltTEAMbuild - Flat-fee team recruitment</option>
+                <option value="voltnetwork">VoltNETWORK - Talent pipeline access</option>
+                <option value="all">All three, let's discuss</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Tell us more</label>
+              <textarea name="message" placeholder="Brief overview of your firm, the roles you're looking to fill, and any timelines or constraints we should know about..."></textarea>
+            </div>
+            <button type="submit" class="form-submit">Send Enquiry →</button>
+            <p class="form-note">No commitment. Just a conversation.</p>
+          </form>
         </div>
       </div>
     </div>
@@ -440,14 +444,7 @@ const observer = new IntersectionObserver((entries) => {
 document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
 
-async function submitConsultingForm() {
-  const btn = document.querySelector('.form-submit');
-  btn.textContent = 'Sending…';
-  btn.disabled = true;
-  await new Promise(r => setTimeout(r, 1200));
-  btn.textContent = '✓ Sent - we\'ll be in touch shortly';
-  btn.style.background = '#1ab8bf';
-}
+
 </script>
 </body>
 </html>
