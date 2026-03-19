@@ -178,6 +178,35 @@ footer{background:var(--black);padding:52px 5% 28px}
   .hero-actions,.cta-actions{flex-direction:column;align-items:flex-start}
 }
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ProfessionalService",
+  "@id": "https://voltconsulting.solutions/executive-search.html",
+  "name": "VoltConsulting Executive Search",
+  "url": "https://voltconsulting.solutions/executive-search.html",
+  "description": "Specialist retained and targeted executive search for pharmaceutical, biopharma and life sciences organisations. 20+ years placing senior scientists, functional heads and C-suite leaders across Switzerland, Germany, UK and Europe.",
+  "provider": {
+    "@id": "https://voltconsulting.solutions/#organization"
+  },
+  "serviceType": "Executive Search",
+  "areaServed": ["Switzerland", "Germany", "United Kingdom", "Netherlands", "Denmark", "Belgium", "Europe", "United States"],
+  "knowsAbout": ["Pharmaceutical Executive Search", "Biopharma Executive Search", "Life Sciences Executive Search", "CMO Recruitment", "CSO Recruitment", "Medical Director Recruitment", "Clinical Development Recruitment", "Oncology Recruitment", "Toxicology Recruitment", "DMPK Recruitment"],
+  "employee": {
+    "@type": "Person",
+    "name": "Brinda Patel PhD",
+    "jobTitle": "Partner, Head of Executive Search BioPharma R&D",
+    "email": "brinda@voltconsulting.solutions"
+  },
+  "breadcrumb": {
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://voltconsulting.solutions"},
+      {"@type": "ListItem", "position": 2, "name": "Executive Search", "item": "https://voltconsulting.solutions/executive-search.html"}
+    ]
+  }
+}
+</script>
 </head>
 <body>
 
@@ -424,6 +453,46 @@ document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 // Duplicate ticker for seamless loop
 const track = document.getElementById('tickerTrack');
 if (track) { track.innerHTML += track.innerHTML; }
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What pharmaceutical executive search does VoltConsulting specialise in?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "VoltConsulting specialises in retained and targeted executive search for pharmaceutical, biopharma and life sciences organisations, placing senior scientists, functional heads and C-suite leaders across Discovery, Preclinical, Clinical R&D, Medical Affairs and Leadership functions."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which European countries does VoltConsulting cover for pharma executive search?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "VoltConsulting covers Switzerland including Zurich, Basel, Geneva and Zug, Germany including Munich and Frankfurt, the Netherlands, Denmark, Belgium and the UK for pharmaceutical and biopharma executive search."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Who leads VoltConsulting's pharmaceutical executive search practice?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "VoltConsulting's pharmaceutical executive search practice is led by Brinda Patel PhD, who brings over 20 years of executive search experience and a scientific background with an established network of senior scientists and physicians across the European pharmaceutical and biotech industry."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the difference between retained and targeted search?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Retained search involves an exclusive, fee-based engagement where VoltConsulting is fully committed to filling a specific role. Targeted search campaigns are focused proactive searches directed at specific talent pools, both approaches used for senior pharmaceutical and life sciences leadership roles."
+      }
+    }
+  ]
+}
 </script>
 </body>
 </html>
