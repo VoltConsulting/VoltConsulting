@@ -306,6 +306,117 @@ function QuickLog({item,onUpdate}){
   );
 }
 
+
+// ── Local LinkedIn profile parser (no API needed) ─────────────
+function parseLinkedInProfile(text){
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+
+  // Extract name: first non-empty line that looks like a name
+  // (2+ words, no special chars, not a URL, not a button label)
+  let name = "";
+  const skipWords = ["message","connect","follow","more","highlights","about","experience","education","activity","featured","contact","info","mutual","connections","followers","posts","comments","videos","images","premium"];
+  for(const line of lines){
+    const clean = line.replace(/,\s*Assoc.*$/i,"").replace(/,\s*(PhD|MD|MBA|MSc|BSc|BA|MA|Dr\.?).*$/i,"").trim();
+    const words = clean.split(/\s+/);
+    if(words.length >= 2 && words.length <= 5 &&
+       !clean.includes("http") && !clean.includes("|") &&
+       !clean.includes("#") && !clean.includes("@") &&
+       !skipWords.includes(clean.toLowerCase()) &&
+       /^[A-Za-zÀ-ÿ\s\.\-\']+$/.test(clean)){
+      name = line.replace(/,\s*Assoc.*$/i,"").replace(/,\s*(PhD|MD|MBA|MSc|BSc|BA|MA).*$/i,"").trim();
+      break;
+    }
+  }
+
+  // Extract headline (line with | separators after name)
+  let title = "", company = "";
+  for(const line of lines){
+    if(line.includes("|") && !line.includes("http")){
+      const parts = line.split("|").map(p=>p.trim()).filter(Boolean);
+      if(parts.length >= 2){
+        // title is first part, company is second
+        title = parts[0].replace(/Co-Founder of /i,"Co-Founder").trim();
+        company = parts[1].replace(/\s*\|.*$/,"").trim();
+        // Clean up company - remove "Full-time" etc
+        company = company.replace(/·.*$/,"").trim();
+        break;
+      }
+    }
+  }
+
+  // If no pipe-separated headline, look for job title patterns
+  if(!title){
+    for(const line of lines){
+      if(/(founder|director|manager|partner|consultant|analyst|associate|head of|vp |vice president|president|officer|lead|specialist|executive)/i.test(line) && line.length < 100){
+        title = line.trim();
+        break;
+      }
+    }
+  }
+
+  // Extract location (usually "City, Country" or "City Metropolitan Area")
+  let location = "";
+  for(const line of lines){
+    if(/(metropolitan area|united kingdom|united states|ireland|germany|france|switzerland|netherlands|belgium|spain|italy|sweden|denmark|norway)/i.test(line) && line.length < 60){
+      location = line.replace(/Contact info.*/i,"").trim();
+      break;
+    }
+    // "City, Country" pattern
+    if(/^[A-Z][a-zA-Z\s]+,\s*[A-Z][a-zA-Z\s]+$/.test(line) && line.length < 50){
+      location = line.trim();
+      break;
+    }
+  }
+
+  // Extract email
+  let email = "";
+  const emailMatch = text.match(/[\w\.\-]+@[\w\.\-]+\.[a-z]{2,}/i);
+  if(emailMatch) email = emailMatch[0];
+
+  // Extract phone
+  let phone = "";
+  const phoneMatch = text.match(/(\+?[\d\s\-\(\)]{10,18})/);
+  if(phoneMatch){
+    const p = phoneMatch[1].replace(/\s+/g," ").trim();
+    if(p.replace(/\D/g,"").length >= 10) phone = p;
+  }
+
+  // Extract LinkedIn URL
+  let linkedin = "";
+  const liMatch = text.match(/linkedin\.com\/in\/[\w\-]+/i);
+  if(liMatch) linkedin = "https://www." + liMatch[0];
+
+  // Infer seniority from title
+  let seniority = "Manager / Principal";
+  const tl = (title||"").toLowerCase();
+  if(/(founder|ceo|coo|cfo|cto|chief|partner|president|managing director|md )/i.test(tl)) seniority = "C-Suite / Partner";
+  else if(/(vp |vice president|director)/i.test(tl)) seniority = "VP / Director";
+  else if(/(analyst|graduate|associate consultant|junior)/i.test(tl)) seniority = "Analyst / Consultant";
+
+  // Infer sectors from full text
+  const fullText = text.toLowerCase();
+  const sectorKeywords = {
+    "Life Sciences": ["life science","biopharma","pharma","pharmaceutical","biotech"],
+    "Strategy": ["strategy","strategic","consulting","management consulting"],
+    "Commercial": ["commercial","sales","marketing"],
+    "Oncology": ["oncology","cancer","tumor","haematology"],
+    "RWE": ["real world evidence","rwe","real-world","real world data"],
+    "Market Access": ["market access","hta","reimbursement","access"],
+    "Operations": ["operations","supply chain","manufacturing"],
+    "MedTech": ["medtech","medical device","device","diagnostics"],
+    "Digital Health": ["digital health","digital","ai in health","healthtech"],
+    "Biotech": ["biotech","biotechnology","biologics","cell therapy","gene therapy"],
+    "Regulatory": ["regulatory","regulation","compliance","fda","ema"],
+    "Pricing": ["pricing","price","health economics","heor","pharmacoeconomic"],
+  };
+  const sectors = [];
+  for(const [sector, keywords] of Object.entries(sectorKeywords)){
+    if(keywords.some(k=>fullText.includes(k))) sectors.push(sector);
+  }
+
+  return { name, title, company, location, seniority, sectors, linkedin, email, phone };
+}
+
 // ── LinkedIn paste ────────────────────────────────────────────
 function LinkedInPaste({onParsed}){
   const[open,setOpen]=useState(false);
@@ -316,20 +427,12 @@ function LinkedInPaste({onParsed}){
     if(!text.trim())return;
     setLoading(true);setError("");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-dangerous-request-allowlist":"*"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
-          messages:[{role:"user",content:"Extract the PRIMARY person's details from this LinkedIn profile page text. LinkedIn pages often contain duplicated text and noise - ignore it and focus on the main person at the top.\n\nThe text may be messy with repeated words/phrases - that is normal, work with it.\n\nReturn ONLY a valid JSON object, absolutely nothing else, no backticks, no explanation.\n\nJSON fields:\n- name: their full name (string)\n- title: their current job title (string)\n- company: their current employer (string)\n- location: city and country (string)\n- seniority: exactly one of [Analyst / Consultant, Manager / Principal, VP / Director, C-Suite / Partner]\n- sectors: array of relevant tags from [Life Sciences, Strategy, Commercial, Oncology, RWE, Market Access, Operations, MedTech, Digital Health, Biotech, Regulatory, Pricing, Other]\n- linkedin: their LinkedIn profile URL if visible, else empty string\n\n- email: their email address if mentioned in the text, else empty string\n- phone: their phone number if mentioned in the text, else empty string\n\nProfile text:\n"+text.slice(0,5000)}]})});
-      if(!res.ok){const errText=await res.text();throw new Error("API error "+res.status+": "+errText);}
-      const data=await res.json();
-      const raw=(data.content?.[0]?.text||"").trim();
-      if(!raw)throw new Error("Empty response from AI");
-      const clean=raw.replace(/^```json|^```|```$/gm,"").trim();
-      const parsed=JSON.parse(clean);
-      if(!parsed.name)throw new Error("No name found in parsed data");
-      onParsed(parsed);setOpen(false);setText("");
+      const result = parseLinkedInProfile(text);
+      if(!result.name) throw new Error("Could not find a name. Make sure you copied the full profile page.");
+      onParsed(result);setOpen(false);setText("");
     }catch(err){
       console.error("LinkedIn parse error:",err);
-      setError("Could not import: "+err.message+". Try selecting just the top section of the profile (name, headline, current role).");
+      setError("Could not import: "+err.message);
     }
     setLoading(false);
   };
