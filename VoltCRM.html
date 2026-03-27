@@ -1,1777 +1,1178 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>VoltConsulting CRM</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body, #root { height: 100%; width: 100%; overflow: hidden; }
-    body { font-family: Aptos, Calibri, 'Segoe UI', sans-serif; background: #f8f9fa; }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VoltConsulting CRM</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:Aptos,Calibri,'Segoe UI',sans-serif;background:#f8f9fa;color:#212529}
+#root{height:100%}
+input,textarea,select,button{font-family:inherit}
+input::placeholder,textarea::placeholder{color:#adb5bd}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#dee2e6;border-radius:3px}
+</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useMemo, useEffect, useCallback, useRef } = React;
-
-    // Global error boundary
-    class ErrorBoundary extends React.Component {
-      constructor(props){super(props);this.state={error:null};}
-      static getDerivedStateFromError(e){return{error:e};}
-      render(){
-        if(this.state.error)return(
-          <div style={{padding:40,fontFamily:"sans-serif",color:"#dc3545",background:"#fff5f5",minHeight:"100vh"}}>
-            <h2>CRM Error</h2>
-            <pre style={{background:"#fff",padding:20,borderRadius:8,fontSize:12,overflow:"auto",color:"#333"}}>
-              {this.state.error.toString()}
-              {this.state.error.stack}
-            </pre>
-            <p>Please screenshot this and send to your developer.</p>
-          </div>
-        );
-        return this.props.children;
-      }
-    }
-
-// ── Airtable sync (simple JSON blob approach) ─────────────────
-// Credentials stored in browser localStorage — never in the file
-let AT_TOKEN  = localStorage.getItem("volt_at_token") || "";
-let AT_BASE   = localStorage.getItem("volt_at_base")  || "";
-let AT_TABLE  = localStorage.getItem("volt_at_table") || "";
-const AT_URL    = "https://api.airtable.com/v0/" + AT_BASE + "/" + AT_TABLE;
-
-async function atGet(url) {
-  const r = await fetch(url, {headers:{"Authorization":"Bearer "+AT_TOKEN}});
-  if(!r.ok) throw new Error("AT " + r.status + " " + await r.text());
-  return r.json();
-}
-async function atPost(url, body) {
-  const r = await fetch(url, {method:"POST",headers:{"Authorization":"Bearer "+AT_TOKEN,"Content-Type":"application/json"},body:JSON.stringify(body)});
-  if(!r.ok) throw new Error("AT " + r.status + " " + await r.text());
-  return r.json();
-}
-async function atPatch(url, body) {
-  const r = await fetch(url, {method:"PATCH",headers:{"Authorization":"Bearer "+AT_TOKEN,"Content-Type":"application/json"},body:JSON.stringify(body)});
-  if(!r.ok) throw new Error("AT " + r.status + " " + await r.text());
-  return r.json();
-}
-
-// We store two "data" records in Table 1:
-// Row named "PEOPLE"   — Notes field contains JSON array of all people
-// Row named "COMPANIES" — Notes field contains JSON array of all companies
-// We track their record IDs in localStorage so we don't re-create them
-
-async function getOrCreateRecord(name) {
-  // Check localStorage for cached record ID
-  const cachedId = localStorage.getItem("at_id_" + name);
-  
-  // Try to find existing record
-  const data = await atGet(AT_URL + "?filterByFormula=Name%3D%22" + encodeURIComponent(name) + "%22");
-  if(data.records && data.records.length > 0) {
-    const id = data.records[0].id;
-    localStorage.setItem("at_id_" + name, id);
-    return data.records[0];
-  }
-  
-  // Create it
-  const created = await atPost(AT_URL, {records:[{fields:{Name:name,Notes:"[]"}}]});
-  const id = created.records[0].id;
-  localStorage.setItem("at_id_" + name, id);
-  return created.records[0];
-}
-
-async function loadFromAirtable() {
-  const [pr, cr] = await Promise.all([
-    getOrCreateRecord("PEOPLE"),
-    getOrCreateRecord("COMPANIES"),
-  ]);
-  
-  let people = [], companies = [];
-  try { people = JSON.parse(pr.fields.Notes || "[]"); } catch {}
-  try { companies = JSON.parse(cr.fields.Notes || "[]"); } catch {}
-  
-  // Cache locally
-  if(people.length)    localStorage.setItem("voltcrm5-people",    JSON.stringify(people));
-  if(companies.length) localStorage.setItem("voltcrm5-companies", JSON.stringify(companies));
-  
-  return { people, companies };
-}
-
-async function saveToAirtable(name, data) {
-  // Get or create record ID
-  const rec = await getOrCreateRecord(name);
-  const recId = rec.id || localStorage.getItem("at_id_" + name);
-  await atPatch(AT_URL + "/" + recId, {fields:{Notes: JSON.stringify(data)}});
-}
-
-// Simple localStorage shim for CRM internal cache
-window.storage = {
-  get: async k => { try { const v=localStorage.getItem(k); return v?{key:k,value:v}:null; } catch { return null; } },
-  set: async (k,v) => { try { localStorage.setItem(k,v); return {key:k,value:v}; } catch { return null; } },
-  delete: async k => { try { localStorage.removeItem(k); return {key:k,deleted:true}; } catch { return null; } },
-  list: async prefix => { try { const keys=Object.keys(localStorage).filter(k=>!prefix||k.startsWith(prefix)); return {keys}; } catch { return {keys:[]}; } }
-};
-
-
-const LOGO_SRC = "https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png";
-
-const TEAL="#00C2C7",NAVY="#0D1B2A",TL="#e6fafa",TM="#b3f0f1";
-const W="#fff",G50="#f8f9fa",G100="#f1f3f5",G200="#e9ecef",G300="#dee2e6";
-const G400="#ced4da",G600="#6c757d",G700="#495057",G800="#343a40",G900="#212529";
-const DANGER="#dc3545",WARN="#e8a020",OK="#198754";
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;font-size:14px;color:#6c757d">Loading VoltConsulting CRM…</div></div>
+<script>
+// ── Config ────────────────────────────────────────────────────
+const TEAL="#00C2C7",NAVY="#0D1B2A",W="#fff",G50="#f8f9fa",G100="#f1f3f5",G200="#e9ecef",G300="#dee2e6",G400="#ced4da",G600="#6c757d",G700="#495057",G800="#343a40",G900="#212529";
+const DANGER="#dc3545",WARN="#e8a020",OK="#198754",TL="#e6fafa",TM="#b3f0f1";
 const REL={Hot:"#dc3545",Warm:"#e8a020",Cold:"#ced4da",New:"#00C2C7"};
 const SC={"Life Sciences":"#00C2C7","Strategy":"#6f42c1","Commercial":"#e8a020","Oncology":"#dc3545","RWE":"#0dcaf0","Market Access":"#6610f2","Operations":"#198754","MedTech":"#fd7e14","Digital Health":"#d63384","Biotech":"#20c997","Regulatory":"#ffc107","Pricing":"#0d6efd","Other":"#6c757d"};
 const SECTORS=Object.keys(SC);
-const TC_MAP={"Key Client":TEAL,"Warm":WARN,"Prospect":G600};
-
-async function sGet(k){try{const r=await window.storage.get(k);return r?JSON.parse(r.value):null;}catch{return null;}}
-async function sSet(k,v){try{await window.storage.set(k,JSON.stringify(v));}catch{}}
-
+const TC={"Key Client":TEAL,"Warm":WARN,"Prospect":G600};
 const today=new Date().toISOString().slice(0,10);
 const dF=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
 
+// ── Airtable ──────────────────────────────────────────────────
+let AT_TOKEN=localStorage.getItem("volt_at_token")||"";
+let AT_BASE=localStorage.getItem("volt_at_base")||"";
+let AT_TABLE=localStorage.getItem("volt_at_table")||"";
+
+async function atFetch(path,opts={}){
+  const r=await fetch("https://api.airtable.com/v0/"+AT_BASE+"/"+AT_TABLE+path,{...opts,headers:{"Authorization":"Bearer "+AT_TOKEN,"Content-Type":"application/json",...(opts.headers||{})}});
+  if(!r.ok)throw new Error("AT "+r.status);
+  return r.json();
+}
+async function getOrCreate(name){
+  const d=await atFetch("?filterByFormula=Name%3D%22"+encodeURIComponent(name)+"%22");
+  if(d.records&&d.records.length>0){localStorage.setItem("atid_"+name,d.records[0].id);return d.records[0];}
+  const c=await atFetch("",{method:"POST",body:JSON.stringify({records:[{fields:{Name:name,Notes:"[]"}}]})});
+  localStorage.setItem("atid_"+name,c.records[0].id);return c.records[0];
+}
+async function loadAT(){
+  const[p,c]=await Promise.all([getOrCreate("PEOPLE"),getOrCreate("COMPANIES")]);
+  let people=[],companies=[];
+  try{people=JSON.parse(p.fields.Notes||"[]");}catch{}
+  try{companies=JSON.parse(c.fields.Notes||"[]");}catch{}
+  if(people.length)localStorage.setItem("vcrm-people",JSON.stringify(people));
+  if(companies.length)localStorage.setItem("vcrm-companies",JSON.stringify(companies));
+  return{people,companies};
+}
+async function saveAT(name,data){
+  const rec=await getOrCreate(name);
+  const id=rec.id||localStorage.getItem("atid_"+name);
+  await atFetch("/"+id,{method:"PATCH",body:JSON.stringify({fields:{Notes:JSON.stringify(data)}})});
+}
+
+// ── LinkedIn parser ───────────────────────────────────────────
+function parseLinkedIn(text){
+  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
+  const skip=["message","connect","follow","more","highlights","about","experience","education","activity","featured","contact","mutual","connections","followers","posts","comments","premium","following"];
+  let name="";
+  for(const line of lines){
+    const w=line.split(/\s+/);
+    if(w.length>=2&&w.length<=5&&!line.includes("|")&&!line.includes("@")&&!line.includes("http")&&!skip.includes(line.toLowerCase())&&/^[A-Za-zÀ-ÿ\s.\-']+$/.test(line)){
+      name=line.replace(/,\s*(Assoc|PhD|MD|MBA|MSc|BSc|BA|MA|Dr\.?).*/i,"").trim();
+      break;
+    }
+  }
+  let title="",company="";
+  for(const line of lines){
+    if(line.includes("|")&&!line.includes("http")){
+      const parts=line.split("|").map(p=>p.trim()).filter(Boolean);
+      if(parts.length>=2){title=parts[0].trim();company=parts[1].replace(/·.*/,"").trim();break;}
+    }
+  }
+  if(!title){
+    for(const line of lines){
+      if(/(founder|director|manager|partner|consultant|analyst|head of|vp |vice president|officer)/i.test(line)&&line.length<100){title=line;break;}
+    }
+  }
+  let location="";
+  for(const line of lines){
+    if(/(metropolitan area|united kingdom|ireland|germany|france|switzerland|netherlands|belgium|spain|italy|sweden|united states)/i.test(line)&&line.length<60){location=line.replace(/Contact info.*/i,"").trim();break;}
+    if(/^[A-Z][a-z]+,\s*[A-Z]/.test(line)&&line.length<50){location=line;break;}
+  }
+  const emailM=text.match(/[\w.\-]+@[\w.\-]+\.[a-z]{2,}/i);
+  const email=emailM?emailM[0]:"";
+  const phoneM=text.match(/(\+?[\d\s\-()]{10,18})/);
+  let phone="";
+  if(phoneM){const p=phoneM[1].trim();if(p.replace(/\D/g,"").length>=10)phone=p;}
+  const liM=text.match(/linkedin\.com\/in\/[\w\-]+/i);
+  const linkedin=liM?"https://www."+liM[0]:"";
+  let seniority="Manager / Principal";
+  const tl=(title||"").toLowerCase();
+  if(/(founder|ceo|coo|cfo|chief|partner|president|managing director)/i.test(tl))seniority="C-Suite / Partner";
+  else if(/(vp |vice president|director)/i.test(tl))seniority="VP / Director";
+  else if(/(analyst|graduate|junior)/i.test(tl))seniority="Analyst / Consultant";
+  const ft=text.toLowerCase();
+  const sectors=[];
+  const km={"Life Sciences":["life science","pharma","biopharma"],"Strategy":["strategy","consulting"],"Commercial":["commercial","sales"],"Oncology":["oncology","cancer"],"RWE":["real world evidence","rwe"],"Market Access":["market access","hta"],"Operations":["operations"],"MedTech":["medtech","medical device"],"Digital Health":["digital health"],"Biotech":["biotech","biotechnology"],"Regulatory":["regulatory"],"Pricing":["pricing","heor","health economics"]};
+  for(const[s,kws]of Object.entries(km)){if(kws.some(k=>ft.includes(k)))sectors.push(s);}
+  return{name,title,company,location,seniority,sectors,linkedin,email,phone};
+}
+
+function parseLinkedInCompany(text){
+  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
+  const skip=["home","about","posts","jobs","people","videos","linkedin","follow","message","website","industry","company size","headquarters","founded","followers"];
+  let name="";
+  for(const line of lines){
+    if(line.length>2&&line.length<80&&!line.includes("http")&&!line.includes("#")&&!skip.some(w=>line.toLowerCase().startsWith(w))){name=line;break;}
+  }
+  let hq="";
+  for(const line of lines){
+    if(/(headquarters|hq):/i.test(line)){hq=line.replace(/(headquarters|hq):\s*/i,"").trim();break;}
+    if(/(metropolitan area|united kingdom|ireland|germany|france|london|boston|new york)/i.test(line)&&line.length<60){hq=line;break;}
+  }
+  let type="Consulting";
+  const ft=text.toLowerCase();
+  if(/(pharma|pharmaceutical)/i.test(ft))type="Pharma";
+  else if(/biotech/i.test(ft))type="Biotech";
+  else if(/medtech|medical device/i.test(ft))type="MedTech";
+  let notes="";
+  const ai=text.search(/\bAbout\b/i);
+  if(ai>-1)notes=text.slice(ai+5).trim().slice(0,200).replace(/\n+/g," ");
+  return{name,hq,type,tier:"Prospect",relationship:"Cold",notes};
+}
+
+// ── Seed data ─────────────────────────────────────────────────
 const SEED_PEOPLE=[
-  {id:1,type:"candidate",name:"Dr. Sarah Chen",title:"VP Strategy",company:"Huron Consulting",companyId:5,location:"London",seniority:"VP / Director",sectors:["Life Sciences","Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-5),nextAction:"Follow up re: CRA opportunity",nextDue:dF(2),relationship:"Warm",notes:"Strong BCG background. Open to right move."},
-  {id:2,type:"candidate",name:"James Okafor",title:"Principal",company:"ZS Associates",companyId:6,location:"Boston",seniority:"Manager / Principal",sectors:["Commercial","Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-30),nextAction:"Check in — placement anniversary",nextDue:dF(7),relationship:"Hot",notes:"Placed at CRA Jan 2025. Great referral source."},
-  {id:3,type:"candidate",name:"Priya Mehta",title:"Associate Director",company:"IQVIA",companyId:7,location:"New York",seniority:"Manager / Principal",sectors:["RWE","Market Access"],linkedin:"",email:"",phone:"",lastContacted:dF(-14),nextAction:"Send Roche JD",nextDue:dF(1),relationship:"Warm",notes:"6-12 month horizon. Wants boutique."},
-  {id:4,type:"contact",name:"Maria Lopez",title:"Chief People Officer",company:"Charles River Associates",companyId:1,location:"Boston",seniority:"C-Suite / Partner",sectors:["Strategy","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-3),nextAction:"Send shortlist for Energy role",nextDue:dF(1),relationship:"Hot",notes:"Key decision maker. Prefers WhatsApp."},
-  {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),nextAction:"Schedule longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Very responsive. Wants weekly updates."},
+  {id:1,type:"candidate",name:"Dr. Sarah Chen",title:"VP Strategy",company:"Huron Consulting",companyId:5,location:"London",seniority:"VP / Director",sectors:["Life Sciences","Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-5),nextAction:"Follow up re: CRA opportunity",nextDue:dF(2),relationship:"Warm",notes:"Strong BCG background."},
+  {id:2,type:"candidate",name:"James Okafor",title:"Principal",company:"ZS Associates",companyId:6,location:"Boston",seniority:"Manager / Principal",sectors:["Commercial","Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-30),nextAction:"Check in",nextDue:dF(7),relationship:"Hot",notes:"Placed at CRA Jan 2025."},
+  {id:3,type:"candidate",name:"Priya Mehta",title:"Associate Director",company:"IQVIA",companyId:7,location:"New York",seniority:"Manager / Principal",sectors:["RWE","Market Access"],linkedin:"",email:"",phone:"",lastContacted:dF(-14),nextAction:"Send Roche JD",nextDue:dF(1),relationship:"Warm",notes:"6-12 month horizon."},
+  {id:4,type:"contact",name:"Maria Lopez",title:"Chief People Officer",company:"Charles River Associates",companyId:1,location:"Boston",seniority:"C-Suite / Partner",sectors:["Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-3),nextAction:"Send shortlist",nextDue:dF(1),relationship:"Hot",notes:"Key decision maker."},
+  {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),nextAction:"Longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Wants weekly updates."},
 ];
 const SEED_COMPANIES=[
-  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openMandates:2,lastContacted:dF(-3),nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Hot",notes:"Retained engagement ongoing."},
-  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openMandates:1,lastContacted:dF(-7),nextAction:"Longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Global Oncology search."},
-  {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openMandates:0,lastContacted:dF(-45),nextAction:"Introductory call",nextDue:dF(10),relationship:"Cold",notes:"Intro via network."},
-  {id:4,name:"Vertex Pharmaceuticals",type:"Pharma",tier:"Warm",hq:"Boston",keyContact:"James Carney",openMandates:0,lastContacted:dF(-20),nextAction:"Follow up on pipeline",nextDue:dF(5),relationship:"Warm",notes:"Warm intro via Brinda."},
+  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openMandates:2,lastContacted:dF(-3),nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Hot",notes:"Retained engagement."},
+  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openMandates:1,lastContacted:dF(-7),nextAction:"Longlist call",nextDue:dF(3),relationship:"Warm",notes:"Global Oncology search."},
+  {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openMandates:0,lastContacted:dF(-45),nextAction:"Intro call",nextDue:dF(10),relationship:"Cold",notes:"Not yet engaged."},
+  {id:4,name:"Vertex Pharmaceuticals",type:"Pharma",tier:"Warm",hq:"Boston",keyContact:"James Carney",openMandates:0,lastContacted:dF(-20),nextAction:"Follow up",nextDue:dF(5),relationship:"Warm",notes:"Warm intro via Brinda."},
   {id:5,name:"Huron Consulting",type:"Consulting",tier:"Prospect",hq:"Chicago",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
   {id:6,name:"ZS Associates",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
   {id:7,name:"IQVIA",type:"Pharma",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
 ];
 
-function normalize(s){return(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");}
-function similarity(a,b){
-  const na=normalize(a),nb=normalize(b);
-  if(!na||!nb)return 0;
-  if(na===nb)return 1;
-  if(na.includes(nb)||nb.includes(na))return 0.85;
-  const bigrams=s=>{const b=new Set();for(let i=0;i<s.length-1;i++)b.add(s.slice(i,i+2));return b;};
-  const ba=bigrams(na),bb=bigrams(nb);
-  let inter=0;ba.forEach(g=>{if(bb.has(g))inter++;});
-  return(2*inter)/(ba.size+bb.size||1);
-}
-function findDupePeople(name,company,people,excludeId){
-  return people.filter(p=>{
-    if(p.id===excludeId)return false;
-    const ns=similarity(name,p.name);
-    if(ns<0.8)return false;
-    if(company&&p.company)return similarity(company,p.company)>0.7||ns>0.92;
-    return ns>0.92;
-  });
-}
-function findDupeCompanies(name,companies,excludeId){
-  return companies.filter(c=>c.id!==excludeId&&similarity(name,c.name)>=0.82);
-}
+// ── Fuzzy match ───────────────────────────────────────────────
+function norm(s){return(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");}
+function sim(a,b){const na=norm(a),nb=norm(b);if(!na||!nb)return 0;if(na===nb)return 1;if(na.includes(nb)||nb.includes(na))return 0.85;const bg=s=>{const b=new Set();for(let i=0;i<s.length-1;i++)b.add(s.slice(i,i+2));return b;};const ba=bg(na),bb=bg(nb);let inter=0;ba.forEach(g=>{if(bb.has(g))inter++;});return(2*inter)/(ba.size+bb.size||1);}
+function findDupePeople(name,company,people,excludeId){return people.filter(p=>{if(p.id===excludeId)return false;const ns=sim(name,p.name);if(ns<0.8)return false;if(company&&p.company)return sim(company,p.company)>0.7||ns>0.92;return ns>0.92;});}
+function findDupeCompanies(name,companies,excludeId){return companies.filter(c=>c.id!==excludeId&&sim(name,c.name)>=0.82);}
 function autoLinkCompany(personCompany,companies){
   if(!personCompany?.trim())return{companies,companyId:null};
-  const match=companies.find(c=>similarity(personCompany,c.name)>=0.82);
-  if(match)return{companies,companyId:match.id};
-  const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created from people record."};
-  return{companies:[...companies,newCo],companyId:newCo.id};
+  const m=companies.find(c=>sim(personCompany,c.name)>=0.82);
+  if(m)return{companies,companyId:m.id};
+  const nc={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."};
+  return{companies:[...companies,nc],companyId:nc.id};
 }
 
-// ── UI primitives ─────────────────────────────────────────────
-const Av=({name="?",size=36,color=TEAL})=>{
-  const i=name.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-  return <div style={{width:size,height:size,borderRadius:"50%",background:color+"15",border:"1.5px solid "+color+"40",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.33,fontWeight:700,color,flexShrink:0}}>{i}</div>;
+// ── State ─────────────────────────────────────────────────────
+let state={
+  view:"bd",people:SEED_PEOPLE,companies:SEED_COMPANIES,
+  ready:false,saveState:null,syncStatus:"loading",
+  selPerson:null,selCompany:null,personTab:"Overview",
+  modal:null,modalData:null,
+  searchQ:"",searchResults:[],showSearch:false,
+  typeFilter:"all",relFilter:"all",tierFilter:"all",
+  li_text:"",li_loading:false,li_error:"",
+  co_li_text:"",co_li_loading:false,co_li_error:"",
+  setupToken:"",setupBase:"appD0JD8AUdtR6thY",setupTable:"tblUL48Km1j2m8sRU",setupTesting:false,setupError:"",
+  dupes:[],dupeDismissed:false,
+  mapView:"people",mapSectorF:"All",mapRelF:"All",
 };
-const Badge=({label,color=TEAL})=>(
-  <span style={{background:color+"12",color,border:"1px solid "+color+"35",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{label}</span>
-);
-const RelDot=({rel})=>(
-  <span style={{display:"inline-flex",alignItems:"center",gap:5}}>
-    <span style={{width:7,height:7,borderRadius:"50%",background:REL[rel]||G400,display:"inline-block"}}/>
-    <span style={{fontSize:11,color:REL[rel]||G600,fontWeight:600}}>{rel}</span>
-  </span>
-);
-const DueTag=({due})=>{
+
+function setState(patch){Object.assign(state,typeof patch==="function"?patch(state):patch);render();}
+
+// ── Persistence ───────────────────────────────────────────────
+async function persist(key,data){
+  setState({saveState:"saving"});
+  localStorage.setItem("vcrm-"+key,JSON.stringify(data));
+  try{await saveAT(key==="people"?"PEOPLE":"COMPANIES",data);setState({syncStatus:"ok"});}
+  catch(e){console.warn("AT save fail:",e);setState({syncStatus:"offline"});}
+  setState({saveState:"saved"});
+  setTimeout(()=>setState({saveState:null}),2500);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+async function init(){
+  if(!AT_TOKEN){setState({ready:true});return;}
+  setState({syncStatus:"loading"});
+  try{
+    const data=await loadAT();
+    const p=data.people.length>0?data.people:JSON.parse(localStorage.getItem("vcrm-people")||"[]");
+    const c=data.companies.length>0?data.companies:JSON.parse(localStorage.getItem("vcrm-companies")||"[]");
+    setState({people:p.length?p:SEED_PEOPLE,companies:c.length?c:SEED_COMPANIES,syncStatus:"ok"});
+    if(!data.people.length&&!data.companies.length){
+      await saveAT("PEOPLE",state.people);
+      await saveAT("COMPANIES",state.companies);
+    }
+  }catch(e){
+    console.warn("AT load fail:",e.message);
+    const p=JSON.parse(localStorage.getItem("vcrm-people")||"[]");
+    const c=JSON.parse(localStorage.getItem("vcrm-companies")||"[]");
+    setState({people:p.length?p:SEED_PEOPLE,companies:c.length?c:SEED_COMPANIES,syncStatus:"offline"});
+  }
+  setState({ready:true});
+}
+
+// ── Due label ─────────────────────────────────────────────────
+function dueLabel(due){
   if(!due)return null;
   const d=Math.ceil((new Date(due)-new Date())/86400000);
-  if(d>3)return <span style={{fontSize:11,color:G600}}>{due}</span>;
-  if(d>=0)return <span style={{fontSize:11,fontWeight:700,color:WARN}}>{d===0?"Due today":"Due in "+d+"d"}</span>;
-  return <span style={{fontSize:11,fontWeight:700,color:DANGER}}>{"Overdue "+Math.abs(d)+"d"}</span>;
-};
-const Inp=({value,onChange,placeholder,type="text",style={}})=>(
-  <input type={type} value={value??""} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-    style={{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",color:G900,fontSize:13,outline:"none",width:"100%",fontFamily:"inherit",...style}}/>
-);
-const Tarea=({value,onChange,placeholder,rows=3})=>(
-  <textarea value={value??""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows}
-    style={{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",color:G900,fontSize:13,outline:"none",width:"100%",fontFamily:"inherit",resize:"vertical"}}/>
-);
-const SelEl=({value,onChange,options,style={}})=>(
-  <select value={value} onChange={e=>onChange(e.target.value)}
-    style={{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",color:G900,fontSize:13,outline:"none",fontFamily:"inherit",width:"100%",cursor:"pointer",...style}}>
-    {options.map(o=>typeof o==="string"?<option key={o} value={o}>{o}</option>:<option key={o.v} value={o.v}>{o.l}</option>)}
-  </select>
-);
-const Btn=({children,onClick,variant="primary",small,style={}})=>{
-  const vs={primary:{bg:TEAL,color:W,border:"none"},ghost:{bg:"transparent",color:G600,border:"1px solid "+G300},danger:{bg:"transparent",color:DANGER,border:"1px solid "+DANGER+"44"},teal:{bg:TL,color:TEAL,border:"1px solid "+TM}};
-  const v=vs[variant]||vs.primary;
-  return <button onClick={onClick} style={{background:v.bg,color:v.color,border:v.border,borderRadius:6,padding:small?"5px 12px":"8px 18px",fontWeight:600,fontSize:small?12:13,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",...style}}>{children}</button>;
-};
-const Fld=({label,children,span2})=>(
-  <div style={{marginBottom:14,gridColumn:span2?"span 2":"span 1"}}>
-    <div style={{fontSize:11,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div>
-    {children}
-  </div>
-);
-const ModalEl=({title,onClose,children,wide})=>(
-  <div style={{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}} onClick={onClose}>
-    <div onClick={e=>e.stopPropagation()} style={{background:W,borderRadius:12,padding:"28px 32px",width:wide?700:560,maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px #0003",border:"1px solid "+G200}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22,paddingBottom:16,borderBottom:"1px solid "+G200}}>
-        <span style={{fontWeight:700,fontSize:18,color:NAVY}}>{title}</span>
-        <button onClick={onClose} style={{background:"none",border:"none",color:G400,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
-      </div>
-      {children}
-    </div>
-  </div>
-);
-const InfoCard=({label,children})=>(
-  <div style={{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"12px 16px"}}>
-    <div style={{fontSize:10.5,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div>
-    {children}
-  </div>
-);
-const TabBar=({tabs,active,onChange})=>(
-  <div style={{display:"flex",borderBottom:"1px solid "+G200}}>
-    {tabs.map(t=>(
-      <button key={t} onClick={()=>onChange(t)} style={{background:"none",border:"none",borderBottom:"2px solid "+(active===t?TEAL:"transparent"),marginBottom:-1,padding:"10px 18px",fontSize:13,fontWeight:active===t?700:400,color:active===t?TEAL:G600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.12s"}}>{t}</button>
-    ))}
-  </div>
-);
-const DupeBanner=({dupes,onDismiss})=>{
-  if(!dupes||dupes.length===0)return null;
-  return(
-    <div style={{background:"#fff8e1",border:"1px solid "+WARN,borderRadius:8,padding:"12px 16px",marginBottom:16}}>
-      <div style={{fontWeight:700,color:WARN,fontSize:13,marginBottom:6}}>⚠ Possible duplicate{dupes.length>1?"s":""} found</div>
-      {dupes.map(d=><div key={d.id} style={{fontSize:13,color:G800,marginBottom:3}}><strong>{d.name}</strong> — {d.title||d.type} at {d.company||d.hq||""}</div>)}
-      <div style={{display:"flex",gap:10,marginTop:10}}>
-        <Btn variant="ghost" small onClick={onDismiss}>Save anyway</Btn>
-        <span style={{fontSize:12,color:G600,alignSelf:"center"}}>or close to cancel</span>
-      </div>
-    </div>
-  );
-};
-const SectorPicker=({selected,onChange})=>(
-  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-    {SECTORS.map(s=>{
-      const on=selected.includes(s),c=SC[s];
-      return <button key={s} onClick={()=>onChange(on?selected.filter(x=>x!==s):[...selected,s])} style={{background:on?c+"15":W,color:on?c:G600,border:"1px solid "+(on?c+"50":G300),borderRadius:4,padding:"4px 10px",fontSize:11,fontWeight:on?700:400,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>;
-    })}
-  </div>
-);
-
-// ── Quick log panel ───────────────────────────────────────────
-function QuickLog({item,onUpdate}){
-  const[note,setNote]=useState("");
-  const[na,setNa]=useState(item.nextAction||"");
-  const[nd,setNd]=useState(item.nextDue||"");
-  const log=()=>{
-    const ts=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
-    const newNote=note.trim()?"["+ts+"] "+note.trim()+"\n\n"+(item.notes||""):item.notes;
-    onUpdate({notes:newNote,lastContacted:today,nextAction:na,nextDue:nd});
-    setNote("");
-  };
-  return(
-    <div style={{background:G50,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200}}>
-      <div style={{fontSize:11,color:TEAL,marginBottom:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Log Interaction</div>
-      <Tarea value={note} onChange={setNote} placeholder="Notes from this call, email or meeting…" rows={2}/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
-        <div>
-          <div style={{fontSize:11,color:G600,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Next Action</div>
-          <Inp value={na} onChange={setNa} placeholder="Follow up / Send JD…"/>
-        </div>
-        <div>
-          <div style={{fontSize:11,color:G600,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Due Date</div>
-          <Inp type="date" value={nd} onChange={setNd}/>
-        </div>
-      </div>
-      <div style={{marginTop:10,display:"flex",justifyContent:"flex-end"}}>
-        <Btn small onClick={log}>✓ Log & Update</Btn>
-      </div>
-    </div>
-  );
+  if(d>3)return{text:due,color:G600};
+  if(d>=0)return{text:d===0?"Due today":"Due in "+d+"d",color:WARN};
+  return{text:"Overdue "+Math.abs(d)+"d",color:DANGER};
 }
 
-
-// ── Local LinkedIn profile parser (no API needed) ─────────────
-function parseLinkedInProfile(text){
-  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
-
-  // Extract name: first non-empty line that looks like a name
-  // (2+ words, no special chars, not a URL, not a button label)
-  let name = "";
-  const skipWords = ["message","connect","follow","more","highlights","about","experience","education","activity","featured","contact","info","mutual","connections","followers","posts","comments","videos","images","premium"];
-  for(const line of lines){
-    const clean = line.replace(/,\s*Assoc.*$/i,"").replace(/,\s*(PhD|MD|MBA|MSc|BSc|BA|MA|Dr\.?).*$/i,"").trim();
-    const words = clean.split(/\s+/);
-    if(words.length >= 2 && words.length <= 5 &&
-       !clean.includes("http") && !clean.includes("|") &&
-       !clean.includes("#") && !clean.includes("@") &&
-       !skipWords.includes(clean.toLowerCase()) &&
-       /^[A-Za-zÀ-ÿ\s\.\-\']+$/.test(clean)){
-      name = line.replace(/,\s*Assoc.*$/i,"").replace(/,\s*(PhD|MD|MBA|MSc|BSc|BA|MA).*$/i,"").trim();
-      break;
-    }
+// ── HTML builders ─────────────────────────────────────────────
+function h(tag,attrs,...children){
+  const el=document.createElement(tag);
+  for(const[k,v]of Object.entries(attrs||{})){
+    if(k==="style"&&typeof v==="object"){Object.assign(el.style,v);}
+    else if(k.startsWith("on")&&typeof v==="function"){el.addEventListener(k.slice(2).toLowerCase(),v);}
+    else if(k==="className"){el.className=v;}
+    else if(k==="htmlFor"){el.htmlFor=v;}
+    else{el[k]=v;}
   }
-
-  // Extract headline (line with | separators after name)
-  let title = "", company = "";
-  for(const line of lines){
-    if(line.includes("|") && !line.includes("http")){
-      const parts = line.split("|").map(p=>p.trim()).filter(Boolean);
-      if(parts.length >= 2){
-        // title is first part, company is second
-        title = parts[0].replace(/Co-Founder of /i,"Co-Founder").trim();
-        company = parts[1].replace(/\s*\|.*$/,"").trim();
-        // Clean up company - remove "Full-time" etc
-        company = company.replace(/·.*$/,"").trim();
-        break;
-      }
-    }
+  for(const c of children.flat()){
+    if(c==null||c===false||c===undefined)continue;
+    el.appendChild(typeof c==="string"||typeof c==="number"?document.createTextNode(String(c)):c);
   }
-
-  // If no pipe-separated headline, look for job title patterns
-  if(!title){
-    for(const line of lines){
-      if(/(founder|director|manager|partner|consultant|analyst|associate|head of|vp |vice president|president|officer|lead|specialist|executive)/i.test(line) && line.length < 100){
-        title = line.trim();
-        break;
-      }
-    }
-  }
-
-  // Extract location (usually "City, Country" or "City Metropolitan Area")
-  let location = "";
-  for(const line of lines){
-    if(/(metropolitan area|united kingdom|united states|ireland|germany|france|switzerland|netherlands|belgium|spain|italy|sweden|denmark|norway)/i.test(line) && line.length < 60){
-      location = line.replace(/Contact info.*/i,"").trim();
-      break;
-    }
-    // "City, Country" pattern
-    if(/^[A-Z][a-zA-Z\s]+,\s*[A-Z][a-zA-Z\s]+$/.test(line) && line.length < 50){
-      location = line.trim();
-      break;
-    }
-  }
-
-  // Extract email
-  let email = "";
-  const emailMatch = text.match(/[\w\.\-]+@[\w\.\-]+\.[a-z]{2,}/i);
-  if(emailMatch) email = emailMatch[0];
-
-  // Extract phone
-  let phone = "";
-  const phoneMatch = text.match(/(\+?[\d\s\-\(\)]{10,18})/);
-  if(phoneMatch){
-    const p = phoneMatch[1].replace(/\s+/g," ").trim();
-    if(p.replace(/\D/g,"").length >= 10) phone = p;
-  }
-
-  // Extract LinkedIn URL
-  let linkedin = "";
-  const liMatch = text.match(/linkedin\.com\/in\/[\w\-]+/i);
-  if(liMatch) linkedin = "https://www." + liMatch[0];
-
-  // Infer seniority from title
-  let seniority = "Manager / Principal";
-  const tl = (title||"").toLowerCase();
-  if(/(founder|ceo|coo|cfo|cto|chief|partner|president|managing director|md )/i.test(tl)) seniority = "C-Suite / Partner";
-  else if(/(vp |vice president|director)/i.test(tl)) seniority = "VP / Director";
-  else if(/(analyst|graduate|associate consultant|junior)/i.test(tl)) seniority = "Analyst / Consultant";
-
-  // Infer sectors from full text
-  const fullText = text.toLowerCase();
-  const sectorKeywords = {
-    "Life Sciences": ["life science","biopharma","pharma","pharmaceutical","biotech"],
-    "Strategy": ["strategy","strategic","consulting","management consulting"],
-    "Commercial": ["commercial","sales","marketing"],
-    "Oncology": ["oncology","cancer","tumor","haematology"],
-    "RWE": ["real world evidence","rwe","real-world","real world data"],
-    "Market Access": ["market access","hta","reimbursement","access"],
-    "Operations": ["operations","supply chain","manufacturing"],
-    "MedTech": ["medtech","medical device","device","diagnostics"],
-    "Digital Health": ["digital health","digital","ai in health","healthtech"],
-    "Biotech": ["biotech","biotechnology","biologics","cell therapy","gene therapy"],
-    "Regulatory": ["regulatory","regulation","compliance","fda","ema"],
-    "Pricing": ["pricing","price","health economics","heor","pharmacoeconomic"],
-  };
-  const sectors = [];
-  for(const [sector, keywords] of Object.entries(sectorKeywords)){
-    if(keywords.some(k=>fullText.includes(k))) sectors.push(sector);
-  }
-
-  return { name, title, company, location, seniority, sectors, linkedin, email, phone };
+  return el;
 }
 
-// ── LinkedIn paste ────────────────────────────────────────────
-function LinkedInPaste({onParsed}){
-  const[open,setOpen]=useState(false);
-  const[text,setText]=useState("");
-  const[loading,setLoading]=useState(false);
-  const[error,setError]=useState("");
-  const parse=async()=>{
-    if(!text.trim())return;
-    setLoading(true);setError("");
+function btn(text,onClick,style={}){
+  return h("button",{onClick,style:{background:TEAL,color:W,border:"none",borderRadius:6,padding:"7px 16px",fontWeight:600,fontSize:13,cursor:"pointer",...style}},text);
+}
+function ghostBtn(text,onClick,style={}){
+  return btn(text,onClick,{background:"transparent",color:G600,border:"1px solid "+G300,...style});
+}
+function dangerBtn(text,onClick){
+  return btn(text,onClick,{background:"transparent",color:DANGER,border:"1px solid "+DANGER+"44"});
+}
+function tealBtn(text,onClick,style={}){
+  return btn(text,onClick,{background:TL,color:TEAL,border:"1px solid "+TM,...style});
+}
+
+function inp(value,onInput,placeholder,type="text",style={}){
+  const el=h("input",{type,placeholder,value:value||"",style:{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",fontSize:13,outline:"none",width:"100%",...style}});
+  el.addEventListener("input",e=>onInput(e.target.value));
+  return el;
+}
+function tarea(value,onInput,placeholder,rows=3){
+  const el=h("textarea",{placeholder,rows,style:{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",fontSize:13,outline:"none",width:"100%",resize:"vertical"}});
+  el.value=value||"";
+  el.addEventListener("input",e=>onInput(e.target.value));
+  return el;
+}
+function sel(value,onChange,options,style={}){
+  const el=h("select",{style:{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",fontSize:13,outline:"none",width:"100%",cursor:"pointer",...style}});
+  el.addEventListener("change",e=>onChange(e.target.value));
+  for(const o of options){
+    const opt=h("option",{value:typeof o==="string"?o:o.v},typeof o==="string"?o:o.l);
+    if((typeof o==="string"?o:o.v)===value)opt.selected=true;
+    el.appendChild(opt);
+  }
+  return el;
+}
+function fld(label,child,span2=false){
+  return h("div",{style:{marginBottom:14,gridColumn:span2?"span 2":"span 1"}},[
+    h("div",{style:{fontSize:11,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},label),
+    child
+  ]);
+}
+function av(name,size=36,color=TEAL){
+  const i=(name||"?").trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  return h("div",{style:{width:size,height:size,borderRadius:"50%",background:color+"15",border:"1.5px solid "+color+"40",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.33,fontWeight:700,color,flexShrink:0}},i);
+}
+function badge(label,color=TEAL){
+  return h("span",{style:{background:color+"12",color,border:"1px solid "+color+"35",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}},label);
+}
+function relDot(rel){
+  return h("span",{style:{display:"inline-flex",alignItems:"center",gap:5}},[
+    h("span",{style:{width:7,height:7,borderRadius:"50%",background:REL[rel]||G400,display:"inline-block"}}),
+    h("span",{style:{fontSize:11,color:REL[rel]||G600,fontWeight:600}},rel)
+  ]);
+}
+function dueTag(due){
+  const d=dueLabel(due);
+  if(!d)return h("span",{},"");
+  return h("span",{style:{fontSize:11,fontWeight:600,color:d.color}},d.text);
+}
+function infoCard(label,content){
+  return h("div",{style:{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"12px 16px"}},[
+    h("div",{style:{fontSize:10.5,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},label),
+    h("div",{style:{color:NAVY,fontSize:13,fontWeight:600}},content||"—")
+  ]);
+}
+
+// ── Modal ─────────────────────────────────────────────────────
+function modal(title,content,wide=false){
+  const overlay=h("div",{style:{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}});
+  const box=h("div",{style:{background:W,borderRadius:12,padding:"28px 32px",width:wide?700:560,maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px #0003",border:"1px solid "+G200}});
+  const header=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22,paddingBottom:16,borderBottom:"1px solid "+G200}},[
+    h("span",{style:{fontWeight:700,fontSize:18,color:NAVY}},title),
+    btn("×",()=>setState({modal:null,modalData:null,li_error:"",co_li_error:"",dupes:[],dupeDismissed:false}),{background:"transparent",color:G400,border:"none",fontSize:22,padding:"0 4px"})
+  ]);
+  box.appendChild(header);
+  box.appendChild(content);
+  overlay.appendChild(box);
+  overlay.addEventListener("click",e=>{if(e.target===overlay)setState({modal:null,modalData:null,li_error:"",co_li_error:"",dupes:[],dupeDismissed:false});});
+  return overlay;
+}
+
+// ── Setup screen ──────────────────────────────────────────────
+function renderSetup(){
+  const wrap=h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}});
+  const box=h("div",{style:{background:W,borderRadius:14,padding:"40px 48px",width:520,maxWidth:"100%",boxShadow:"0 4px 24px #0002",border:"1px solid "+G200}});
+  const title=h("div",{style:{fontWeight:800,fontSize:22,color:NAVY,marginBottom:8}});
+  title.textContent="VoltConsulting CRM";
+  const sub=h("div",{style:{fontSize:13,color:G600,marginBottom:24,lineHeight:1.6}});
+  sub.textContent="Enter your Airtable credentials to connect. Stored in your browser only.";
+
+  const tokenInput=inp(state.setupToken,v=>setState({setupToken:v}),"patXXXXXX…");
+  const baseInput=inp(state.setupBase,v=>setState({setupBase:v}),"appXXXXXX…");
+  const errDiv=h("div",{style:{color:DANGER,fontSize:13,marginBottom:12,display:state.setupError?"block":"none"}},state.setupError);
+
+  const connectBtn=btn(state.setupTesting?"Testing…":"Connect & Open CRM",async()=>{
+    if(!state.setupToken.trim()){setState({setupError:"Please enter your Airtable token"});return;}
+    setState({setupTesting:true,setupError:""});
     try{
-      const result = parseLinkedInProfile(text);
-      if(!result.name) throw new Error("Could not find a name. Make sure you copied the full profile page.");
-      onParsed(result);setOpen(false);setText("");
-    }catch(err){
-      console.error("LinkedIn parse error:",err);
-      setError("Could not import: "+err.message);
-    }
-    setLoading(false);
-  };
-  return(
-    <>
-      <Btn variant="teal" onClick={()=>setOpen(true)} style={{fontSize:13,padding:"7px 14px"}}>⚡ Paste from LinkedIn</Btn>
-      {open&&(
-        <ModalEl title="Import from LinkedIn" onClose={()=>{setOpen(false);setText("");setError("");}}>
-          <p style={{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}}>
-            Open the LinkedIn profile → select all text (Cmd/Ctrl+A) → copy → paste below.<br/>
-            <strong style={{color:NAVY}}>Tip:</strong> Or just select the top section of the profile (name, headline, current role) for cleaner results. AI will extract only that person's details.
-          </p>
-          <Tarea value={text} onChange={setText} placeholder="Paste LinkedIn profile text here…" rows={10}/>
-          {error&&<div style={{color:DANGER,fontSize:12,marginTop:8}}>{error}</div>}
-          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <Btn variant="ghost" onClick={()=>{setOpen(false);setText("");}}>Cancel</Btn>
-            <Btn onClick={parse} style={{opacity:loading?0.6:1}}>{loading?"Parsing…":"Import Profile"}</Btn>
-          </div>
-        </ModalEl>
-      )}
-    </>
+      const r=await fetch("https://api.airtable.com/v0/"+state.setupBase+"/"+state.setupTable+"?maxRecords=1",{headers:{"Authorization":"Bearer "+state.setupToken.trim()}});
+      if(!r.ok)throw new Error("Connection failed ("+r.status+") — check your token");
+      localStorage.setItem("volt_at_token",state.setupToken.trim());
+      localStorage.setItem("volt_at_base",state.setupBase.trim());
+      localStorage.setItem("volt_at_table",state.setupTable.trim());
+      AT_TOKEN=state.setupToken.trim();AT_BASE=state.setupBase.trim();AT_TABLE=state.setupTable.trim();
+      await init();
+    }catch(e){setState({setupTesting:false,setupError:e.message});}
+  },{width:"100%",padding:"11px 24px",fontSize:14,opacity:state.setupTesting?0.7:1});
+
+  box.append(title,sub,
+    fld("Personal Access Token",tokenInput),
+    fld("Base ID",baseInput),
+    errDiv,connectBtn,
+    h("div",{style:{marginTop:12,fontSize:12,color:G400,textAlign:"center"}},"Credentials saved in this browser only. Each team member enters once.")
   );
-}
-
-
-// ── Local LinkedIn company page parser ───────────────────────
-function parseLinkedInCompany(text){
-  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
-
-  // Company name: usually first prominent line
-  let name = "";
-  const skipWords = ["home","about","posts","jobs","people","videos","linkedin","follow","message","website","industry","company size","headquarters","founded","followers","employees"];
-  for(const line of lines){
-    if(line.length > 2 && line.length < 80 &&
-       !line.includes("http") && !line.includes("#") &&
-       !line.toLowerCase().includes("linkedin") &&
-       !skipWords.some(w => line.toLowerCase().startsWith(w))){
-      name = line.trim();
-      break;
-    }
-  }
-
-  // HQ: look for location patterns
-  let hq = "";
-  for(const line of lines){
-    if(/(headquarters|hq):/i.test(line)){
-      hq = line.replace(/(headquarters|hq):\s*/i,"").trim();
-      break;
-    }
-    if(/(metropolitan area|united kingdom|united states|ireland|germany|france|switzerland|netherlands|belgium|spain|italy|sweden|denmark|norway|london|new york|boston|paris|berlin|zurich|amsterdam)/i.test(line) && line.length < 60){
-      hq = line.trim();
-      break;
-    }
-  }
-
-  // Company type
-  let type = "Consulting";
-  const fullText = text.toLowerCase();
-  if(/(pharma|pharmaceutical|drug|medicine|clinical|biologic)/i.test(fullText)) type = "Pharma";
-  else if(/(biotech|biotechnology|gene therapy|cell therapy)/i.test(fullText)) type = "Biotech";
-  else if(/(medical device|medtech|diagnostics|surgical|implant)/i.test(fullText)) type = "MedTech";
-
-  // Notes: grab the About/description section
-  let notes = "";
-  const aboutIdx = text.search(/\bAbout\b/i);
-  if(aboutIdx > -1){
-    const afterAbout = text.slice(aboutIdx + 5).trim();
-    notes = afterAbout.slice(0, 300).replace(/\n+/g," ").trim();
-  }
-
-  return { name, hq, type, tier:"Prospect", relationship:"Cold", notes };
-}
-
-// ── LinkedIn paste for Companies ─────────────────────────────
-function CompanyLinkedInPaste({onParsed}){
-  const[open,setOpen]=useState(false);
-  const[text,setText]=useState("");
-  const[loading,setLoading]=useState(false);
-  const[error,setError]=useState("");
-      try{
-      const result = parseLinkedInCompany(text);
-      if(!result.name) throw new Error("Could not find a company name. Make sure you copied the company page.");
-      onParsed(result);setOpen(false);setText("");
-    }catch(err){
-      console.error("Company parse error:",err);
-      setError("Could not import: "+err.message);
-    }
-    setLoading(false);
-  };
-  return(
-    <>
-      <Btn variant="teal" onClick={()=>setOpen(true)} style={{fontSize:13,padding:"7px 14px"}}>⚡ Paste from LinkedIn</Btn>
-      {open&&(
-        <ModalEl title="Import Company from LinkedIn" onClose={()=>{setOpen(false);setText("");setError("");}}>
-          <p style={{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}}>
-            Open the LinkedIn company page → select all text (Cmd/Ctrl+A) → copy → paste below.<br/>
-            <strong style={{color:NAVY}}>Tip:</strong> The About section, company name and HQ are the most important parts.
-          </p>
-          <Tarea value={text} onChange={setText} placeholder="Paste LinkedIn company page text here…" rows={10}/>
-          {error&&<div style={{color:DANGER,fontSize:12,marginTop:8}}>{error}</div>}
-          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <Btn variant="ghost" onClick={()=>{setOpen(false);setText("");}}>Cancel</Btn>
-            <Btn onClick={parse} style={{opacity:loading?0.6:1}}>{loading?"Parsing…":"Import Company"}</Btn>
-          </div>
-        </ModalEl>
-      )}
-    </>
-  );
-}
-
-// ── CSV importer ──────────────────────────────────────────────
-const CSV_MAP={"name":"name","full name":"name","fullname":"name","title":"title","job title":"title","position":"title","role":"title","company":"company","employer":"company","organization":"company","location":"location","city":"location","linkedin":"linkedin","linkedin url":"linkedin","url":"linkedin","email":"email","email address":"email","relationship":"relationship","status":"relationship","sectors":"sectors","sector":"sectors","expertise":"sectors","notes":"notes","note":"notes","comments":"notes","seniority":"seniority","level":"seniority","last contacted":"lastContacted","last contact":"lastContacted","next action":"nextAction","action":"nextAction","next due":"nextDue","due date":"nextDue","due":"nextDue","type":"type"};
-
-function parseCSV(text){
-  const lines=text.trim().split(/\r?\n/);
-  if(lines.length<2)return{headers:[],rows:[]};
-  const first=lines[0];
-  const delim=first.split("\t").length>first.split(",").length?"\t":",";
-  const parseRow=line=>{
-    const cols=[];let cur="",inQ=false;
-    for(let i=0;i<line.length;i++){
-      const c=line[i];
-      if(c==='"'&&!inQ)inQ=true;
-      else if(c==='"'&&inQ&&line[i+1]==='"'){cur+='"';i++;}
-      else if(c==='"'&&inQ)inQ=false;
-      else if(c===delim&&!inQ){cols.push(cur.trim());cur="";}
-      else cur+=c;
-    }
-    cols.push(cur.trim());return cols;
-  };
-  const headers=parseRow(lines[0]).map(h=>h.replace(/^"|"$/g,"").trim());
-  const rows=lines.slice(1).filter(l=>l.trim()).map(l=>{
-    const vals=parseRow(l);const obj={};
-    headers.forEach((h,i)=>{obj[h]=vals[i]||"";});return obj;
-  });
-  return{headers,rows};
-}
-
-function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
-  const[step,setStep]=useState("upload");
-  const[raw,setRaw]=useState("");
-  const[parsed,setParsed]=useState(null);
-  const[mappings,setMappings]=useState({});
-  const[preview,setPreview]=useState([]);
-  const[results,setResults]=useState(null);
-  const fileRef=useRef(null);
-  const CRM_FIELDS=["ignore","name","title","company","location","type","seniority","sectors","linkedin","email","relationship","lastContacted","nextAction","nextDue","notes"];
-
-  const handleFile=e=>{
-    const file=e.target.files[0];if(!file)return;
-    const reader=new FileReader();
-    reader.onload=ev=>processText(ev.target.result);
-    reader.readAsText(file);
-  };
-  const processText=text=>{
-    setRaw(text);const p=parseCSV(text);setParsed(p);
-    const auto={};
-    p.headers.forEach(h=>{auto[h]=CSV_MAP[h.toLowerCase().trim()]||"ignore";});
-    setMappings(auto);setStep("map");
-  };
-  const mapRow=row=>{
-    const p={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
-    Object.entries(mappings).forEach(([csvH,crmF])=>{
-      if(!crmF||crmF==="ignore")return;
-      const val=(row[csvH]||"").trim();if(!val)return;
-      if(crmF==="sectors")p.sectors=val.split(/[,;|]/).map(s=>s.trim()).filter(Boolean);
-      else p[crmF]=val;
-    });
-    const tl=(p.type||"").toLowerCase();p.type=tl.includes("contact")||tl.includes("client")?"contact":"candidate";
-    const rl=(p.relationship||"").toLowerCase();p.relationship=rl.includes("hot")?"Hot":rl.includes("cold")?"Cold":rl.includes("new")?"New":"Warm";
-    return p;
-  };
-  const runImport=()=>{
-    const allRows=parsed.rows.map(mapRow).filter(r=>r.name.trim());
-    let np=[...people],nc=[...companies],added=0,skipped=0;
-    allRows.forEach(r=>{
-      if(findDupePeople(r.name,r.company,np).length>0){skipped++;return;}
-      const{companies:updCos,companyId}=autoLinkCompany(r.company,nc);
-      nc=updCos;np=[{...r,id:Date.now()+Math.random(),companyId},...np];added++;
-    });
-    setPeople(np);persist("people",np);setCompanies(nc);persist("companies",nc);
-    setResults({added,skipped,total:allRows.length});setStep("done");
-  };
-
-  if(step==="upload")return(
-    <div>
-      <p style={{color:G600,fontSize:13,marginBottom:20,lineHeight:1.6}}>Import from any CSV or TSV — LinkedIn exports, spreadsheets, old CRM. Auto-maps columns, detects duplicates, links to companies.</p>
-      <div style={{border:"2px dashed "+G300,borderRadius:10,padding:"32px",textAlign:"center",marginBottom:16,background:G50}}>
-        <div style={{fontSize:32,marginBottom:10}}>📄</div>
-        <div style={{fontWeight:600,color:NAVY,marginBottom:6}}>Drop a CSV or TSV file</div>
-        <div style={{color:G600,fontSize:13,marginBottom:16}}>or click to browse</div>
-        <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" onChange={handleFile} style={{display:"none"}}/>
-        <Btn onClick={()=>fileRef.current&&fileRef.current.click()}>Choose File</Btn>
-      </div>
-      <div style={{marginBottom:8,color:G600,fontSize:12,textAlign:"center"}}>— or paste CSV data directly —</div>
-      <Tarea value={raw} onChange={setRaw} placeholder={"name,title,company,location\nDr. Sarah Chen,VP Strategy,Huron Consulting,London"} rows={4}/>
-      {raw.trim()&&<div style={{marginTop:10,display:"flex",justifyContent:"flex-end"}}><Btn onClick={()=>processText(raw)}>Parse →</Btn></div>}
-    </div>
-  );
-
-  if(step==="map"&&parsed)return(
-    <div>
-      <p style={{color:G600,fontSize:13,marginBottom:16}}><strong style={{color:NAVY}}>{parsed.rows.length} rows</strong>, <strong style={{color:NAVY}}>{parsed.headers.length} columns</strong>. Map each column to a CRM field.</p>
-      <div style={{border:"1px solid "+G200,borderRadius:8,overflow:"hidden",marginBottom:20}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",background:G100,padding:"10px 16px",fontSize:11,fontWeight:700,color:G600,textTransform:"uppercase"}}>
-          <div>CSV Column</div><div>Sample</div><div>Map to</div>
-        </div>
-        {parsed.headers.map((h,i)=>(
-          <div key={h} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"10px 16px",borderTop:"1px solid "+G200,alignItems:"center",background:i%2===0?W:G50}}>
-            <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{h}</div>
-            <div style={{fontSize:12,color:G600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(parsed.rows[0]?.[h]||"—").slice(0,25)}</div>
-            <SelEl value={mappings[h]||"ignore"} onChange={v=>setMappings(m=>({...m,[h]:v}))} options={CRM_FIELDS} style={{fontSize:12,padding:"5px 8px"}}/>
-          </div>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-        <Btn variant="ghost" onClick={()=>setStep("upload")}>← Back</Btn>
-        <Btn onClick={()=>{setPreview(parsed.rows.slice(0,5).map(mapRow));setStep("preview");}}>Preview →</Btn>
-      </div>
-    </div>
-  );
-
-  if(step==="preview")return(
-    <div>
-      <p style={{color:G600,fontSize:13,marginBottom:16}}>First 5 of <strong style={{color:NAVY}}>{parsed.rows.length}</strong> rows. Duplicates skipped automatically.</p>
-      <div style={{border:"1px solid "+G200,borderRadius:8,overflow:"hidden",marginBottom:16}}>
-        {preview.map((p,i)=>(
-          <div key={i} style={{display:"flex",gap:12,alignItems:"center",padding:"12px 16px",borderBottom:"1px solid "+G200,background:i%2===0?W:G50}}>
-            <Av name={p.name||"?"} size={32} color={p.type==="contact"?"#6f42c1":TEAL}/>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name||"(no name)"}</div>
-              <div style={{fontSize:12,color:G600}}>{[p.title,p.company,p.location].filter(Boolean).join(" · ")}</div>
-            </div>
-            <RelDot rel={p.relationship}/>
-          </div>
-        ))}
-      </div>
-      <div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:NAVY}}>
-        <strong style={{color:TEAL}}>On import:</strong> each person is duplicate-checked, linked to their company (auto-created if needed), and added instantly.
-      </div>
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-        <Btn variant="ghost" onClick={()=>setStep("map")}>← Back</Btn>
-        <Btn onClick={runImport}>Import {parsed.rows.length} People</Btn>
-      </div>
-    </div>
-  );
-
-  if(step==="done"&&results)return(
-    <div style={{textAlign:"center",padding:"20px 0"}}>
-      <div style={{fontSize:48,marginBottom:16}}>✓</div>
-      <h3 style={{fontSize:20,fontWeight:700,color:NAVY,marginBottom:20}}>Import complete</h3>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,maxWidth:360,margin:"0 auto 24px"}}>
-        <div style={{background:OK+"10",border:"1px solid "+OK+"30",borderRadius:8,padding:"16px"}}>
-          <div style={{fontSize:28,fontWeight:800,color:OK}}>{results.added}</div>
-          <div style={{fontSize:12,color:G600,marginTop:4}}>Added</div>
-        </div>
-        <div style={{background:WARN+"10",border:"1px solid "+WARN+"30",borderRadius:8,padding:"16px"}}>
-          <div style={{fontSize:28,fontWeight:800,color:WARN}}>{results.skipped}</div>
-          <div style={{fontSize:12,color:G600,marginTop:4}}>Skipped</div>
-        </div>
-        <div style={{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"16px"}}>
-          <div style={{fontSize:28,fontWeight:800,color:NAVY}}>{results.total}</div>
-          <div style={{fontSize:12,color:G600,marginTop:4}}>Total</div>
-        </div>
-      </div>
-      <Btn onClick={onClose}>Done</Btn>
-    </div>
-  );
-  return null;
-}
-
-
-// ── Inline-editable overview tab ─────────────────────────────
-function InlineField({label,value,onChange,type="text",href,linkLabel}){
-  const[editing,setEditing]=useState(false);
-  const[draft,setDraft]=useState(value||"");
-  const inputRef=useRef(null);
-  useEffect(()=>{if(editing&&inputRef.current)inputRef.current.focus();},[editing]);
-
-  const commit=()=>{onChange(draft);setEditing(false);};
-  const cancel=()=>{setDraft(value||"");setEditing(false);};
-
-  return(
-    <div style={{borderBottom:"1px solid "+G100,paddingBottom:10,marginBottom:10}}>
-      <div style={{fontSize:10.5,color:G400,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</div>
-      {editing?(
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <input ref={inputRef} type={type} value={draft} onChange={e=>setDraft(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Escape")cancel();}}
-            style={{flex:1,background:W,border:"1.5px solid "+TEAL,borderRadius:6,padding:"6px 10px",color:G900,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-          <button onClick={commit} style={{background:TEAL,color:W,border:"none",borderRadius:5,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓</button>
-          <button onClick={cancel} style={{background:"transparent",color:G400,border:"1px solid "+G300,borderRadius:5,padding:"5px 8px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
-        </div>
-      ):(
-        <div style={{display:"flex",alignItems:"center",gap:8,minHeight:24}}>
-          {value?(
-            href
-              ?<a href={href} target="_blank" rel="noreferrer" style={{color:TEAL,fontSize:13,fontWeight:600,textDecoration:"none",flex:1}}>{linkLabel||value}</a>
-              :<span style={{color:NAVY,fontSize:13,fontWeight:600,flex:1}}>{value}</span>
-          ):(
-            <span style={{color:G300,fontSize:13,fontStyle:"italic",flex:1}}>Click to add…</span>
-          )}
-          <button onClick={()=>{setDraft(value||"");setEditing(true);}}
-            style={{background:"transparent",border:"1px solid "+G200,borderRadius:5,padding:"3px 8px",fontSize:11,color:G400,cursor:"pointer",fontFamily:"inherit",flexShrink:0,opacity:0.7}}>
-            ✏
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function OverviewTab({selP,people,setPeople,persist}){
-  const save=(field,value)=>{
-    const updated=people.map(p=>p.id===selP.id?{...p,[field]:value}:p);
-    setPeople(updated);persist("people",updated);
-  };
-  return(
-    <div>
-      {/* Contact details — all inline editable */}
-      <div style={{background:W,borderRadius:8,border:"1px solid "+G200,padding:"16px 18px",marginBottom:14,boxShadow:"0 1px 3px #0001"}}>
-        <div style={{fontSize:11,color:G600,marginBottom:14,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Contact Details</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
-          <InlineField label="Email" value={selP.email} onChange={v=>save("email",v)} type="email"
-            href={selP.email?"mailto:"+selP.email:null}/>
-          <InlineField label="Phone" value={selP.phone} onChange={v=>save("phone",v)} type="tel"
-            href={selP.phone?"tel:"+selP.phone:null}/>
-          <InlineField label="LinkedIn" value={selP.linkedin} onChange={v=>save("linkedin",v)} type="url"
-            href={selP.linkedin||null} linkLabel="View profile ↗"/>
-          <InlineField label="Location" value={selP.location} onChange={v=>save("location",v)}/>
-          <InlineField label="Title" value={selP.title} onChange={v=>save("title",v)}/>
-          <InlineField label="Company" value={selP.company} onChange={v=>save("company",v)}/>
-        </div>
-      </div>
-
-      {/* Seniority + last contacted */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-        <InfoCard label="Seniority"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selP.seniority||"—"}</div></InfoCard>
-        <InfoCard label="Last Contacted"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selP.lastContacted||"—"}</div></InfoCard>
-      </div>
-
-      {/* Sectors */}
-      {(selP.sectors||[]).length>0&&(
-        <div style={{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200,marginBottom:14}}>
-          <div style={{fontSize:11,color:G600,marginBottom:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Expertise</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(selP.sectors||[]).map(s=><Badge key={s} label={s} color={SC[s]||G600}/>)}</div>
-        </div>
-      )}
-
-      {/* Notes snapshot */}
-      {selP.notes&&(
-        <div style={{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200}}>
-          <div style={{fontSize:11,color:G600,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Notes snapshot</div>
-          <div style={{color:G700,fontSize:13,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{selP.notes.slice(0,300)}{selP.notes.length>300?"…":""}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── People detail panel with tabs ─────────────────────────────
-function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,setSel}){
-  const[tab,setTab]=useState("Overview");
-  useEffect(()=>setTab("Overview"),[selP?.id]);
-  const companyPeople=selP&&selP.companyId?people.filter(p=>p.companyId===selP.companyId&&p.id!==selP.id):[];
-  const co=selP?companies.find(c=>c.id===selP.companyId):null;
-  const logUpdate=f=>{const u=people.map(p=>p.id===selP.id?{...p,...f}:p);setPeople(u);persist("people",u);};
-
-  if(!selP)return(
-    <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:G400,background:G50}}>
-      <div style={{fontSize:32}}>👤</div>
-      <div style={{fontSize:13}}>Select someone to view their profile</div>
-    </div>
-  );
-
-  return(
-    <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}}>
-      {/* Header */}
-      <div style={{background:W,borderBottom:"1px solid "+G200,padding:"20px 28px 0",flexShrink:0}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-          <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
-            <Av name={selP.name} size={48} color={selP.type==="contact"?"#6f42c1":TEAL}/>
-            <div>
-              <h2 style={{fontSize:20,fontWeight:700,color:NAVY,margin:0}}>{selP.name}</h2>
-              <div style={{color:G600,fontSize:13,marginTop:2}}>{[selP.title,selP.company].filter(Boolean).join(" · ")}</div>
-              <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-                <RelDot rel={selP.relationship}/>
-                <Badge label={selP.type==="candidate"?"Candidate":"Client Contact"} color={selP.type==="contact"?"#6f42c1":TEAL}/>
-                <Badge label={selP.seniority} color={G600}/>
-              </div>
-            </div>
-          </div>
-          <div style={{display:"flex",gap:8,flexShrink:0}}>
-            {selP.linkedin&&<Btn variant="teal" small onClick={()=>window.open(selP.linkedin,"_blank")}>LinkedIn ↗</Btn>}
-            <Btn variant="ghost" small onClick={onEdit}>Edit</Btn>
-            <Btn variant="danger" small onClick={onDelete}>Delete</Btn>
-          </div>
-        </div>
-        <TabBar tabs={["Overview","BD & Follow-up","Notes","Company"]} active={tab} onChange={setTab}/>
-      </div>
-
-      {/* Tab content */}
-      <div style={{flex:1,overflowY:"auto",padding:"22px 28px",background:G50}}>
-
-        {tab==="Overview"&&(
-          <OverviewTab selP={selP} people={people} setPeople={setPeople} persist={persist}/>
-        )}
-
-        {tab==="BD & Follow-up"&&(
-          <div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:16}}>
-              <InfoCard label="Last Contacted"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selP.lastContacted||"—"}</div></InfoCard>
-              <InfoCard label="Next Action"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selP.nextAction||"—"}</div></InfoCard>
-              <InfoCard label="Due"><DueTag due={selP.nextDue}/></InfoCard>
-            </div>
-            {selP.nextAction&&(
-              <div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:NAVY}}>
-                <span style={{color:TEAL,fontWeight:700,marginRight:8}}>→</span>{selP.nextAction}
-              </div>
-            )}
-            <QuickLog item={selP} onUpdate={logUpdate}/>
-          </div>
-        )}
-
-        {tab==="Notes"&&(
-          <div style={{background:W,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200}}>
-            <div style={{fontSize:11,color:G600,marginBottom:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Full Notes</div>
-            <div style={{color:G800,fontSize:14,lineHeight:1.8,whiteSpace:"pre-wrap"}}>{selP.notes||"No notes yet. Use BD & Follow-up to log an interaction."}</div>
-          </div>
-        )}
-
-        {tab==="Company"&&(
-          <div>
-            {co?(
-              <div>
-                <div style={{background:W,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200,marginBottom:14}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-                    <div>
-                      <div style={{fontWeight:700,color:NAVY,fontSize:16}}>{co.name}</div>
-                      <div style={{color:G600,fontSize:13,marginTop:2}}>{co.type}{co.hq?" · "+co.hq:""}</div>
-                    </div>
-                    <div style={{display:"flex",gap:6}}>
-                      <Badge label={co.tier} color={TC_MAP[co.tier]||G600}/>
-                      <RelDot rel={co.relationship}/>
-                    </div>
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:co.notes?12:0}}>
-                    <InfoCard label="Key Contact"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{co.keyContact||"—"}</div></InfoCard>
-                    <InfoCard label="Open Mandates"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{co.openMandates||0}</div></InfoCard>
-                  </div>
-                  {co.notes&&<div style={{fontSize:13,color:G700,lineHeight:1.6,borderTop:"1px solid "+G200,paddingTop:12}}>{co.notes}</div>}
-                </div>
-                {companyPeople.length>0&&(
-                  <div style={{background:W,borderRadius:8,padding:"16px 20px",border:"1px solid "+G200}}>
-                    <div style={{fontSize:11,color:G600,marginBottom:12,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Others at {co.name}</div>
-                    {companyPeople.map(p=>(
-                      <div key={p.id} onClick={()=>setSel(p.id)} style={{display:"flex",gap:10,alignItems:"center",padding:"9px 0",borderBottom:"1px solid "+G100,cursor:"pointer"}}>
-                        <Av name={p.name} size={28} color={p.type==="contact"?"#6f42c1":TEAL}/>
-                        <div style={{flex:1}}><div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div><div style={{fontSize:11,color:G600}}>{p.title}</div></div>
-                        <RelDot rel={p.relationship}/>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ):(
-              <div style={{textAlign:"center",padding:"40px 0",color:G400}}>
-                <div style={{fontSize:28,marginBottom:8}}>🏢</div>
-                <div style={{fontSize:13}}>No company linked yet</div>
-                <div style={{fontSize:12,marginTop:6}}>Edit this person and set their company to auto-link</div>
-              </div>
-            )}
-          </div>
-        )}
-
-      </div>
-    </div>
-  );
+  wrap.appendChild(box);
+  return wrap;
 }
 
 // ── Person form ───────────────────────────────────────────────
 const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
-function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
-  const[f,setF]=useState({...BLANKP,...(init||{}),...(prefill||{})});
-  const[dupes,setDupes]=useState([]);
-  const[dismissed,setDismissed]=useState(false);
-  const set=k=>v=>setF(p=>({...p,[k]:v}));
-  const handleSave=()=>{
-    if(!f.name.trim())return;
-    if(!dismissed&&!isEdit){
-      const found=findDupePeople(f.name,f.company,people,init&&init.id);
-      if(found.length>0){setDupes(found);return;}
+
+function renderPersonForm(init,onSave,isEdit){
+  const f={...BLANKP,...(init||{})};
+  const wrap=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}});
+
+  const dupeDiv=h("div",{style:{gridColumn:"span 2",display:state.dupes.length&&!state.dupeDismissed?"block":"none"}});
+  if(state.dupes.length&&!state.dupeDismissed){
+    dupeDiv.append(
+      h("div",{style:{background:"#fff8e1",border:"1px solid "+WARN,borderRadius:8,padding:"12px 16px",marginBottom:16}},
+        h("div",{style:{fontWeight:700,color:WARN,fontSize:13,marginBottom:6}},"⚠ Possible duplicate found"),
+        ...state.dupes.map(d=>h("div",{style:{fontSize:13,color:G800,marginBottom:3}},d.name+" — "+d.title+" at "+(d.company||""))),
+        h("div",{style:{marginTop:10}},ghostBtn("Save anyway",()=>setState({dupeDismissed:true}),{fontSize:12,padding:"5px 11px"}))
+      )
+    );
+  }
+
+  const nameInp=inp(f.name,v=>{f.name=v;},"Dr. Sarah Chen");
+  const titleInp=inp(f.title,v=>{f.title=v;},"VP Strategy");
+  const companyInp=inp(f.company,v=>{f.company=v;},"Charles River Associates");
+  const locationInp=inp(f.location,v=>{f.location=v;},"London, UK");
+  const emailInp=inp(f.email,v=>{f.email=v;},"name@example.com","email");
+  const phoneInp=inp(f.phone,v=>{f.phone=v;},"+44 7700 900000","tel");
+  const liInp=inp(f.linkedin,v=>{f.linkedin=v;},"https://linkedin.com/in/…","url");
+  const notesTA=tarea(f.notes,v=>{f.notes=v;},"Call notes, preferences, key intel…",3);
+  const lcInp=inp(f.lastContacted,v=>{f.lastContacted=v;},"","date");
+  const ndInp=inp(f.nextDue,v=>{f.nextDue=v;},"","date");
+  const naInp=inp(f.nextAction,v=>{f.nextAction=v;},"Send JD / Schedule call…");
+
+  const typeSel=sel(f.type,v=>{f.type=v;},[{v:"candidate",l:"Candidate"},{v:"contact",l:"Client Contact"}]);
+  const relSel=sel(f.relationship,v=>{f.relationship=v;},["Hot","Warm","Cold","New"]);
+  const senSel=sel(f.seniority,v=>{f.seniority=v;},["Analyst / Consultant","Manager / Principal","VP / Director","C-Suite / Partner"]);
+
+  // Sector picker
+  const sectorWrap=h("div",{style:{display:"flex",flexWrap:"wrap",gap:6}});
+  const updateSectors=()=>{
+    sectorWrap.innerHTML="";
+    for(const s of SECTORS){
+      const on=f.sectors.includes(s),c=SC[s];
+      const b=h("button",{onClick:()=>{f.sectors=on?f.sectors.filter(x=>x!==s):[...f.sectors,s];updateSectors();},style:{background:on?c+"15":W,color:on?c:G600,border:"1px solid "+(on?c+"50":G300),borderRadius:4,padding:"4px 10px",fontSize:11,fontWeight:on?700:400,cursor:"pointer"}},s);
+      sectorWrap.appendChild(b);
     }
-    onSave(f);onClose();
   };
-  return(
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
-      {dupes.length>0&&<div style={{gridColumn:"span 2"}}><DupeBanner dupes={dupes} onDismiss={()=>{setDupes([]);setDismissed(true);}}/></div>}
-      <Fld label="Type"><SelEl value={f.type} onChange={set("type")} options={[{v:"candidate",l:"Candidate"},{v:"contact",l:"Client Contact"}]}/></Fld>
-      <Fld label="Relationship"><SelEl value={f.relationship} onChange={set("relationship")} options={["Hot","Warm","Cold","New"]}/></Fld>
-      <Fld label="Full Name"><Inp value={f.name} onChange={set("name")} placeholder="Dr. Sarah Chen"/></Fld>
-      <Fld label="Title"><Inp value={f.title} onChange={set("title")} placeholder="VP Strategy"/></Fld>
-      <Fld label="Company"><Inp value={f.company} onChange={set("company")} placeholder="Charles River Associates"/></Fld>
-      <Fld label="Location"><Inp value={f.location} onChange={set("location")} placeholder="London, UK"/></Fld>
-      <Fld label="Seniority" span2><SelEl value={f.seniority} onChange={set("seniority")} options={["Analyst / Consultant","Manager / Principal","VP / Director","C-Suite / Partner"]}/></Fld>
-      <Fld label="Sectors" span2><SectorPicker selected={f.sectors} onChange={set("sectors")}/></Fld>
-      <Fld label="LinkedIn URL" span2><Inp value={f.linkedin} onChange={set("linkedin")} placeholder="https://linkedin.com/in/…"/></Fld>
-      <Fld label="Email"><Inp value={f.email} onChange={set("email")} placeholder="name@example.com"/></Fld>
-      <Fld label="Phone"><Inp value={f.phone} onChange={set("phone")} placeholder="+44 7700 900000"/></Fld>
-      <Fld label="Last Contacted"><Inp type="date" value={f.lastContacted} onChange={set("lastContacted")}/></Fld>
-      <Fld label="Next Due"><Inp type="date" value={f.nextDue} onChange={set("nextDue")}/></Fld>
-      <Fld label="Next Action" span2><Inp value={f.nextAction} onChange={set("nextAction")} placeholder="Send JD / Schedule call…"/></Fld>
-      <Fld label="Notes" span2><Tarea value={f.notes} onChange={set("notes")} rows={3}/></Fld>
-      <div style={{gridColumn:"span 2",display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={handleSave}>{isEdit?"Update":"Save Person"}</Btn>
-      </div>
-    </div>
+  updateSectors();
+
+  const saveBtn=btn(isEdit?"Update":"Save Person",()=>{
+    if(!f.name.trim())return;
+    if(!isEdit&&!state.dupeDismissed){
+      const dupes=findDupePeople(f.name,f.company,state.people,init?.id);
+      if(dupes.length){setState({dupes});return;}
+    }
+    onSave({...f});
+    setState({modal:null,modalData:null,dupes:[],dupeDismissed:false});
+  });
+
+  wrap.append(
+    dupeDiv,
+    fld("Type",typeSel),fld("Relationship",relSel),
+    fld("Full Name",nameInp),fld("Title",titleInp),
+    fld("Company",companyInp),fld("Location",locationInp),
+    fld("Seniority",senSel,true),
+    fld("Sectors",sectorWrap,true),
+    fld("Email",emailInp),fld("Phone",phoneInp),
+    fld("LinkedIn URL",liInp,true),
+    fld("Last Contacted",lcInp),fld("Next Due",ndInp),
+    fld("Next Action",naInp,true),
+    fld("Notes",notesTA,true),
+    h("div",{style:{gridColumn:"span 2",display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}},[
+      ghostBtn("Cancel",()=>setState({modal:null,modalData:null,dupes:[],dupeDismissed:false})),saveBtn
+    ])
   );
-}
-
-// ── PEOPLE VIEW ───────────────────────────────────────────────
-function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}){
-  const[search,setSearch]=useState("");
-  const[typeF,setTypeF]=useState("all");
-  const[relF,setRelF]=useState("all");
-  const[sel,setSel]=useState(initialSel||null);
-  const[modal,setModal]=useState(null);
-  const[prefill,setPrefill]=useState(null);
-  useEffect(()=>{if(initialSel)setSel(initialSel);},[initialSel]);
-
-  const list=useMemo(()=>people.filter(p=>
-    (typeF==="all"||p.type===typeF)&&(relF==="all"||p.relationship===relF)&&
-    (p.name+p.company+p.title+(p.sectors||[]).join(" ")).toLowerCase().includes(search.toLowerCase())
-  ),[people,search,typeF,relF]);
-
-  const selP=people.find(p=>p.id===sel);
-
-  const commitBoth=(np,nc)=>{setPeople(np);persist("people",np);setCompanies(nc);persist("companies",nc);};
-  const addPerson=f=>{const{companies:nc,companyId}=autoLinkCompany(f.company,companies);commitBoth([{...f,id:Date.now(),companyId},...people],nc);};
-  const updPerson=f=>{const{companies:nc,companyId}=autoLinkCompany(f.company,companies);commitBoth(people.map(p=>p.id===sel?{...p,...f,companyId}:p),nc);};
-  const delPerson=()=>{const u=people.filter(p=>p.id!==sel);setPeople(u);persist("people",u);setSel(null);};
-
-  const filterBtn=(v,l,c,cur,set)=>(
-    <button key={v} onClick={()=>set(v)} style={{background:cur===v?c+"15":"transparent",color:cur===v?c:G600,border:"1px solid "+(cur===v?c+"40":G300),borderRadius:20,padding:"4px 13px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
-  );
-
-  return(
-    <div style={{display:"flex",height:"100%",minHeight:0}}>
-      {/* List */}
-      <div style={{width:320,flexShrink:0,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",background:W}}>
-        <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+G200}}>
-          <div style={{display:"flex",gap:8,marginBottom:10}}>
-            <Inp value={search} onChange={setSearch} placeholder="Filter people…" style={{fontSize:12}}/>
-            <Btn small onClick={()=>{setPrefill(null);setModal("add");}}>+ Add</Btn>
-          </div>
-          <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
-            {filterBtn("all","All",TEAL,typeF,setTypeF)}
-            {filterBtn("candidate","Candidates",TEAL,typeF,setTypeF)}
-            {filterBtn("contact","Contacts","#6f42c1",typeF,setTypeF)}
-          </div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {["all","Hot","Warm","Cold","New"].map(r=>filterBtn(r,r==="all"?"All":r,REL[r]||TEAL,relF,setRelF))}
-          </div>
-        </div>
-        <div style={{overflowY:"auto",flex:1,padding:"8px 8px"}}>
-          {list.map(p=>{
-            const isSel=sel===p.id,ac=p.type==="contact"?"#6f42c1":TEAL;
-            return(
-              <div key={p.id} onClick={()=>setSel(p.id)} style={{padding:"11px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",background:isSel?TL:"transparent",border:"1px solid "+(isSel?TM:"transparent"),transition:"all 0.1s"}}>
-                <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <Av name={p.name} size={34} color={ac}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
-                      <div style={{fontWeight:700,color:NAVY,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>{p.name}</div>
-                      <RelDot rel={p.relationship}/>
-                    </div>
-                    <div style={{fontSize:11.5,color:G600,marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.title}{p.company?" · "+p.company:""}</div>
-                    {p.nextDue&&<div style={{marginTop:4}}><DueTag due={p.nextDue}/></div>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {list.length===0&&<div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13}}>No results</div>}
-        </div>
-        <div style={{padding:"12px 16px",borderTop:"1px solid "+G200}}>
-          <div style={{display:"flex",gap:8,marginBottom:8}}>
-            <LinkedInPaste onParsed={p=>{setPrefill(p);setModal("add");}}/>
-            <Btn variant="ghost" small onClick={()=>setModal("csv")}>⬆ CSV</Btn>
-          </div>
-          <div style={{fontSize:11,color:G400,lineHeight:1.4}}>
-            Paste a LinkedIn profile to auto-fill fields, or import a CSV to bulk-add people.
-          </div>
-        </div>
-      </div>
-
-      {/* Detail */}
-      <PersonDetail selP={selP} people={people} companies={companies} setPeople={setPeople} persist={persist} onDelete={delPerson} onEdit={()=>setModal("edit")} setSel={setSel}/>
-
-      {modal==="add"&&<ModalEl title="Add Person" onClose={()=>setModal(null)} wide><PersonForm init={BLANKP} prefill={prefill} onSave={addPerson} onClose={()=>setModal(null)} people={people} isEdit={false}/></ModalEl>}
-      {modal==="edit"&&selP&&<ModalEl title={"Edit — "+selP.name} onClose={()=>setModal(null)} wide><PersonForm init={selP} onSave={updPerson} onClose={()=>setModal(null)} people={people} isEdit={true}/></ModalEl>}
-      {modal==="csv"&&<ModalEl title="Bulk Import from CSV" onClose={()=>setModal(null)} wide><CSVImporter people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist} onClose={()=>setModal(null)}/></ModalEl>}
-    </div>
-  );
+  return wrap;
 }
 
 // ── Company form ──────────────────────────────────────────────
 const BLANKCO={name:"",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:"0",lastContacted:today,nextAction:"",nextDue:"",relationship:"Cold",notes:""};
-function CompanyForm({init,onSave,onClose,companies,isEdit}){
-  const[f,setF]=useState({...BLANKCO,...(init||{})});
-  const[dupes,setDupes]=useState([]);
-  const[dismissed,setDismissed]=useState(false);
-  const s=k=>v=>setF(p=>({...p,[k]:v}));
-  const handleSave=()=>{
+
+function renderCompanyForm(init,onSave,isEdit){
+  const f={...BLANKCO,...(init||{})};
+  const wrap=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}});
+
+  const dupeDiv=h("div",{style:{gridColumn:"span 2",display:state.dupes.length&&!state.dupeDismissed?"block":"none"}});
+  if(state.dupes.length&&!state.dupeDismissed){
+    dupeDiv.append(h("div",{style:{background:"#fff8e1",border:"1px solid "+WARN,borderRadius:8,padding:"12px 16px",marginBottom:16}},
+      h("div",{style:{fontWeight:700,color:WARN,fontSize:13,marginBottom:6}},"⚠ Possible duplicate"),
+      ...state.dupes.map(d=>h("div",{style:{fontSize:13,color:G800}},d.name)),
+      h("div",{style:{marginTop:10}},ghostBtn("Save anyway",()=>setState({dupeDismissed:true}),{fontSize:12,padding:"5px 11px"}))
+    ));
+  }
+
+  const nameInp=inp(f.name,v=>{f.name=v;},"Charles River Associates");
+  const typeS=sel(f.type,v=>{f.type=v;},["Consulting","Pharma","Biotech","MedTech","Other"]);
+  const tierS=sel(f.tier,v=>{f.tier=v;},["Key Client","Warm","Prospect"]);
+  const hqInp=inp(f.hq,v=>{f.hq=v;},"Boston, US");
+  const kcInp=inp(f.keyContact,v=>{f.keyContact=v;},"Maria Lopez");
+  const omInp=inp(f.openMandates,v=>{f.openMandates=v;},"0","number");
+  const relS=sel(f.relationship,v=>{f.relationship=v;},["Hot","Warm","Cold","New"]);
+  const lcInp=inp(f.lastContacted,v=>{f.lastContacted=v;},"","date");
+  const ndInp=inp(f.nextDue,v=>{f.nextDue=v;},"","date");
+  const naInp=inp(f.nextAction,v=>{f.nextAction=v;},"Schedule intro call…");
+  const notesTA=tarea(f.notes,v=>{f.notes=v;},"BD context…",3);
+
+  const saveBtn=btn(isEdit?"Update":"Save Company",()=>{
     if(!f.name.trim())return;
-    if(!dismissed&&!isEdit){
-      const found=findDupeCompanies(f.name,companies,init&&init.id);
-      if(found.length>0){setDupes(found);return;}
+    if(!isEdit&&!state.dupeDismissed){
+      const dupes=findDupeCompanies(f.name,state.companies,init?.id);
+      if(dupes.length){setState({dupes});return;}
     }
-    onSave(f);onClose();
+    onSave({...f,openMandates:Number(f.openMandates)});
+    setState({modal:null,modalData:null,dupes:[],dupeDismissed:false});
+  });
+
+  wrap.append(
+    dupeDiv,
+    fld("Company Name",nameInp,true),
+    fld("Type",typeS),fld("Tier",tierS),
+    fld("HQ",hqInp),fld("Key Contact",kcInp),
+    fld("Open Mandates",omInp),fld("Relationship",relS),
+    fld("Last Contacted",lcInp),fld("Next Due",ndInp),
+    fld("Next Action",naInp,true),
+    fld("Notes",notesTA,true),
+    h("div",{style:{gridColumn:"span 2",display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}},[
+      ghostBtn("Cancel",()=>setState({modal:null,modalData:null,dupes:[],dupeDismissed:false})),saveBtn
+    ])
+  );
+  return wrap;
+}
+
+// ── Quick log ─────────────────────────────────────────────────
+function renderQuickLog(item,isCompany){
+  let note="",na=item.nextAction||"",nd=item.nextDue||"";
+  const wrap=h("div",{style:{background:G50,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200,marginTop:16}});
+  const noteTA=tarea(note,v=>{note=v;},"Notes from this call, email or meeting…",2);
+  const naInp=inp(na,v=>{na=v;},"Follow up / Send JD…");
+  const ndInp=inp(nd,v=>{nd=v;},"","date");
+  const logBtn=btn("✓ Log & Update",()=>{
+    const ts=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+    const newNote=note.trim()?"["+ts+"] "+note.trim()+"\n\n"+(item.notes||""):item.notes;
+    if(isCompany){
+      const updated=state.companies.map(c=>c.id===item.id?{...c,notes:newNote,lastContacted:today,nextAction:na,nextDue:nd}:c);
+      setState({companies:updated,selCompany:{...item,notes:newNote,lastContacted:today,nextAction:na,nextDue:nd}});
+      persist("companies",updated);
+    }else{
+      const updated=state.people.map(p=>p.id===item.id?{...p,notes:newNote,lastContacted:today,nextAction:na,nextDue:nd}:p);
+      setState({people:updated,selPerson:{...item,notes:newNote,lastContacted:today,nextAction:na,nextDue:nd}});
+      persist("people",updated);
+    }
+  },{fontSize:12,padding:"5px 12px"});
+  wrap.append(
+    h("div",{style:{fontSize:11,color:TEAL,marginBottom:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}},"Log Interaction"),
+    noteTA,
+    h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}},[
+      h("div",{},[h("div",{style:{fontSize:11,color:G600,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Next Action"),naInp]),
+      h("div",{},[h("div",{style:{fontSize:11,color:G600,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Due Date"),ndInp])
+    ]),
+    h("div",{style:{marginTop:10,display:"flex",justifyContent:"flex-end"}},logBtn)
+  );
+  return wrap;
+}
+
+// ── Inline editable field ─────────────────────────────────────
+function inlineField(label,value,onSave,type="text",href){
+  const wrap=h("div",{style:{borderBottom:"1px solid "+G100,paddingBottom:10,marginBottom:10}});
+  const lbl=h("div",{style:{fontSize:10.5,color:G400,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}},label);
+  let editing=false;
+  const display=h("div",{style:{display:"flex",alignItems:"center",gap:8,minHeight:24}});
+  const valEl=href?h("a",{href,target:"_blank",style:{color:TEAL,fontSize:13,fontWeight:600,textDecoration:"none",flex:1}},value||(label+" ↗")):h("span",{style:{color:value?NAVY:G300,fontSize:13,fontWeight:value?600:400,fontStyle:value?"normal":"italic",flex:1}},value||"Click to add…");
+  const editBtn=h("button",{style:{background:"transparent",border:"1px solid "+G200,borderRadius:5,padding:"3px 8px",fontSize:11,color:G400,cursor:"pointer",flexShrink:0}},h("span",{},"✏"));
+  display.append(valEl,editBtn);
+
+  const editWrap=h("div",{style:{display:"none",gap:6,alignItems:"center"}});
+  const editInp=inp(value,()=>{},"",type,{flex:1});
+  editInp.value=value||"";
+  const saveBtn=h("button",{style:{background:TEAL,color:W,border:"none",borderRadius:5,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer"}},"✓");
+  const cancelBtn=h("button",{style:{background:"transparent",color:G400,border:"1px solid "+G300,borderRadius:5,padding:"5px 8px",fontSize:12,cursor:"pointer"}},"✕");
+  editWrap.style.display="flex";
+  editWrap.style.display="none";
+  editWrap.append(editInp,saveBtn,cancelBtn);
+
+  editBtn.onclick=()=>{editInp.value=value||"";display.style.display="none";editWrap.style.display="flex";editing=true;editInp.focus();};
+  saveBtn.onclick=()=>{onSave(editInp.value);display.style.display="flex";editWrap.style.display="none";editing=false;};
+  cancelBtn.onclick=()=>{display.style.display="flex";editWrap.style.display="none";editing=false;};
+  editInp.onkeydown=e=>{if(e.key==="Enter")saveBtn.onclick();if(e.key==="Escape")cancelBtn.onclick();};
+
+  wrap.append(lbl,display,editWrap);
+  return wrap;
+}
+
+// ── Person detail ─────────────────────────────────────────────
+function renderPersonDetail(p){
+  const wrap=h("div",{style:{flex:1,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}});
+  const ac=p.type==="contact"?"#6f42c1":TEAL;
+
+  // Header
+  const header=h("div",{style:{background:W,borderBottom:"1px solid "+G200,padding:"20px 28px 0",flexShrink:0}});
+  const topRow=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}});
+  const nameBlock=h("div",{style:{display:"flex",gap:14,alignItems:"flex-start"}});
+  nameBlock.append(
+    av(p.name,48,ac),
+    h("div",{},[
+      h("h2",{style:{fontSize:20,fontWeight:700,color:NAVY,margin:0}},p.name),
+      h("div",{style:{color:G600,fontSize:13,marginTop:2}},[p.title,p.company].filter(Boolean).join(" · ")),
+      h("div",{style:{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}},[
+        relDot(p.relationship),
+        badge(p.type==="candidate"?"Candidate":"Client Contact",ac),
+        badge(p.seniority,G600)
+      ])
+    ])
+  );
+  const actBtns=h("div",{style:{display:"flex",gap:8,flexShrink:0}});
+  if(p.linkedin)actBtns.appendChild(tealBtn("LinkedIn ↗",()=>window.open(p.linkedin,"_blank"),{fontSize:12,padding:"5px 12px"}));
+  actBtns.append(
+    ghostBtn("Edit",()=>setState({modal:"editPerson",modalData:p,dupes:[],dupeDismissed:false}),{fontSize:12,padding:"5px 12px"}),
+    dangerBtn("Delete",()=>{if(confirm("Delete "+p.name+"?")){const u=state.people.filter(x=>x.id!==p.id);setState({people:u,selPerson:null});persist("people",u);}})
+  );
+  topRow.append(nameBlock,actBtns);
+
+  // Tabs
+  const tabs=["Overview","BD & Follow-up","Notes","Company"];
+  const tabBar=h("div",{style:{display:"flex"}});
+  for(const t of tabs){
+    const active=state.personTab===t;
+    const tb=h("button",{onClick:()=>setState({personTab:t}),style:{background:"none",border:"none",borderBottom:"2px solid "+(active?TEAL:"transparent"),marginBottom:-1,padding:"10px 18px",fontSize:13,fontWeight:active?700:400,color:active?TEAL:G600,cursor:"pointer"}},t);
+    tabBar.appendChild(tb);
+  }
+
+  header.append(topRow,tabBar);
+  wrap.appendChild(header);
+
+  // Tab content
+  const content=h("div",{style:{flex:1,overflowY:"auto",padding:"22px 28px",background:G50}});
+
+  if(state.personTab==="Overview"){
+    const saveField=(field,value)=>{
+      const updated=state.people.map(x=>x.id===p.id?{...x,[field]:value}:x);
+      const newP={...state.selPerson,[field]:value};
+      setState({people:updated,selPerson:newP});
+      persist("people",updated);
+    };
+    const contactCard=h("div",{style:{background:W,borderRadius:8,border:"1px solid "+G200,padding:"16px 18px",marginBottom:14}});
+    contactCard.appendChild(h("div",{style:{fontSize:11,color:G600,marginBottom:12,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Contact Details"));
+    const grid=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}});
+    grid.append(
+      inlineField("Email",p.email,v=>saveField("email",v),"email",p.email?"mailto:"+p.email:null),
+      inlineField("Phone",p.phone,v=>saveField("phone",v),"tel",p.phone?"tel:"+p.phone:null),
+      inlineField("LinkedIn",p.linkedin,v=>saveField("linkedin",v),"url",p.linkedin||null),
+      inlineField("Location",p.location,v=>saveField("location",v)),
+      inlineField("Title",p.title,v=>saveField("title",v)),
+      inlineField("Company",p.company,v=>saveField("company",v))
+    );
+    contactCard.appendChild(grid);
+
+    const grid2=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}});
+    grid2.append(infoCard("Seniority",p.seniority),infoCard("Last Contacted",p.lastContacted));
+
+    content.append(contactCard,grid2);
+    if(p.sectors?.length){
+      const sc=h("div",{style:{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200,marginBottom:14}});
+      sc.appendChild(h("div",{style:{fontSize:11,color:G600,marginBottom:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Expertise"));
+      const tags=h("div",{style:{display:"flex",flexWrap:"wrap",gap:6}});
+      p.sectors.forEach(s=>tags.appendChild(badge(s,SC[s]||G600)));
+      sc.appendChild(tags);content.appendChild(sc);
+    }
+    if(p.notes){
+      const nc=h("div",{style:{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200}});
+      nc.append(h("div",{style:{fontSize:11,color:G600,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Notes snapshot"),h("div",{style:{color:G700,fontSize:13,lineHeight:1.7}},p.notes.slice(0,300)+(p.notes.length>300?"…":"")));
+      content.appendChild(nc);
+    }
+  }
+
+  if(state.personTab==="BD & Follow-up"){
+    const grid=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:16}});
+    grid.append(infoCard("Last Contacted",p.lastContacted),infoCard("Next Action",p.nextAction),h("div",{style:{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"12px 16px"}},[h("div",{style:{fontSize:10.5,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Due"),dueTag(p.nextDue)]));
+    if(p.nextAction){
+      const na=h("div",{style:{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:NAVY}});
+      na.append(h("span",{style:{color:TEAL,fontWeight:700,marginRight:8}},"→"),p.nextAction);
+      content.append(grid,na,renderQuickLog(p,false));
+    }else{content.append(grid,renderQuickLog(p,false));}
+  }
+
+  if(state.personTab==="Notes"){
+    const nc=h("div",{style:{background:W,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200}});
+    nc.append(h("div",{style:{fontSize:11,color:G600,marginBottom:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Full Notes"),h("div",{style:{color:G800,fontSize:14,lineHeight:1.8,whiteSpace:"pre-wrap"}},p.notes||"No notes yet. Use BD & Follow-up to log an interaction."));
+    content.appendChild(nc);
+  }
+
+  if(state.personTab==="Company"){
+    const co=state.companies.find(c=>c.id===p.companyId);
+    if(co){
+      const cc=h("div",{style:{background:W,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200,marginBottom:14}});
+      const ch=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}});
+      ch.append(h("div",{},[h("div",{style:{fontWeight:700,color:NAVY,fontSize:16}},co.name),h("div",{style:{color:G600,fontSize:13,marginTop:2}},co.type+(co.hq?" · "+co.hq:""))]),h("div",{style:{display:"flex",gap:6}},[badge(co.tier,TC[co.tier]||G600),relDot(co.relationship)]));
+      const cg=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:co.notes?12:0}});
+      cg.append(infoCard("Key Contact",co.keyContact),infoCard("Open Mandates",String(co.openMandates||0)));
+      cc.append(ch,cg);
+      if(co.notes)cc.appendChild(h("div",{style:{fontSize:13,color:G700,lineHeight:1.6,borderTop:"1px solid "+G200,paddingTop:12}},co.notes));
+      content.appendChild(cc);
+
+      const coP=state.people.filter(x=>x.companyId===co.id&&x.id!==p.id);
+      if(coP.length){
+        const cl=h("div",{style:{background:W,borderRadius:8,padding:"16px 20px",border:"1px solid "+G200}});
+        cl.appendChild(h("div",{style:{fontSize:11,color:G600,marginBottom:12,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Others at "+co.name));
+        for(const cp of coP){
+          const row=h("div",{style:{display:"flex",gap:10,alignItems:"center",padding:"9px 0",borderBottom:"1px solid "+G100,cursor:"pointer"}});
+          row.onclick=()=>setState({selPerson:cp,personTab:"Overview"});
+          row.append(av(cp.name,28,cp.type==="contact"?"#6f42c1":TEAL),h("div",{style:{flex:1}},[h("div",{style:{fontWeight:600,color:NAVY,fontSize:13}},cp.name),h("div",{style:{fontSize:11,color:G600}},cp.title)]),relDot(cp.relationship));
+          cl.appendChild(row);
+        }
+        content.appendChild(cl);
+      }
+    }else{
+      content.appendChild(h("div",{style:{textAlign:"center",padding:"40px 0",color:G400}},[h("div",{style:{fontSize:28,marginBottom:8}},"🏢"),h("div",{style:{fontSize:13}},"No company linked yet")]));
+    }
+  }
+
+  wrap.appendChild(content);
+  return wrap;
+}
+
+// ── LinkedIn import panels ────────────────────────────────────
+function renderLinkedInPanel(){
+  const wrap=h("div",{style:{padding:"16px 16px",borderTop:"1px solid "+G200}});
+  const pasteBtn=tealBtn("⚡ Paste from LinkedIn",()=>setState({modal:"linkedInPaste"}),{fontSize:13});
+  const csvBtn=ghostBtn("⬆ CSV",()=>setState({modal:"csvImport"}),{fontSize:12,padding:"5px 11px"});
+  wrap.append(h("div",{style:{display:"flex",gap:8,marginBottom:6}},[pasteBtn,csvBtn]),h("div",{style:{fontSize:11,color:G400,lineHeight:1.4}},"Paste LinkedIn profile text to auto-fill fields."));
+  return wrap;
+}
+
+function renderLinkedInModal(){
+  const wrap=h("div",{});
+  const info=h("p",{style:{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}},"Open a LinkedIn profile → Ctrl+A (select all) → Ctrl+C (copy) → paste below. Works best with full page paste.");
+  const ta=tarea(state.li_text,v=>setState({li_text:v}),"Paste LinkedIn profile text here…",10);
+  const errDiv=h("div",{style:{color:DANGER,fontSize:12,marginTop:8,display:state.li_error?"block":"none"}},state.li_error);
+  const importBtn=btn(state.li_loading?"Parsing…":"Import Profile",()=>{
+    if(!state.li_text.trim()){setState({li_error:"Please paste some text first."});return;}
+    setState({li_loading:true,li_error:""});
+    try{
+      const result=parseLinkedIn(state.li_text);
+      if(!result.name){setState({li_loading:false,li_error:"Could not find a name. Try pasting more of the profile."});return;}
+      setState({modal:"addPerson",modalData:result,li_text:"",li_loading:false});
+    }catch(e){setState({li_loading:false,li_error:"Error: "+e.message});}
+  },{opacity:state.li_loading?0.6:1});
+  wrap.append(info,ta,errDiv,h("div",{style:{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}},[ghostBtn("Cancel",()=>setState({modal:null,li_text:"",li_error:""})),importBtn]));
+  return wrap;
+}
+
+function renderCoLinkedInModal(){
+  const wrap=h("div",{});
+  const info=h("p",{style:{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}},"Open a LinkedIn company page → Ctrl+A → Ctrl+C → paste below.");
+  const ta=tarea(state.co_li_text,v=>setState({co_li_text:v}),"Paste LinkedIn company page text here…",10);
+  const errDiv=h("div",{style:{color:DANGER,fontSize:12,marginTop:8,display:state.co_li_error?"block":"none"}},state.co_li_error);
+  const importBtn=btn(state.co_li_loading?"Parsing…":"Import Company",()=>{
+    if(!state.co_li_text.trim()){setState({co_li_error:"Please paste some text first."});return;}
+    setState({co_li_loading:true,co_li_error:""});
+    try{
+      const result=parseLinkedInCompany(state.co_li_text);
+      if(!result.name){setState({co_li_loading:false,co_li_error:"Could not find company name."});return;}
+      setState({modal:"addCompany",modalData:result,co_li_text:"",co_li_loading:false});
+    }catch(e){setState({co_li_loading:false,co_li_error:"Error: "+e.message});}
+  },{opacity:state.co_li_loading?0.6:1});
+  wrap.append(info,ta,errDiv,h("div",{style:{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}},[ghostBtn("Cancel",()=>setState({modal:null,co_li_text:"",co_li_error:""})),importBtn]));
+  return wrap;
+}
+
+// ── CSV Import ────────────────────────────────────────────────
+function renderCSVModal(){
+  const wrap=h("div",{});
+  let csvText="",step="paste";
+  const CSV_MAP={"name":"name","full name":"name","title":"title","job title":"title","company":"company","location":"location","email":"email","phone":"phone","linkedin":"linkedin","relationship":"relationship","notes":"notes","seniority":"seniority","sectors":"sectors","last contacted":"lastContacted","next action":"nextAction","next due":"nextDue","type":"type"};
+
+  const renderPaste=()=>{
+    wrap.innerHTML="";
+    const ta=tarea(csvText,v=>{csvText=v;},"name,title,company,location\nDr. Sarah Chen,VP Strategy,Huron,London",5);
+    wrap.append(h("p",{style:{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}},"Paste CSV or TSV data. Headers auto-mapped. Duplicates skipped automatically."),ta,h("div",{style:{marginTop:12,display:"flex",justifyContent:"flex-end"}},btn("Parse →",()=>{if(csvText.trim())renderMap();})));
   };
-  return(
-    <>
-      {dupes.length>0&&<DupeBanner dupes={dupes} onDismiss={()=>{setDupes([]);setDismissed(true);}}/>}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
-        <Fld label="Company Name" span2><Inp value={f.name} onChange={s("name")} placeholder="Charles River Associates"/></Fld>
-        <Fld label="Type"><SelEl value={f.type} onChange={s("type")} options={["Consulting","Pharma","Biotech","MedTech","Other"]}/></Fld>
-        <Fld label="Tier"><SelEl value={f.tier} onChange={s("tier")} options={["Key Client","Warm","Prospect"]}/></Fld>
-        <Fld label="HQ"><Inp value={f.hq} onChange={s("hq")} placeholder="Boston, US"/></Fld>
-        <Fld label="Key Contact"><Inp value={f.keyContact} onChange={s("keyContact")} placeholder="Maria Lopez"/></Fld>
-        <Fld label="Open Mandates"><Inp value={f.openMandates} onChange={s("openMandates")} type="number"/></Fld>
-        <Fld label="Relationship"><SelEl value={f.relationship} onChange={s("relationship")} options={["Hot","Warm","Cold","New"]}/></Fld>
-        <Fld label="Last Contacted"><Inp type="date" value={f.lastContacted} onChange={s("lastContacted")}/></Fld>
-        <Fld label="Next Due"><Inp type="date" value={f.nextDue} onChange={s("nextDue")}/></Fld>
-        <Fld label="Next Action" span2><Inp value={f.nextAction} onChange={s("nextAction")} placeholder="Schedule intro call…"/></Fld>
-        <Fld label="Notes" span2><Tarea value={f.notes} onChange={s("notes")} rows={3}/></Fld>
-      </div>
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16}}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={handleSave}>{isEdit?"Update":"Save Company"}</Btn>
-      </div>
-    </>
-  );
-}
 
-// ── COMPANIES VIEW ────────────────────────────────────────────
-function CompaniesView({companies,setCompanies,people,setPeople,persist,initialSel,onNavigatePerson}){
-  const[search,setSearch]=useState("");
-  const[tierF,setTierF]=useState("all");
-  const[sel,setSel]=useState(initialSel||null);
-  const[modal,setModal]=useState(null);
-  const[linkedInPrefill,setLinkedInPrefill]=useState(null);
-  useEffect(()=>{if(initialSel)setSel(initialSel);},[initialSel]);
+  const renderMap=()=>{
+    wrap.innerHTML="";
+    const lines=csvText.trim().split(/\r?\n/);
+    const delim=lines[0].split("\t").length>lines[0].split(",").length?"\t":",";
+    const headers=lines[0].split(delim).map(h=>h.replace(/^"|"$/g,"").trim());
+    const rows=lines.slice(1).filter(l=>l.trim()).map(l=>{const vals=l.split(delim);const o={};headers.forEach((h,i)=>{o[h]=vals[i]||"";});return o;});
+    const mappings={};
+    headers.forEach(h=>{mappings[h]=CSV_MAP[h.toLowerCase().trim()]||"ignore";});
 
-  const list=useMemo(()=>companies.filter(c=>
-    (tierF==="all"||c.tier===tierF)&&
-    (c.name+c.type+c.hq).toLowerCase().includes(search.toLowerCase())
-  ),[companies,search,tierF]);
-
-  const selC=companies.find(c=>c.id===sel);
-  const linked=selC?people.filter(p=>p.companyId===selC.id):[];
-  const commit=u=>{setCompanies(u);persist("companies",u);};
-  const add=f=>commit([{...f,id:Date.now(),openMandates:Number(f.openMandates)},...companies]);
-  const upd=f=>commit(companies.map(c=>c.id===sel?{...c,...f,openMandates:Number(f.openMandates)}:c));
-  const del=()=>{commit(companies.filter(c=>c.id!==sel));setSel(null);};
-
-  return(
-    <div style={{display:"flex",height:"100%",minHeight:0}}>
-      <div style={{width:300,flexShrink:0,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",background:W}}>
-        <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+G200}}>
-          <div style={{display:"flex",gap:8,marginBottom:10}}>
-            <Inp value={search} onChange={setSearch} placeholder="Filter companies…" style={{fontSize:12}}/>
-            <Btn small onClick={()=>setModal("add")}>+ Add</Btn>
-          </div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {["all","Key Client","Warm","Prospect"].map(t=>(
-              <button key={t} onClick={()=>setTierF(t)} style={{background:tierF===t?(TC_MAP[t]||TEAL)+"15":"transparent",color:tierF===t?(TC_MAP[t]||TEAL):G600,border:"1px solid "+(tierF===t?(TC_MAP[t]||TEAL)+"40":G300),borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t==="all"?"All":t}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{overflowY:"auto",flex:1,padding:"8px 8px"}}>
-          {list.map(c=>{
-            const isSel=sel===c.id,tc=TC_MAP[c.tier]||G600,pct=people.filter(p=>p.companyId===c.id).length;
-            return(
-              <div key={c.id} onClick={()=>setSel(c.id)} style={{padding:"11px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",background:isSel?TL:"transparent",border:"1px solid "+(isSel?TM:"transparent"),transition:"all 0.1s"}}>
-                <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <Av name={c.name} size={34} color={tc}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",justifyContent:"space-between"}}>
-                      <div style={{fontWeight:700,color:NAVY,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:120}}>{c.name}</div>
-                      <RelDot rel={c.relationship}/>
-                    </div>
-                    <div style={{fontSize:11.5,color:G600}}>{c.type}{c.hq?" · "+c.hq:""}</div>
-                    <div style={{marginTop:4,display:"flex",gap:8}}>
-                      {pct>0&&<span style={{fontSize:11,color:TEAL,fontWeight:600}}>{"👥 "+pct}</span>}
-                      {c.nextDue&&<DueTag due={c.nextDue}/>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {list.length===0&&<div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13}}>No results</div>}
-        </div>
-        {/* LinkedIn paste footer */}
-        <div style={{padding:"12px 16px",borderTop:"1px solid "+G200}}>
-          <CompanyLinkedInPaste onParsed={parsed=>{
-            // Pre-fill the add form with parsed data and open modal
-            setModal("add");
-            // We need to pass prefill — store in a ref-like way via state
-            setLinkedInPrefill(parsed);
-          }}/>
-          <div style={{fontSize:11,color:G400,marginTop:6,lineHeight:1.4}}>
-            Paste a LinkedIn company page to auto-fill details.
-          </div>
-        </div>
-      </div>
-
-      {selC?(
-        <div style={{flex:1,overflowY:"auto",padding:"28px 32px",background:G50}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22}}>
-            <div>
-              <h2 style={{fontSize:22,fontWeight:700,color:NAVY,margin:0}}>{selC.name}</h2>
-              <div style={{color:G600,fontSize:14,marginTop:3}}>{selC.type}{selC.hq?" · "+selC.hq:""}</div>
-              <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
-                <RelDot rel={selC.relationship}/>
-                <Badge label={selC.tier} color={TC_MAP[selC.tier]||G600}/>
-                {selC.openMandates>0&&<Badge label={selC.openMandates+" open mandates"} color={TEAL}/>}
-                {linked.length>0&&<Badge label={linked.length+" people"} color={G600}/>}
-              </div>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <Btn variant="ghost" small onClick={()=>setModal("edit")}>Edit</Btn>
-              <Btn variant="danger" small onClick={del}>Delete</Btn>
-            </div>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:18}}>
-            <InfoCard label="Key Contact"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selC.keyContact||"—"}</div></InfoCard>
-            <InfoCard label="Last Contacted"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selC.lastContacted||"—"}</div></InfoCard>
-            <InfoCard label="Due"><DueTag due={selC.nextDue}/></InfoCard>
-          </div>
-          {selC.nextAction&&<div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:NAVY}}><span style={{color:TEAL,fontWeight:700,marginRight:8}}>Next:</span>{selC.nextAction}</div>}
-          <div style={{background:W,borderRadius:8,padding:"16px 20px",border:"1px solid "+G200,marginBottom:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{"People at "+selC.name+" ("+linked.length+")"}</div>
-                <Btn variant="teal" small onClick={()=>setModal("addperson")}>+ Add Person</Btn>
-              </div>
-              {linked.length===0&&<div style={{color:G400,fontSize:13,padding:"4px 0",marginBottom:8}}>No people linked yet. Click Add Person to link someone here.</div>}
-              {linked.map(p=>(
-                <div key={p.id} onClick={()=>onNavigatePerson&&onNavigatePerson(p.id)}
-                  style={{display:"flex",gap:12,alignItems:"center",padding:"10px 0",borderBottom:"1px solid "+G100,cursor:"pointer",borderRadius:4,transition:"background 0.1s"}}
-                  onMouseEnter={e=>e.currentTarget.style.background=G50}
-                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                  <Av name={p.name} size={34} color={p.type==="contact"?"#6f42c1":TEAL}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,color:NAVY,fontSize:13}}>{p.name}</div>
-                    <div style={{fontSize:11,color:G600,marginTop:1}}>{p.title||""}</div>
-                    {p.email&&<div style={{fontSize:11,color:TEAL,marginTop:2}}>{p.email}</div>}
-                    {p.phone&&<div style={{fontSize:11,color:G600,marginTop:1}}>{p.phone}</div>}
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}}>
-                    <Badge label={p.type==="candidate"?"Candidate":"Contact"} color={p.type==="contact"?"#6f42c1":TEAL}/>
-                    <RelDot rel={p.relationship}/>
-                  </div>
-                  <span style={{fontSize:11,color:TEAL,fontWeight:600,marginLeft:4}}>→</span>
-                </div>
-              ))}
-            </div>
-          <div style={{background:W,borderRadius:8,padding:"16px 20px",border:"1px solid "+G200,marginBottom:0}}>
-            <div style={{fontSize:11,color:G600,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Notes</div>
-            <div style={{color:G800,fontSize:14,lineHeight:1.75,whiteSpace:"pre-wrap"}}>{selC.notes||"—"}</div>
-          </div>
-          <div style={{marginTop:16}}><QuickLog item={selC} onUpdate={f=>{commit(companies.map(c=>c.id===sel?{...c,...f}:c));}}/></div>
-        </div>
-      ):(
-        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:G400,background:G50}}>
-          <div style={{fontSize:32}}>🏢</div>
-          <div style={{fontSize:13}}>Select a company to view details</div>
-        </div>
-      )}
-      {modal==="add"&&<ModalEl title="Add Company" onClose={()=>{setModal(null);setLinkedInPrefill(null);}}><CompanyForm init={{...BLANKCO,...(linkedInPrefill||{})}} onSave={f=>{add(f);setLinkedInPrefill(null);}} onClose={()=>{setModal(null);setLinkedInPrefill(null);}} companies={companies} isEdit={false}/></ModalEl>}
-      {modal==="edit"&&selC&&<ModalEl title={"Edit — "+selC.name} onClose={()=>setModal(null)}><CompanyForm init={{...selC,openMandates:String(selC.openMandates)}} onSave={upd} onClose={()=>setModal(null)} companies={companies} isEdit={true}/></ModalEl>}
-      {modal==="addperson"&&selC&&(
-        <ModalEl title={"Add Person at "+selC.name} onClose={()=>setModal(null)} wide>
-          <PersonForm
-            init={{...BLANKP,company:selC.name,companyId:selC.id}}
-            onSave={f=>{
-              const newP={...f,id:Date.now(),companyId:selC.id,company:selC.name};
-              const updated=[newP,...people];
-              setPeople(updated);persist("people",updated);
-            }}
-            onClose={()=>setModal(null)}
-            people={people}
-            isEdit={false}/>
-        </ModalEl>
-      )}
-    </div>
-  );
-}
-
-// ── BD TRACKER ────────────────────────────────────────────────
-function BDTracker({people,companies,setPeople,setCompanies,persist}){
-  const now=new Date();
-  const all=useMemo(()=>{
-    const ps=people.filter(p=>p.nextAction||p.nextDue).map(p=>({...p,_k:"person"}));
-    const cs=companies.filter(c=>c.nextAction||c.nextDue).map(c=>({...c,_k:"company"}));
-    return[...ps,...cs].sort((a,b)=>{
-      if(!a.nextDue&&!b.nextDue)return 0;if(!a.nextDue)return 1;if(!b.nextDue)return -1;
-      return new Date(a.nextDue)-new Date(b.nextDue);
+    const CRM_FIELDS=["ignore","name","title","company","location","type","seniority","sectors","linkedin","email","phone","relationship","lastContacted","nextAction","nextDue","notes"];
+    const table=h("div",{style:{border:"1px solid "+G200,borderRadius:8,overflow:"hidden",marginBottom:16}});
+    const thead=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",background:G100,padding:"8px 14px",fontSize:11,fontWeight:700,color:G600,textTransform:"uppercase"}});
+    thead.append(h("div",{},"Column"),h("div",{},"Sample"),h("div",{},"Map to"));
+    table.appendChild(thead);
+    headers.forEach((hdr,i)=>{
+      const row=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"8px 14px",borderTop:"1px solid "+G200,alignItems:"center",background:i%2===0?W:G50}});
+      const s=sel(mappings[hdr],v=>{mappings[hdr]=v;},CRM_FIELDS,{fontSize:12,padding:"4px 8px"});
+      row.append(h("div",{style:{fontWeight:600,color:NAVY,fontSize:12}},hdr),h("div",{style:{fontSize:11,color:G600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},(rows[0]?.[hdr]||"—").slice(0,25)),s);
+      table.appendChild(row);
     });
-  },[people,companies]);
+
+    const doImport=()=>{
+      let np=[...state.people],nc=[...state.companies],added=0,skipped=0;
+      rows.forEach(row=>{
+        const p={...BLANKP};
+        Object.entries(mappings).forEach(([csvH,crmF])=>{if(!crmF||crmF==="ignore")return;const v=(row[csvH]||"").trim();if(!v)return;if(crmF==="sectors")p.sectors=v.split(/[,;|]/).map(s=>s.trim()).filter(Boolean);else p[crmF]=v;});
+        if(!p.name.trim()){skipped++;return;}
+        if(findDupePeople(p.name,p.company,np).length>0){skipped++;return;}
+        const{companies:updCos,companyId}=autoLinkCompany(p.company,nc);
+        nc=updCos;np=[{...p,id:Date.now()+Math.random(),companyId},...np];added++;
+      });
+      setState({people:np,companies:nc,modal:null});
+      persist("people",np);persist("companies",nc);
+      alert("Import complete: "+added+" added, "+skipped+" skipped.");
+    };
+
+    wrap.append(h("p",{style:{color:G600,fontSize:13,marginBottom:14}},rows.length+" rows found. Map columns then import."),table,h("div",{style:{display:"flex",gap:10,justifyContent:"flex-end"}},[ghostBtn("← Back",renderPaste),btn("Import "+rows.length+" People",doImport)]));
+  };
+
+  renderPaste();
+  return wrap;
+}
+
+// ── Sidebar list items ────────────────────────────────────────
+function personListItem(p,selected){
+  const ac=p.type==="contact"?"#6f42c1":TEAL;
+  const el=h("div",{onClick:()=>setState({selPerson:p,personTab:"Overview"}),style:{padding:"11px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",background:selected?TL:"transparent",border:"1px solid "+(selected?TM:"transparent")}});
+  const row=h("div",{style:{display:"flex",gap:10,alignItems:"center"}});
+  row.append(av(p.name,34,ac),h("div",{style:{flex:1,minWidth:0}},[
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline"}},[h("div",{style:{fontWeight:700,color:NAVY,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}},p.name),relDot(p.relationship)]),
+    h("div",{style:{fontSize:11.5,color:G600,marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},[p.title,p.company].filter(Boolean).join(" · ")),
+    p.nextDue?h("div",{style:{marginTop:4}},dueTag(p.nextDue)):h("span",{})
+  ]));
+  el.appendChild(row);
+  return el;
+}
+
+function companyListItem(c,selected){
+  const tc=TC[c.tier]||G600;
+  const pCount=state.people.filter(p=>p.companyId===c.id).length;
+  const el=h("div",{onClick:()=>setState({selCompany:c}),style:{padding:"11px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",background:selected?TL:"transparent",border:"1px solid "+(selected?TM:"transparent")}});
+  el.append(h("div",{style:{display:"flex",gap:10,alignItems:"center"}},[
+    av(c.name,34,tc),
+    h("div",{style:{flex:1,minWidth:0}},[
+      h("div",{style:{display:"flex",justifyContent:"space-between"}},[h("div",{style:{fontWeight:700,color:NAVY,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:120}},c.name),relDot(c.relationship)]),
+      h("div",{style:{fontSize:11.5,color:G600}},[c.type,c.hq].filter(Boolean).join(" · ")),
+      h("div",{style:{marginTop:4,display:"flex",gap:8}},pCount>0?h("span",{style:{fontSize:11,color:TEAL,fontWeight:600}},"👥 "+pCount):"",c.nextDue?dueTag(c.nextDue):"")
+    ])
+  ]));
+  return el;
+}
+
+// ── BD Tracker ────────────────────────────────────────────────
+function renderBD(){
+  const now=new Date();
+  const all=[
+    ...state.people.filter(p=>p.nextAction||p.nextDue).map(p=>({...p,_k:"person"})),
+    ...state.companies.filter(c=>c.nextAction||c.nextDue).map(c=>({...c,_k:"company"}))
+  ].sort((a,b)=>{
+    if(!a.nextDue&&!b.nextDue)return 0;if(!a.nextDue)return 1;if(!b.nextDue)return -1;
+    return new Date(a.nextDue)-new Date(b.nextDue);
+  });
+
   const ov=all.filter(i=>i.nextDue&&new Date(i.nextDue)<now);
   const soon=all.filter(i=>i.nextDue&&new Date(i.nextDue)>=now&&new Date(i.nextDue)<=new Date(Date.now()+7*86400000));
   const later=all.filter(i=>!i.nextDue||new Date(i.nextDue)>new Date(Date.now()+7*86400000));
-  const markDone=item=>{
-    if(item._k==="person"){const u=people.map(p=>p.id===item.id?{...p,nextAction:"",nextDue:"",lastContacted:today}:p);setPeople(u);persist("people",u);}
-    else{const u=companies.map(c=>c.id===item.id?{...c,nextAction:"",nextDue:"",lastContacted:today}:c);setCompanies(u);persist("companies",u);}
+
+  const wrap=h("div",{style:{overflowY:"auto",padding:"32px 40px",maxWidth:860,height:"100%"}});
+  wrap.append(h("h1",{style:{fontSize:26,fontWeight:700,color:NAVY,margin:"0 0 6px"}},"BD Tracker"),h("p",{style:{color:G600,fontSize:14,marginBottom:32}},"Your prioritised follow-up list across all people and companies"));
+
+  if(!all.length){wrap.appendChild(h("div",{style:{textAlign:"center",padding:"60px 0",color:G400}},[h("div",{style:{fontSize:40,marginBottom:12}},"✓"),h("div",{style:{fontSize:14}},"All caught up")]));return wrap;}
+
+  const section=(title,items,accent)=>{
+    if(!items.length)return;
+    const s=h("div",{style:{marginBottom:32}});
+    const sh=h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14,paddingBottom:10,borderBottom:"2px solid "+accent}});
+    sh.append(h("span",{style:{fontWeight:700,color:accent,fontSize:13,textTransform:"uppercase",letterSpacing:"0.07em"}},title),h("span",{style:{background:accent+"15",color:accent,borderRadius:12,padding:"1px 10px",fontSize:12,fontWeight:700}},items.length));
+    s.appendChild(sh);
+    for(const item of items){
+      const ac=item._k==="company"?WARN:item.type==="contact"?"#6f42c1":TEAL;
+      const card=h("div",{style:{background:W,border:"1px solid "+G200,borderLeft:"4px solid "+accent,borderRadius:8,padding:"14px 18px",marginBottom:10,display:"flex",gap:14,alignItems:"flex-start"}});
+      const info=h("div",{style:{flex:1,minWidth:0}});
+      const irow=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:3}});
+      irow.append(h("span",{style:{fontWeight:700,color:NAVY,fontSize:14}},item.name),h("div",{style:{display:"flex",gap:10,alignItems:"center"}},[dueTag(item.nextDue),relDot(item.relationship)]));
+      info.append(irow,h("div",{style:{fontSize:12,color:G600,marginBottom:8}},[item._k==="company"?item.type:item.title,(item.company||item.hq)].filter(Boolean).join(" · ")));
+      if(item.nextAction){const na=h("div",{style:{fontSize:13,color:NAVY,background:G50,borderRadius:6,padding:"6px 12px",display:"inline-flex",alignItems:"center",gap:6,border:"1px solid "+G200}});na.append(h("span",{style:{color:TEAL,fontWeight:700}},"→"),item.nextAction);info.appendChild(na);}
+      const doneBtn=btn("✓ Done",()=>{
+        if(item._k==="person"){const u=state.people.map(p=>p.id===item.id?{...p,nextAction:"",nextDue:"",lastContacted:today}:p);setState({people:u});persist("people",u);}
+        else{const u=state.companies.map(c=>c.id===item.id?{...c,nextAction:"",nextDue:"",lastContacted:today}:c);setState({companies:u});persist("companies",u);}
+      },{background:TL,border:"1px solid "+TM,color:TEAL,fontSize:12,padding:"6px 12px",flexShrink:0});
+      card.append(av(item.name,36,ac),info,doneBtn);
+      s.appendChild(card);
+    }
+    wrap.appendChild(s);
   };
-  const Sec=({title,items,accent})=>{
-    if(!items.length)return null;
-    return(
-      <div style={{marginBottom:32}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,paddingBottom:10,borderBottom:"2px solid "+accent}}>
-          <span style={{fontWeight:700,color:accent,fontSize:13,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</span>
-          <span style={{background:accent+"15",color:accent,borderRadius:12,padding:"1px 10px",fontSize:12,fontWeight:700}}>{items.length}</span>
-        </div>
-        {items.map(item=>{
-          const ac=item._k==="company"?WARN:item.type==="contact"?"#6f42c1":TEAL;
-          return(
-            <div key={item._k+"-"+item.id} style={{background:W,border:"1px solid "+G200,borderLeft:"4px solid "+accent,borderRadius:8,padding:"14px 18px",marginBottom:10,display:"flex",gap:14,alignItems:"flex-start",boxShadow:"0 1px 3px #0001"}}>
-              <Av name={item.name} size={36} color={ac}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:3}}>
-                  <span style={{fontWeight:700,color:NAVY,fontSize:14}}>{item.name}</span>
-                  <div style={{display:"flex",gap:10,alignItems:"center"}}><DueTag due={item.nextDue}/><RelDot rel={item.relationship}/></div>
-                </div>
-                <div style={{fontSize:12,color:G600,marginBottom:8}}>{item._k==="company"?item.type:item.title}{(item.company||item.hq)?" · "+(item.company||item.hq):""}</div>
-                {item.nextAction&&<div style={{fontSize:13,color:NAVY,background:G50,borderRadius:6,padding:"6px 12px",display:"inline-flex",alignItems:"center",gap:6,border:"1px solid "+G200}}><span style={{color:TEAL,fontWeight:700}}>→</span>{item.nextAction}</div>}
-              </div>
-              <button onClick={()=>markDone(item)} style={{background:TL,border:"1px solid "+TM,color:TEAL,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit",flexShrink:0}}>✓ Done</button>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-  return(
-    <div style={{overflowY:"auto",padding:"32px 40px",maxWidth:860,height:"100%"}}>
-      <h1 style={{fontSize:26,fontWeight:700,color:NAVY,margin:"0 0 6px"}}>BD Tracker</h1>
-      <p style={{color:G600,fontSize:14,marginBottom:32}}>Your prioritised follow-up list across all people and companies</p>
-      {!all.length&&<div style={{textAlign:"center",padding:"60px 0",color:G400}}><div style={{fontSize:40,marginBottom:12}}>✓</div><div style={{fontSize:14}}>All caught up</div></div>}
-      <Sec title="Overdue" items={ov} accent={DANGER}/>
-      <Sec title="Due this week" items={soon} accent={WARN}/>
-      <Sec title="Later" items={later} accent={G400}/>
-    </div>
-  );
+
+  section("Overdue",ov,DANGER);
+  section("Due this week",soon,WARN);
+  section("Later",later,G400);
+  return wrap;
 }
 
-// ── MARKET MAP ────────────────────────────────────────────────
-function MarketMap({people,companies,onNavigate}){
-  const[sectorF,setSectorF]=useState("All");
-  const[seniorityF,setSeniorityF]=useState("All");
-  const[relF,setRelF]=useState("All");
-  const[typeF,setTypeF]=useState("All");
-  const[mapView,setMapView]=useState("people"); // people | companies
+// ── Market Map ────────────────────────────────────────────────
+function renderMap(){
+  const wrap=h("div",{style:{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}});
+  const filterBar=h("div",{style:{background:W,borderBottom:"1px solid "+G200,padding:"12px 20px",flexShrink:0}});
 
-  const allSectors=useMemo(()=>{
-    const s=new Set();people.forEach(p=>(p.sectors||[]).forEach(x=>s.add(x)));return["All",...Array.from(s).sort()];
-  },[people]);
+  const viewBtns=h("div",{style:{display:"inline-flex",gap:6,marginRight:20}});
+  for(const v of["people","companies"]){
+    const active=state.mapView===v;
+    const b=btn(v.charAt(0).toUpperCase()+v.slice(1),()=>setState({mapView:v}),{background:active?TEAL:"transparent",color:active?W:G600,border:"1px solid "+(active?TEAL:G300),fontSize:12,padding:"4px 12px"});
+    viewBtns.appendChild(b);
+  }
 
-  const filteredPeople=useMemo(()=>people.filter(p=>{
-    if(sectorF!=="All"&&!(p.sectors||[]).includes(sectorF))return false;
-    if(seniorityF!=="All"&&p.seniority!==seniorityF)return false;
-    if(relF!=="All"&&p.relationship!==relF)return false;
-    if(typeF!=="All"&&p.type!==typeF)return false;
-    return true;
-  }),[people,sectorF,seniorityF,relF,typeF]);
+  const relBtns=h("div",{style:{display:"inline-flex",gap:5}});
+  for(const r of["All","Hot","Warm","Cold","New"]){
+    const active=state.mapRelF===r;const c=REL[r]||TEAL;
+    const b=btn(r,()=>setState({mapRelF:r}),{background:active?c+"15":"transparent",color:active?c:G600,border:"1px solid "+(active?c+"40":G300),fontSize:11,padding:"3px 10px"});
+    relBtns.appendChild(b);
+  }
 
-  const filteredCompanies=useMemo(()=>companies.filter(c=>{
-    if(relF!=="All"&&c.relationship!==relF)return false;
-    return true;
-  }),[companies,relF]);
+  filterBar.append(viewBtns,relBtns);
+  wrap.appendChild(filterBar);
 
-  const sectorGroups=useMemo(()=>{
-    const map={};
-    filteredPeople.forEach(p=>(p.sectors||[]).forEach(s=>{if(!map[s])map[s]=[];map[s].push(p);}));
-    return Object.entries(map).sort((a,b)=>b[1].length-a[1].length);
-  },[filteredPeople]);
+  const content=h("div",{style:{flex:1,overflowY:"auto",padding:"20px 28px"}});
 
-  const total=people.length+companies.length;
-  const hotCount=[...people,...companies].filter(x=>x.relationship==="Hot").length;
+  // Stats
+  const stats=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:24}});
+  const hotCount=[...state.people,...state.companies].filter(x=>x.relationship==="Hot").length;
+  const sectorSet=new Set(state.people.flatMap(p=>p.sectors||[]));
+  [[state.people.length,"People",TEAL],[state.companies.length,"Companies","#6f42c1"],[hotCount,"Hot",DANGER],[sectorSet.size,"Sectors",WARN]].forEach(([v,l,c])=>{
+    stats.appendChild(h("div",{style:{background:W,border:"1px solid "+G200,borderRadius:10,padding:"16px 18px",borderTop:"3px solid "+c}},[h("div",{style:{fontSize:28,fontWeight:800,color:c,lineHeight:1}},v),h("div",{style:{fontSize:11,color:G600,marginTop:5,textTransform:"uppercase",letterSpacing:"0.05em"}},l)]));
+  });
+  content.appendChild(stats);
 
-  const FilterBtn=({options,value,onChange,colorMap})=>(
-    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-      {options.map(o=>{
-        const c=colorMap?colorMap[o]||G600:TEAL;
-        const active=value===o;
-        return <button key={o} onClick={()=>onChange(o)} style={{background:active?c+"15":"transparent",color:active?c:G600,border:"1px solid "+(active?c+"40":G300),borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>{o}</button>;
-      })}
-    </div>
-  );
+  if(state.mapView==="people"){
+    const filtered=state.people.filter(p=>(state.mapRelF==="All"||p.relationship===state.mapRelF)&&(state.mapSectorF==="All"||( p.sectors||[]).includes(state.mapSectorF)));
 
-  return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
-      {/* Filter bar */}
-      <div style={{background:W,borderBottom:"1px solid "+G200,padding:"14px 28px",flexShrink:0}}>
-        <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"flex-start"}}>
-          <div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>View</div>
-            <div style={{display:"flex",gap:5}}>
-              {["people","companies"].map(v=><button key={v} onClick={()=>setMapView(v)} style={{background:mapView===v?TEAL:"transparent",color:mapView===v?W:G600,border:"1px solid "+(mapView===v?TEAL:G300),borderRadius:20,padding:"3px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize"}}>{v}</button>)}
-            </div>
-          </div>
-          <div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Relationship</div>
-            <FilterBtn options={["All","Hot","Warm","Cold","New"]} value={relF} onChange={setRelF} colorMap={REL}/>
-          </div>
-          {mapView==="people"&&<div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Type</div>
-            <FilterBtn options={["All","candidate","contact"]} value={typeF} onChange={setTypeF}/>
-          </div>}
-          {mapView==="people"&&<div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Seniority</div>
-            <FilterBtn options={["All","C-Suite / Partner","VP / Director","Manager / Principal","Analyst / Consultant"]} value={seniorityF} onChange={setSeniorityF}/>
-          </div>}
-          {mapView==="people"&&<div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Sector</div>
-            <FilterBtn options={allSectors.slice(0,8)} value={sectorF} onChange={setSectorF}/>
-          </div>}
-        </div>
-      </div>
+    // Sector bubbles
+    const sectorMap={};
+    filtered.forEach(p=>(p.sectors||[]).forEach(s=>{if(!sectorMap[s])sectorMap[s]=[];sectorMap[s].push(p);}));
+    const sectors=Object.entries(sectorMap).sort((a,b)=>b[1].length-a[1].length);
+    if(sectors.length){
+      const sb=h("div",{style:{display:"flex",flexWrap:"wrap",gap:14,alignItems:"flex-end",marginBottom:24}});
+      sectors.forEach(([sector,ps])=>{
+        const color=SC[sector]||G600,size=Math.max(68,Math.min(140,58+ps.length*22));
+        const active=state.mapSectorF===sector;
+        const bubble=h("div",{onClick:()=>setState({mapSectorF:active?"All":sector}),style:{width:size,height:size,borderRadius:"50%",background:active?color+"30":color+"12",border:"2px solid "+(active?color:color+"40"),display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer"}});
+        bubble.append(h("div",{style:{fontSize:size*.28,fontWeight:800,color,lineHeight:1}},ps.length),h("div",{style:{fontSize:9,color,textAlign:"center",padding:"0 6px",lineHeight:1.3,fontWeight:600,marginTop:2}},sector));
+        sb.appendChild(bubble);
+      });
+      content.appendChild(sb);
+    }
 
-      <div style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>
-        {/* Stats row */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:28}}>
-          {[["Total People",people.length,TEAL],["Companies",companies.length,"#6f42c1"],["Hot relationships",hotCount,DANGER],["Sectors covered",[...new Set(people.flatMap(p=>p.sectors||[]))].length,WARN]].map(([l,v,c])=>(
-            <div key={l} style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"16px 18px",borderTop:"3px solid "+c}}>
-              <div style={{fontSize:28,fontWeight:800,color:c,lineHeight:1}}>{v}</div>
-              <div style={{fontSize:11,color:G600,marginTop:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</div>
-            </div>
-          ))}
-        </div>
+    // People grid
+    const grid=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}});
+    filtered.forEach(p=>{
+      const ac=p.type==="contact"?"#6f42c1":TEAL;
+      const card=h("div",{onClick:()=>setState({view:"people",selPerson:p,personTab:"Overview"}),style:{background:W,border:"1px solid "+G200,borderRadius:9,padding:"14px 16px",cursor:"pointer"}});
+      card.onmouseenter=()=>{card.style.borderColor=TEAL;card.style.boxShadow="0 2px 10px "+TEAL+"20";};
+      card.onmouseleave=()=>{card.style.borderColor=G200;card.style.boxShadow="none";};
+      card.append(h("div",{style:{display:"flex",gap:10,alignItems:"center",marginBottom:10}},[av(p.name,34,ac),h("div",{style:{flex:1,minWidth:0}},[h("div",{style:{fontWeight:700,color:NAVY,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},p.name),h("div",{style:{fontSize:11,color:G600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},p.title||"")])]),h("div",{style:{fontSize:11,color:G600,marginBottom:8}},"🏢 "+(p.company||"—")),h("div",{style:{display:"flex",gap:5}},[relDot(p.relationship),badge(p.seniority?p.seniority.split(" / ")[0]:"",G600)]));
+      if((p.sectors||[]).length){const tags=h("div",{style:{display:"flex",gap:4,flexWrap:"wrap",marginTop:7}});p.sectors.slice(0,2).forEach(s=>tags.appendChild(badge(s,SC[s]||G600)));card.appendChild(tags);}
+      grid.appendChild(card);
+    });
+    content.appendChild(grid);
+  }else{
+    const filtered=state.companies.filter(c=>state.mapRelF==="All"||c.relationship===state.mapRelF);
+    const grid=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}});
+    filtered.forEach(c=>{
+      const tc=TC[c.tier]||G400,pCount=state.people.filter(p=>p.companyId===c.id).length;
+      const card=h("div",{onClick:()=>setState({view:"companies",selCompany:c}),style:{background:W,border:"1px solid "+G200,borderLeft:"3px solid "+tc,borderRadius:9,padding:"14px 16px",cursor:"pointer"}});
+      card.onmouseenter=()=>{card.style.borderColor=tc;};card.onmouseleave=()=>{card.style.borderColor=G200;};
+      card.append(h("div",{style:{fontWeight:700,color:NAVY,fontSize:14,marginBottom:3}},c.name),h("div",{style:{fontSize:12,color:G600,marginBottom:8}},[c.type,c.hq].filter(Boolean).join(" · ")),h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}},[badge(c.tier,tc),relDot(c.relationship),pCount>0?h("span",{style:{fontSize:11,color:TEAL,fontWeight:600}},"👥 "+pCount):""]));
+      grid.appendChild(card);
+    });
+    content.appendChild(grid);
+  }
 
-        {mapView==="people"&&(
-          <div>
-            {/* Sector bubble clusters */}
-            {sectorGroups.length>0&&(
-              <div style={{marginBottom:28}}>
-                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:14}}>
-                  {"Sector clusters — "+filteredPeople.length+" people shown"}
-                </div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-end",marginBottom:20}}>
-                  {sectorGroups.map(([sector,ps])=>{
-                    const color=SC[sector]||G600,size=Math.max(68,Math.min(140,58+ps.length*22));
-                    const active=sectorF===sector;
-                    return(
-                      <div key={sector} onClick={()=>setSectorF(active?"All":sector)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer"}}>
-                        <div style={{width:size,height:size,borderRadius:"50%",background:active?color+"30":color+"12",border:"2px solid "+(active?color:color+"40"),display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",transition:"all 0.15s",boxShadow:active?"0 2px 12px "+color+"40":"none"}}>
-                          <div style={{fontSize:size*.28,fontWeight:800,color,lineHeight:1}}>{ps.length}</div>
-                          <div style={{fontSize:8.5,color,textAlign:"center",padding:"0 6px",lineHeight:1.3,fontWeight:600,marginTop:2}}>{sector}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* People grid — clickable cards */}
-            <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>
-              {"All people — "+filteredPeople.length+" results"}
-            </div>
-            {filteredPeople.length===0&&<div style={{color:G400,fontSize:13,padding:"20px 0"}}>No people match the current filters</div>}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
-              {filteredPeople.map(p=>{
-                const ac=p.type==="contact"?"#6f42c1":TEAL;
-                return(
-                  <div key={p.id} onClick={()=>onNavigate&&onNavigate("people",p.id)}
-                    style={{background:W,border:"1px solid "+G200,borderRadius:9,padding:"14px 16px",cursor:"pointer",transition:"all 0.12s",boxShadow:"0 1px 3px #0001"}}
-                    onMouseEnter={e=>{e.currentTarget.style.borderColor=TEAL;e.currentTarget.style.boxShadow="0 2px 10px "+TEAL+"20";}}
-                    onMouseLeave={e=>{e.currentTarget.style.borderColor=G200;e.currentTarget.style.boxShadow="0 1px 3px #0001";}}>
-                    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
-                      <Av name={p.name} size={34} color={ac}/>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,color:NAVY,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
-                        <div style={{fontSize:11,color:G600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.title||""}</div>
-                      </div>
-                    </div>
-                    <div style={{fontSize:11,color:G600,marginBottom:8,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{"🏢 "+(p.company||"—")}</div>
-                    <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-                      <RelDot rel={p.relationship}/>
-                      <Badge label={p.seniority?p.seniority.split(" / ")[0]:""} color={G600}/>
-                    </div>
-                    {(p.sectors||[]).length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:7}}>{(p.sectors||[]).slice(0,2).map(s=><Badge key={s} label={s} color={SC[s]||G600}/>)}</div>}
-                    {p.nextDue&&<div style={{marginTop:7}}><DueTag due={p.nextDue}/></div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {mapView==="companies"&&(
-          <div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24}}>
-              <div style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"18px"}}>
-                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>By Tier</div>
-                {["Key Client","Warm","Prospect"].map(tier=>{
-                  const count=companies.filter(c=>c.tier===tier).length,pct=companies.length?Math.round(count/companies.length*100):0,c=TC_MAP[tier]||G600;
-                  return(
-                    <div key={tier} style={{marginBottom:12}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,fontSize:12,color:G700}}><span>{tier}</span><span style={{fontWeight:700,color:c}}>{count}</span></div>
-                      <div style={{height:6,background:G200,borderRadius:3}}><div style={{height:"100%",width:pct+"%",background:c,borderRadius:3,transition:"width 0.4s"}}/></div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"18px"}}>
-                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>Relationship Heat</div>
-                {["Hot","Warm","Cold","New"].map(rel=>{
-                  const count=companies.filter(c=>c.relationship===rel).length,pct=companies.length?Math.round(count/companies.length*100):0;
-                  return(
-                    <div key={rel} style={{marginBottom:12}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><RelDot rel={rel}/><span style={{fontSize:12,fontWeight:700,color:G700}}>{count}</span></div>
-                      <div style={{height:6,background:G200,borderRadius:3}}><div style={{height:"100%",width:pct+"%",background:REL[rel],borderRadius:3,transition:"width 0.4s"}}/></div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>
-              {"All companies — "+filteredCompanies.length+" results"}
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
-              {filteredCompanies.map(c=>{
-                const tc=TC_MAP[c.tier]||G400,pCount=people.filter(p=>p.companyId===c.id).length;
-                return(
-                  <div key={c.id} onClick={()=>onNavigate&&onNavigate("companies",c.id)}
-                    style={{background:W,border:"1px solid "+G200,borderLeft:"3px solid "+tc,borderRadius:9,padding:"14px 16px",cursor:"pointer",transition:"all 0.12s",boxShadow:"0 1px 3px #0001"}}
-                    onMouseEnter={e=>{e.currentTarget.style.borderColor=tc;e.currentTarget.style.boxShadow="0 2px 10px "+tc+"30";}}
-                    onMouseLeave={e=>{e.currentTarget.style.borderColor=G200;e.currentTarget.style.boxShadow="0 1px 3px #0001";}}>
-                    <div style={{fontWeight:700,color:NAVY,fontSize:14,marginBottom:3}}>{c.name}</div>
-                    <div style={{fontSize:12,color:G600,marginBottom:8}}>{c.type}{c.hq?" · "+c.hq:""}</div>
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                      <Badge label={c.tier} color={tc}/>
-                      <RelDot rel={c.relationship}/>
-                      {pCount>0&&<span style={{fontSize:11,color:TEAL,fontWeight:600}}>{"👥 "+pCount+" people"}</span>}
-                      {c.openMandates>0&&<span style={{fontSize:11,color:OK,fontWeight:600}}>{"📋 "+c.openMandates+" mandates"}</span>}
-                    </div>
-                    {c.nextDue&&<div style={{marginTop:7}}><DueTag due={c.nextDue}/></div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  wrap.appendChild(content);
+  return wrap;
 }
 
 // ── Global search ─────────────────────────────────────────────
-function GlobalSearch({people,companies,onNavigate}){
-  const[q,setQ]=useState("");
-  const[open,setOpen]=useState(false);
-  const ref=useRef(null);
-  useEffect(()=>{
-    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
-  },[]);
-  const results=useMemo(()=>{
-    if(!q.trim()||q.length<2)return[];
+function renderSearch(){
+  const wrap=h("div",{style:{position:"relative",flex:1,maxWidth:420}});
+  const inp_el=h("input",{type:"text",placeholder:"Search everything — people, companies, notes…",value:state.searchQ,style:{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"8px 32px 8px 34px",color:G900,fontSize:13,outline:"none",width:"100%"}});
+  const icon=h("span",{style:{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:14,color:G400,pointerEvents:"none"}},"🔍");
+  inp_el.oninput=e=>{
+    const q=e.target.value;
     const ql=q.toLowerCase();
-    const pr=people.filter(p=>(p.name+p.company+p.title+(p.sectors||[]).join(" ")).toLowerCase().includes(ql)).slice(0,6).map(p=>({...p,_kind:"person"}));
-    const cr=companies.filter(c=>(c.name+c.type+c.hq).toLowerCase().includes(ql)).slice(0,4).map(c=>({...c,_kind:"company"}));
-    return[...pr,...cr];
-  },[q,people,companies]);
-  return(
-    <div ref={ref} style={{position:"relative",flex:1,maxWidth:420}}>
-      <div style={{position:"relative"}}>
-        <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:14,color:G400,pointerEvents:"none"}}>🔍</span>
-        <input value={q} onChange={e=>{setQ(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)}
-          placeholder="Search everything — people, companies, notes…"
-          style={{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"8px 32px 8px 34px",color:G900,fontSize:13,outline:"none",width:"100%",fontFamily:"inherit"}}/>
-        {q&&<button onClick={()=>{setQ("");setOpen(false);}} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:G400,cursor:"pointer",fontSize:18,lineHeight:1}}>×</button>}
-      </div>
-      {open&&results.length>0&&(
-        <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:W,border:"1px solid "+G200,borderRadius:10,boxShadow:"0 8px 32px #0002",zIndex:200,overflow:"hidden"}}>
-          {results.map(item=>{
-            const ip=item._kind==="person",color=ip?(item.type==="contact"?"#6f42c1":TEAL):(TC_MAP[item.tier]||G600);
-            return(
-              <div key={item._kind+"-"+item.id} onClick={()=>{onNavigate(ip?"people":"companies",item.id);setQ("");setOpen(false);}}
-                style={{display:"flex",gap:12,alignItems:"center",padding:"10px 16px",cursor:"pointer",borderBottom:"1px solid "+G100}}
-                onMouseEnter={e=>e.currentTarget.style.background=G50}
-                onMouseLeave={e=>e.currentTarget.style.background=W}>
-                <Av name={item.name} size={30} color={color}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{item.name}</div>
-                  <div style={{fontSize:11,color:G600}}>{ip?((item.title||"")+(item.company?" · "+item.company:"")):(item.type||"")+(item.hq?" · "+item.hq:"")}</div>
-                </div>
-                <span style={{fontSize:10,color:G400,background:G100,borderRadius:4,padding:"2px 7px",fontWeight:600,textTransform:"uppercase"}}>{ip?item.type:"company"}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {open&&q.length>=2&&!results.length&&(
-        <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:W,border:"1px solid "+G200,borderRadius:10,boxShadow:"0 8px 32px #0002",zIndex:200,padding:"16px",textAlign:"center",color:G400,fontSize:13}}>No results for "{q}"</div>
-      )}
-    </div>
-  );
-}
-
-// ── ROOT APP ──────────────────────────────────────────────────
-const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"map",label:"Market Map",icon:"◌"}];
-
-
-// ── First-run setup screen ────────────────────────────────────
-function SetupScreen({onComplete}){
-  const[token,setToken]=useState("");
-  const[base,setBase]=useState("appD0JD8AUdtR6thY");
-  const[table,setTable]=useState("tblUL48Km1j2m8sRU");
-  const[testing,setTesting]=useState(false);
-  const[error,setError]=useState("");
-
-  const save=async()=>{
-    if(!token.trim()){setError("Please enter your Airtable token");return;}
-    setTesting(true);setError("");
-    try{
-      // Test the connection
-      const res=await fetch("https://api.airtable.com/v0/"+base+"/"+table+"?maxRecords=1",{
-        headers:{"Authorization":"Bearer "+token.trim()}
-      });
-      if(!res.ok)throw new Error("Connection failed ("+res.status+") — check your token and base ID");
-      // Save to localStorage
-      localStorage.setItem("volt_at_token", token.trim());
-      localStorage.setItem("volt_at_base",  base.trim());
-      localStorage.setItem("volt_at_table", table.trim());
-      // Update module-level vars
-      AT_TOKEN = token.trim();
-      AT_BASE  = base.trim();
-      AT_TABLE = table.trim();
-      onComplete();
-    }catch(e){setError(e.message);}
-    setTesting(false);
+    const res=q.length<2?[]:([
+      ...state.people.filter(p=>(p.name+p.company+p.title+(p.sectors||[]).join(" ")).toLowerCase().includes(ql)).slice(0,6).map(p=>({...p,_kind:"person"})),
+      ...state.companies.filter(c=>(c.name+c.type+c.hq).toLowerCase().includes(ql)).slice(0,4).map(c=>({...c,_kind:"company"}))
+    ]);
+    setState({searchQ:q,searchResults:res,showSearch:q.length>=2});
   };
+  wrap.append(icon,inp_el);
 
-  return(
-    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:"#f8f9fa",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#fff",borderRadius:14,padding:"40px 48px",width:520,maxWidth:"100%",boxShadow:"0 4px 24px #0002",border:"1px solid #e9ecef"}}>
-        <img src={LOGO_SRC} alt="VoltConsulting" style={{height:32,marginBottom:28,objectFit:"contain"}} onError={e=>{e.target.style.display="none";}} />
-        <h2 style={{fontSize:22,fontWeight:700,color:"#0D1B2A",marginBottom:8}}>Connect to Airtable</h2>
-        <p style={{fontSize:13,color:"#6c757d",marginBottom:28,lineHeight:1.6}}>
-          Enter your Airtable credentials to set up shared team data. These are stored only in your browser — never in the file.
-        </p>
-
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,color:"#6c757d",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Personal Access Token</div>
-          <input value={token} onChange={e=>setToken(e.target.value)} placeholder="patXXXXXX..."
-            style={{width:"100%",border:"1px solid #dee2e6",borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-          <div style={{fontSize:11,color:"#6c757d",marginTop:4}}>Get this from airtable.com/create/tokens</div>
-        </div>
-
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,color:"#6c757d",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Base ID</div>
-          <input value={base} onChange={e=>setBase(e.target.value)} placeholder="appXXXXXX..."
-            style={{width:"100%",border:"1px solid #dee2e6",borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-          <div style={{fontSize:11,color:"#6c757d",marginTop:4}}>From the URL when your VoltCRM base is open</div>
-        </div>
-
-        {error&&<div style={{background:"#fff5f5",border:"1px solid #f43f5e44",borderRadius:6,padding:"10px 14px",fontSize:13,color:"#dc3545",marginBottom:16}}>{error}</div>}
-
-        <button onClick={save} disabled={testing}
-          style={{background:"#00C2C7",color:"#fff",border:"none",borderRadius:7,padding:"11px 24px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",fontFamily:"inherit",opacity:testing?0.7:1}}>
-          {testing?"Testing connection…":"Connect & Open CRM"}
-        </button>
-
-        <div style={{marginTop:16,fontSize:12,color:"#adb5bd",textAlign:"center"}}>
-          Your credentials are saved in this browser only. Each team member enters them once.
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function App(){
-  const[showSetup,setShowSetup]=useState(!localStorage.getItem("volt_at_token"));
-  const[view,setView]=useState("bd");
-  const[navSel,setNavSel]=useState(null);
-  const[people,setPeople]=useState(SEED_PEOPLE);
-  const[companies,setCompanies]=useState(SEED_COMPANIES);
-  const[ready,setReady]=useState(false);
-  const[saveState,setSaveState]=useState(null);
-  const[syncStatus,setSyncStatus]=useState("loading");
-
-  useEffect(()=>{
-    (async()=>{
-      setSyncStatus("loading");
-      try {
-        const data = await loadFromAirtable();
-        // Use Airtable data if it has records
-        if(data.people && data.people.length>0) {
-          setPeople(data.people);
-        } else {
-          // Try localStorage cache
-          const sp=await sGet("voltcrm5-people");
-          if(sp && sp.length>0) setPeople(JSON.parse(typeof sp==="string"?sp:JSON.stringify(sp)));
-          // else keep SEED_PEOPLE (already set as default state)
-        }
-        if(data.companies && data.companies.length>0) {
-          setCompanies(data.companies);
-        } else {
-          const sc=await sGet("voltcrm5-companies");
-          if(sc && sc.length>0) setCompanies(JSON.parse(typeof sc==="string"?sc:JSON.stringify(sc)));
-          // else keep SEED_COMPANIES
-        }
-        setSyncStatus("ok");
-        // If Airtable was empty, push seed data up so all users see it
-        if((!data.people||data.people.length===0)&&(!data.companies||data.companies.length===0)){
-          try {
-            await saveToAirtable("PEOPLE", SEED_PEOPLE);
-            await saveToAirtable("COMPANIES", SEED_COMPANIES);
-          } catch(e3){ console.warn("Seed push failed:", e3.message); }
-        }
-      } catch(e) {
-        console.warn("Airtable load failed, using local cache:", e.message);
-        try {
-          const sp=await sGet("voltcrm5-people");
-          const sc=await sGet("voltcrm5-companies");
-          if(sp) setPeople(JSON.parse(typeof sp==="string"?sp:JSON.stringify(sp)));
-          if(sc) setCompanies(JSON.parse(typeof sc==="string"?sc:JSON.stringify(sc)));
-        } catch(e2) { /* keep seed data */ }
-        setSyncStatus("offline");
-      }
-      setReady(true);
-    })();
-  },[]);
-
-  const persist=useCallback(async(key,data)=>{
-    setSaveState("saving");
-    // Always save to localStorage immediately
-    await sSet("voltcrm5-"+key, data);
-    // Then sync to Airtable
-    try {
-      if(key==="people") await saveToAirtable("PEOPLE", data);
-      else if(key==="companies") await saveToAirtable("COMPANIES", data);
-      setSyncStatus("ok");
-    } catch(e) {
-      console.warn("Airtable save failed:", e.message);
-      setSyncStatus("offline");
+  if(state.showSearch){
+    const dropdown=h("div",{style:{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:W,border:"1px solid "+G200,borderRadius:10,boxShadow:"0 8px 32px #0002",zIndex:200,overflow:"hidden"}});
+    if(state.searchResults.length===0){
+      dropdown.appendChild(h("div",{style:{padding:"16px",textAlign:"center",color:G400,fontSize:13}},'No results for "'+state.searchQ+'"'));
+    }else{
+      state.searchResults.forEach(item=>{
+        const ip=item._kind==="person";const color=ip?(item.type==="contact"?"#6f42c1":TEAL):(TC[item.tier]||G600);
+        const row=h("div",{style:{display:"flex",gap:12,alignItems:"center",padding:"10px 16px",cursor:"pointer",borderBottom:"1px solid "+G100}});
+        row.onmouseenter=()=>{row.style.background=G50;};row.onmouseleave=()=>{row.style.background=W;};
+        row.onclick=()=>{setState({view:ip?"people":"companies",selPerson:ip?item:null,selCompany:ip?null:item,searchQ:"",showSearch:false,personTab:"Overview"});};
+        row.append(av(item.name,30,color),h("div",{style:{flex:1,minWidth:0}},[h("div",{style:{fontWeight:600,color:NAVY,fontSize:13}},item.name),h("div",{style:{fontSize:11,color:G600}},ip?((item.title||"")+(item.company?" · "+item.company:"")):(item.type||"")+(item.hq?" · "+item.hq:""))]),h("span",{style:{fontSize:10,color:G400,background:G100,borderRadius:4,padding:"2px 7px",fontWeight:600,textTransform:"uppercase"}},ip?item.type:"company"));
+        dropdown.appendChild(row);
+      });
     }
-    setSaveState("saved");
-    setTimeout(()=>setSaveState(null),2500);
-  },[]);
-
-  const handleNavigate=(targetView,id)=>{setView(targetView);setNavSel(id);setTimeout(()=>setNavSel(null),500);};
-  const overdueCount=[...people,...companies].filter(x=>x.nextDue&&new Date(x.nextDue)<new Date()).length;
-
-  if(showSetup)return <SetupScreen onComplete={()=>{setShowSetup(false);window.location.reload();}}/>;
-
-  if(!ready)return(
-    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:W,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
-      <img src={LOGO_SRC} alt="VoltConsulting" style={{height:36,opacity:0.5}} onError={e=>{e.target.style.display="none";}}/>
-      <div style={{fontSize:13,color:G600}}>Connecting to Airtable…</div>
-    </div>
-  );
-
-  return(
-    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:G50,height:"100vh",display:"flex",overflow:"hidden",color:G900}}>
-      <style>{"*{box-sizing:border-box;margin:0;padding:0}input,textarea,select,button{font-family:Aptos,Calibri,'Segoe UI',sans-serif}input::placeholder,textarea::placeholder{color:"+G400+"}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:"+G300+";border-radius:3px}"}</style>
-
-      <div style={{width:220,background:W,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",flexShrink:0,boxShadow:"1px 0 4px #0001"}}>
-        <div style={{padding:"20px 20px 18px",borderBottom:"1px solid "+G200}}>
-          <img src={LOGO_SRC} alt="VoltConsulting" style={{height:28,maxWidth:"100%",objectFit:"contain",objectPosition:"left"}} onError={e=>{e.target.style.display="none";e.target.nextSibling&&(e.target.nextSibling.style.display="block");}}/><span style={{display:"none",fontWeight:800,color:TEAL,fontSize:16,letterSpacing:"0.05em"}}>VOLTCONSULTING</span>
-          <div style={{fontSize:10.5,color:TEAL,letterSpacing:"0.12em",textTransform:"uppercase",marginTop:8,fontWeight:700}}>Internal CRM</div>
-        </div>
-        <nav style={{flex:1,padding:"12px 10px"}}>
-          {NAV.map(n=>{
-            const active=view===n.id;
-            return(
-              <button key={n.id} onClick={()=>setView(n.id)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:active?TL:"transparent",border:"1px solid "+(active?TM:"transparent"),borderRadius:7,padding:"10px 12px",marginBottom:3,color:active?TEAL:G600,fontWeight:active?700:400,fontSize:13.5,cursor:"pointer",textAlign:"left",transition:"all 0.12s",fontFamily:"inherit"}}>
-                <span style={{fontSize:14}}>{n.icon}</span>
-                {n.label}
-                {n.id==="bd"&&overdueCount>0&&<span style={{marginLeft:"auto",background:DANGER,color:W,borderRadius:10,padding:"1px 8px",fontSize:10.5,fontWeight:800}}>{overdueCount}</span>}
-              </button>
-            );
-          })}
-        </nav>
-        <div style={{padding:"14px 20px 20px",borderTop:"1px solid "+G200}}>
-          <div style={{fontSize:10.5,color:G400,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>Team</div>
-          {[["David",TEAL],["Lauren","#6f42c1"],["Brinda",WARN]].map(([name,c])=>(
-            <div key={name} style={{display:"flex",alignItems:"center",gap:9,marginBottom:8}}>
-              <Av name={name} size={24} color={c}/>
-              <span style={{fontSize:13,color:G700}}>{name}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-  
-        <div style={{background:W,borderBottom:"1px solid "+G200,padding:"12px 24px",display:"flex",alignItems:"center",gap:16,flexShrink:0}}>
-          <GlobalSearch people={people} companies={companies} onNavigate={handleNavigate}/>
-          <div style={{fontSize:12,color:G400,whiteSpace:"nowrap"}}>{people.length+" people · "+companies.length+" companies"}</div>
-        </div>
-        <div style={{flex:1,overflow:"hidden"}}>
-          {view==="bd"&&<BDTracker people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist}/>}
-          {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel}/>}
-          {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}}/>}
-          {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate}/>}
-        </div>
-      </div>
-
-      {/* Sync status indicator */}
-      <div style={{position:"fixed",bottom:18,right:20,zIndex:500,pointerEvents:"none"}}>
-        {saveState==="saving"&&<div style={{background:G50,border:"1px solid "+G300,borderRadius:20,padding:"5px 16px",fontSize:12,color:G600,fontWeight:600}}>⟳ Syncing to Airtable…</div>}
-        {saveState==="saved"&&<div style={{background:OK+"15",border:"1px solid "+OK,borderRadius:20,padding:"5px 16px",fontSize:12,color:OK,fontWeight:600}}>✓ Synced to Airtable</div>}
-        {!saveState&&syncStatus==="offline"&&<div style={{background:"#fff8e1",border:"1px solid "+WARN,borderRadius:20,padding:"5px 16px",fontSize:12,color:WARN,fontWeight:600}}>⚠ Offline — saved locally</div>}
-        {!saveState&&syncStatus==="loading"&&<div style={{background:G50,border:"1px solid "+G300,borderRadius:20,padding:"5px 16px",fontSize:12,color:G600,fontWeight:600}}>⟳ Loading from Airtable…</div>}
-      </div>
-    </div>
-  );
+    wrap.appendChild(dropdown);
+  }
+  return wrap;
 }
 
+// ── Main render ───────────────────────────────────────────────
+function render(){
+  const root=document.getElementById("root");
+  root.innerHTML="";
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<ErrorBoundary><App /></ErrorBoundary>);
+  if(!AT_TOKEN){root.appendChild(renderSetup());return;}
+  if(!state.ready){root.appendChild(h("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:12}},[h("div",{style:{fontWeight:700,fontSize:16,color:TEAL}}),"VoltConsulting CRM",h("div",{style:{fontSize:13,color:G600}},"Connecting to Airtable…")]));return;}
 
-    // Also catch any top-level JS errors
-    window.onerror = function(msg, src, line, col, err) {
-      document.getElementById('root').innerHTML =
-        '<div style="padding:40px;font-family:sans-serif;color:#dc3545;background:#fff5f5;min-height:100vh">' +
-        '<h2>CRM Load Error</h2>' +
-        '<pre style="background:#fff;padding:20px;border-radius:8px;font-size:12px;overflow:auto;color:#333">' +
-        msg + '\nLine: ' + line + '\nSource: ' + src +
-        '</pre><p>Please screenshot this and send to your developer.</p></div>';
+  const app=h("div",{style:{display:"flex",height:"100vh",overflow:"hidden"}});
+
+  // Sidebar
+  const sidebar=h("div",{style:{width:220,background:W,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",flexShrink:0}});
+  const logoWrap=h("div",{style:{padding:"20px 20px 16px",borderBottom:"1px solid "+G200}});
+  logoWrap.append(h("div",{style:{fontWeight:800,fontSize:15,color:NAVY,letterSpacing:"0.05em"}},"VOLT",h("span",{style:{fontWeight:400}},"CONSULTING")),h("div",{style:{fontSize:10.5,color:TEAL,letterSpacing:"0.12em",textTransform:"uppercase",marginTop:6,fontWeight:700}},"Internal CRM"));
+  sidebar.appendChild(logoWrap);
+
+  const nav=h("nav",{style:{flex:1,padding:"12px 10px"}});
+  const navItems=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"map",label:"Market Map",icon:"◌"}];
+  const overdueCount=[...state.people,...state.companies].filter(x=>x.nextDue&&new Date(x.nextDue)<new Date()).length;
+  navItems.forEach(n=>{
+    const active=state.view===n.id;
+    const nb=h("button",{onClick:()=>setState({view:n.id}),style:{display:"flex",alignItems:"center",gap:10,width:"100%",background:active?TL:"transparent",border:"1px solid "+(active?TM:"transparent"),borderRadius:7,padding:"10px 12px",marginBottom:3,color:active?TEAL:G600,fontWeight:active?700:400,fontSize:13.5,cursor:"pointer",textAlign:"left"}});
+    nb.append(h("span",{style:{fontSize:14}},n.icon),n.label);
+    if(n.id==="bd"&&overdueCount>0){nb.appendChild(h("span",{style:{marginLeft:"auto",background:DANGER,color:W,borderRadius:10,padding:"1px 8px",fontSize:10.5,fontWeight:800}},overdueCount));}
+    nav.appendChild(nb);
+  });
+  sidebar.appendChild(nav);
+
+  const team=h("div",{style:{padding:"14px 20px 20px",borderTop:"1px solid "+G200}});
+  team.appendChild(h("div",{style:{fontSize:10.5,color:G400,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}},"Team"));
+  [["David",TEAL],["Lauren","#6f42c1"],["Brinda",WARN]].forEach(([name,c])=>{const r=h("div",{style:{display:"flex",alignItems:"center",gap:9,marginBottom:8}});r.append(av(name,24,c),h("span",{style:{fontSize:13,color:G700}},name));team.appendChild(r);});
+  sidebar.appendChild(team);
+  app.appendChild(sidebar);
+
+  // Main
+  const main=h("div",{style:{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}});
+
+  // Top bar
+  const topbar=h("div",{style:{background:W,borderBottom:"1px solid "+G200,padding:"10px 24px",display:"flex",alignItems:"center",gap:16,flexShrink:0}});
+  topbar.append(renderSearch(),h("div",{style:{fontSize:12,color:G400,whiteSpace:"nowrap"}},state.people.length+" people · "+state.companies.length+" companies"));
+  main.appendChild(topbar);
+
+  // View content
+  const viewWrap=h("div",{style:{flex:1,overflow:"hidden"}});
+
+  if(state.view==="bd"){viewWrap.appendChild(renderBD());}
+
+  else if(state.view==="people"){
+    const peopleLayout=h("div",{style:{display:"flex",height:"100%"}});
+
+    // List sidebar
+    const listPane=h("div",{style:{width:320,flexShrink:0,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",background:W}});
+    const listHeader=h("div",{style:{padding:"14px 14px 10px",borderBottom:"1px solid "+G200}});
+    const searchRow=h("div",{style:{display:"flex",gap:8,marginBottom:10}});
+    const filterInp=h("input",{placeholder:"Filter people…",style:{flex:1,border:"1px solid "+G300,borderRadius:6,padding:"7px 11px",fontSize:12,outline:"none"}});
+    filterInp.value=state.searchQ||"";
+    let filterQ="";
+    filterInp.oninput=e=>{filterQ=e.target.value.toLowerCase();renderList();};
+    searchRow.append(filterInp,btn("+ Add",()=>setState({modal:"addPerson",modalData:null,dupes:[],dupeDismissed:false}),{fontSize:12,padding:"7px 13px"}));
+    listHeader.appendChild(searchRow);
+
+    const typeBtns=h("div",{style:{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}});
+    ["all","candidate","contact"].forEach(t=>{
+      const active=state.typeFilter===t;const c=t==="contact"?"#6f42c1":TEAL;
+      const b=h("button",{onClick:()=>setState({typeFilter:t}),style:{background:active?c+"15":"transparent",color:active?c:G600,border:"1px solid "+(active?c+"40":G300),borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}},t==="all"?"All":t==="candidate"?"Candidates":"Contacts");
+      typeBtns.appendChild(b);
+    });
+    listHeader.appendChild(typeBtns);
+
+    const relBtns2=h("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}});
+    ["all","Hot","Warm","Cold","New"].forEach(r=>{
+      const active=state.relFilter===r;const c=REL[r]||TEAL;
+      const b=h("button",{onClick:()=>setState({relFilter:r}),style:{background:active?c+"15":"transparent",color:active?c:G600,border:"1px solid "+(active?c+"40":G300),borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}},r==="all"?"All":r);
+      relBtns2.appendChild(b);
+    });
+    listHeader.appendChild(relBtns2);
+
+    const listScroll=h("div",{style:{overflowY:"auto",flex:1,padding:"8px 8px"}});
+    const renderList=()=>{
+      listScroll.innerHTML="";
+      const filtered=state.people.filter(p=>(state.typeFilter==="all"||p.type===state.typeFilter)&&(state.relFilter==="all"||p.relationship===state.relFilter)&&(filterQ===""||((p.name+p.company+p.title+(p.sectors||[]).join(" ")).toLowerCase().includes(filterQ))));
+      if(!filtered.length){listScroll.appendChild(h("div",{style:{color:G400,textAlign:"center",marginTop:40,fontSize:13}},"No results"));return;}
+      filtered.forEach(p=>listScroll.appendChild(personListItem(p,state.selPerson?.id===p.id)));
     };
-  </script>
+    renderList();
+
+    listPane.append(listHeader,listScroll,renderLinkedInPanel());
+    peopleLayout.appendChild(listPane);
+
+    // Detail
+    if(state.selPerson){
+      const fresh=state.people.find(p=>p.id===state.selPerson.id)||state.selPerson;
+      peopleLayout.appendChild(renderPersonDetail(fresh));
+    }else{
+      peopleLayout.appendChild(h("div",{style:{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:G400,background:G50}},[h("div",{style:{fontSize:32}},"👤"),h("div",{style:{fontSize:13}},"Select someone to view their profile")]));
+    }
+    viewWrap.appendChild(peopleLayout);
+  }
+
+  else if(state.view==="companies"){
+    const coLayout=h("div",{style:{display:"flex",height:"100%"}});
+    const listPane=h("div",{style:{width:300,flexShrink:0,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",background:W}});
+    const listHeader=h("div",{style:{padding:"14px 14px 10px",borderBottom:"1px solid "+G200}});
+    const searchRow=h("div",{style:{display:"flex",gap:8,marginBottom:10}});
+    const filterInp=h("input",{placeholder:"Filter companies…",style:{flex:1,border:"1px solid "+G300,borderRadius:6,padding:"7px 11px",fontSize:12,outline:"none"}});
+    let filterQ="";
+    filterInp.oninput=e=>{filterQ=e.target.value.toLowerCase();renderCoList();};
+    searchRow.append(filterInp,btn("+ Add",()=>setState({modal:"addCompany",modalData:null,dupes:[],dupeDismissed:false}),{fontSize:12,padding:"7px 13px"}));
+    listHeader.appendChild(searchRow);
+
+    const tierBtns=h("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}});
+    ["all","Key Client","Warm","Prospect"].forEach(t=>{
+      const active=state.tierFilter===t;const c=TC[t]||TEAL;
+      const b=h("button",{onClick:()=>setState({tierFilter:t}),style:{background:active?c+"15":"transparent",color:active?c:G600,border:"1px solid "+(active?c+"40":G300),borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}},t==="all"?"All":t);
+      tierBtns.appendChild(b);
+    });
+    listHeader.appendChild(tierBtns);
+
+    const listScroll=h("div",{style:{overflowY:"auto",flex:1,padding:"8px 8px"}});
+    const renderCoList=()=>{
+      listScroll.innerHTML="";
+      const filtered=state.companies.filter(c=>(state.tierFilter==="all"||c.tier===state.tierFilter)&&(filterQ===""||((c.name+c.type+c.hq).toLowerCase().includes(filterQ))));
+      if(!filtered.length){listScroll.appendChild(h("div",{style:{color:G400,textAlign:"center",marginTop:40,fontSize:13}},"No results"));return;}
+      filtered.forEach(c=>listScroll.appendChild(companyListItem(c,state.selCompany?.id===c.id)));
+    };
+    renderCoList();
+
+    // Company LinkedIn paste footer
+    const footer=h("div",{style:{padding:"12px 16px",borderTop:"1px solid "+G200}});
+    footer.append(tealBtn("⚡ Paste from LinkedIn",()=>setState({modal:"coLinkedInPaste"}),{fontSize:13}),h("div",{style:{fontSize:11,color:G400,marginTop:6}},"Paste a LinkedIn company page to auto-fill."));
+    listPane.append(listHeader,listScroll,footer);
+    coLayout.appendChild(listPane);
+
+    // Company detail
+    if(state.selCompany){
+      const c=state.companies.find(x=>x.id===state.selCompany.id)||state.selCompany;
+      const tc=TC[c.tier]||G600;
+      const linked=state.people.filter(p=>p.companyId===c.id);
+      const detail=h("div",{style:{flex:1,overflowY:"auto",padding:"28px 32px",background:G50}});
+      const topRow=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22}});
+      topRow.append(
+        h("div",{},[h("h2",{style:{fontSize:22,fontWeight:700,color:NAVY,margin:0}},c.name),h("div",{style:{color:G600,fontSize:14,marginTop:3}},[c.type,c.hq].filter(Boolean).join(" · ")),h("div",{style:{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}},[relDot(c.relationship),badge(c.tier,tc),c.openMandates>0?badge(c.openMandates+" mandates",TEAL):"",linked.length>0?badge(linked.length+" people",G600):""])]),
+        h("div",{style:{display:"flex",gap:8}},[ghostBtn("Edit",()=>setState({modal:"editCompany",modalData:{...c,openMandates:String(c.openMandates)},dupes:[],dupeDismissed:false}),{fontSize:12,padding:"5px 12px"}),dangerBtn("Delete",()=>{if(confirm("Delete "+c.name+"?")){const u=state.companies.filter(x=>x.id!==c.id);setState({companies:u,selCompany:null});persist("companies",u);}})])
+      );
+      const grid=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:16}});
+      grid.append(infoCard("Key Contact",c.keyContact),infoCard("Last Contacted",c.lastContacted),h("div",{style:{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"12px 16px"}},[h("div",{style:{fontSize:10.5,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Due"),dueTag(c.nextDue)]));
+
+      const peopleSection=h("div",{style:{background:W,borderRadius:8,padding:"16px 20px",border:"1px solid "+G200,marginBottom:16}});
+      const psHeader=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}});
+      psHeader.append(h("div",{style:{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"People at "+c.name+" ("+linked.length+")"),btn("+ Add Person",()=>setState({modal:"addPerson",modalData:{company:c.name,companyId:c.id},dupes:[],dupeDismissed:false}),{fontSize:12,padding:"5px 11px"}));
+      peopleSection.appendChild(psHeader);
+      if(!linked.length){peopleSection.appendChild(h("div",{style:{color:G400,fontSize:13,padding:"4px 0"}},"No people linked yet. Click Add Person."));}
+      linked.forEach(p=>{
+        const ac=p.type==="contact"?"#6f42c1":TEAL;
+        const row=h("div",{style:{display:"flex",gap:12,alignItems:"center",padding:"9px 0",borderBottom:"1px solid "+G100,cursor:"pointer"}});
+        row.onclick=()=>setState({view:"people",selPerson:p,personTab:"Overview"});
+        row.onmouseenter=()=>{row.style.background=G50;};row.onmouseleave=()=>{row.style.background="";};
+        row.append(av(p.name,30,ac),h("div",{style:{flex:1}},[h("div",{style:{fontWeight:600,color:NAVY,fontSize:13}},p.name),h("div",{style:{fontSize:11,color:G600}},p.title||""),p.email?h("div",{style:{fontSize:11,color:TEAL}},p.email):"",p.phone?h("div",{style:{fontSize:11,color:G600}},p.phone):""]),[badge(p.type==="candidate"?"Candidate":"Contact",ac),relDot(p.relationship)],h("span",{style:{fontSize:11,color:TEAL,fontWeight:600,marginLeft:4}},"→"));
+        peopleSection.appendChild(row);
+      });
+
+      const notesCard=h("div",{style:{background:W,borderRadius:8,padding:"16px 20px",border:"1px solid "+G200}});
+      notesCard.append(h("div",{style:{fontSize:11,color:G600,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}},"Notes"),h("div",{style:{color:G800,fontSize:14,lineHeight:1.75,whiteSpace:"pre-wrap"}},c.notes||"—"));
+
+      detail.append(topRow,grid,c.nextAction?h("div",{style:{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:NAVY}},[h("span",{style:{color:TEAL,fontWeight:700,marginRight:8}},"Next:"),c.nextAction]):"",peopleSection,notesCard,renderQuickLog(c,true));
+      coLayout.appendChild(detail);
+    }else{
+      coLayout.appendChild(h("div",{style:{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:G400,background:G50}},[h("div",{style:{fontSize:32}},"🏢"),h("div",{style:{fontSize:13}},"Select a company to view details")]));
+    }
+    viewWrap.appendChild(coLayout);
+  }
+
+  else if(state.view==="map"){viewWrap.appendChild(renderMap());}
+
+  main.appendChild(viewWrap);
+  app.appendChild(main);
+  root.appendChild(app);
+
+  // Modals
+  if(state.modal){
+    let modalContent=null,modalTitle="",wide=false;
+    if(state.modal==="addPerson"){modalTitle="Add Person";wide=true;modalContent=renderPersonForm(state.modalData,f=>{const{companies:nc,companyId}=autoLinkCompany(f.company,state.companies);const np=[{...f,id:Date.now(),companyId},...state.people];setState({people:np,companies:nc,selPerson:{...f,id:np[0].id,companyId}});persist("people",np);persist("companies",nc);},false);}
+    else if(state.modal==="editPerson"&&state.modalData){modalTitle="Edit — "+state.modalData.name;wide=true;const orig=state.modalData;modalContent=renderPersonForm(orig,f=>{const{companies:nc,companyId}=autoLinkCompany(f.company,state.companies);const np=state.people.map(p=>p.id===orig.id?{...p,...f,companyId}:p);setState({people:np,companies:nc,selPerson:{...orig,...f,companyId}});persist("people",np);persist("companies",nc);},true);}
+    else if(state.modal==="addCompany"){modalTitle="Add Company";modalContent=renderCompanyForm(state.modalData,f=>{const nc=[{...f,id:Date.now()},...state.companies];setState({companies:nc,selCompany:nc[0]});persist("companies",nc);},false);}
+    else if(state.modal==="editCompany"&&state.modalData){modalTitle="Edit — "+state.modalData.name;const orig=state.modalData;modalContent=renderCompanyForm(orig,f=>{const nc=state.companies.map(c=>c.id===orig.id?{...c,...f}:c);setState({companies:nc,selCompany:{...orig,...f}});persist("companies",nc);},true);}
+    else if(state.modal==="linkedInPaste"){modalTitle="Import from LinkedIn";wide=true;modalContent=renderLinkedInModal();}
+    else if(state.modal==="coLinkedInPaste"){modalTitle="Import Company from LinkedIn";wide=true;modalContent=renderCoLinkedInModal();}
+    else if(state.modal==="csvImport"){modalTitle="Bulk Import from CSV";wide=true;modalContent=renderCSVModal();}
+    if(modalContent)root.appendChild(modal(modalTitle,modalContent,wide));
+  }
+
+  // Save toast
+  if(state.saveState){
+    const toast=h("div",{style:{position:"fixed",bottom:18,right:20,borderRadius:20,padding:"5px 16px",fontSize:12,fontWeight:600,zIndex:500,pointerEvents:"none",background:state.saveState==="saved"?OK+"15":G100,border:"1px solid "+(state.saveState==="saved"?OK:G300),color:state.saveState==="saved"?OK:G600}},state.saveState==="saved"?"✓ Synced to Airtable":"Syncing…");
+    root.appendChild(toast);
+  }
+  if(!state.saveState&&state.syncStatus==="offline"){
+    root.appendChild(h("div",{style:{position:"fixed",bottom:18,right:20,borderRadius:20,padding:"5px 16px",fontSize:12,fontWeight:600,zIndex:500,pointerEvents:"none",background:"#fff8e1",border:"1px solid "+WARN,color:WARN}},"⚠ Offline — saved locally"));
+  }
+
+  // Click outside to close search
+  document.addEventListener("click",e=>{if(state.showSearch&&!e.target.closest('[data-search]'))setState({showSearch:false});},{once:true});
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+render();
+if(AT_TOKEN){init();}
+</script>
 </body>
 </html>
