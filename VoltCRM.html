@@ -216,46 +216,26 @@ function QuickLog({item,onUpdate}){
   );
 }
 
-// ── LinkedIn paste ────────────────────────────────────────────
-function LinkedInPaste({onParsed}){
-  const[open,setOpen]=useState(false);
-  const[text,setText]=useState("");
-  const[loading,setLoading]=useState(false);
-  const[error,setError]=useState("");
-  const parse=async()=>{
-    if(!text.trim())return;
-    setLoading(true);setError("");
-    try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
-          messages:[{role:"user",content:"Extract structured data from this LinkedIn profile. Return ONLY valid JSON, no markdown.\nSchema: {\"name\":\"Full name\",\"title\":\"Current job title\",\"company\":\"Current employer\",\"location\":\"City, Country\",\"seniority\":\"one of [Analyst / Consultant, Manager / Principal, VP / Director, C-Suite / Partner]\",\"sectors\":\"array from [Life Sciences,Strategy,Commercial,Oncology,RWE,Market Access,Operations,MedTech,Digital Health,Biotech,Regulatory,Pricing,Other]\",\"linkedin\":\"URL or empty string\"}\nText:\n"+text.slice(0,3000)}]})});
-      const data=await res.json();
-      const raw=data.content?.[0]?.text||"";
-      const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
-      onParsed(parsed);setOpen(false);setText("");
-    }catch{setError("Could not parse — try copying more of the profile text.");}
-    setLoading(false);
-  };
-  return(
-    <>
-      <Btn variant="teal" small onClick={()=>setOpen(true)}>⚡ LinkedIn</Btn>
-      {open&&(
-        <ModalEl title="Import from LinkedIn" onClose={()=>{setOpen(false);setText("");setError("");}}>
-          <p style={{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}}>On any LinkedIn profile: select all (Cmd/Ctrl+A), copy, paste below. AI extracts fields automatically.</p>
-          <Tarea value={text} onChange={setText} placeholder="Paste LinkedIn profile text here…" rows={10}/>
-          {error&&<div style={{color:DANGER,fontSize:12,marginTop:8}}>{error}</div>}
-          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <Btn variant="ghost" onClick={()=>{setOpen(false);setText("");}}>Cancel</Btn>
-            <Btn onClick={parse} style={{opacity:loading?0.6:1}}>{loading?"Parsing…":"Import Profile"}</Btn>
-          </div>
-        </ModalEl>
-      )}
-    </>
-  );
-}
-
 // ── CSV importer ──────────────────────────────────────────────
-const CSV_MAP={"name":"name","full name":"name","fullname":"name","title":"title","job title":"title","position":"title","role":"title","company":"company","employer":"company","organization":"company","location":"location","city":"location","linkedin":"linkedin","linkedin url":"linkedin","url":"linkedin","email":"email","email address":"email","relationship":"relationship","status":"relationship","sectors":"sectors","sector":"sectors","expertise":"sectors","notes":"notes","note":"notes","comments":"notes","seniority":"seniority","level":"seniority","last contacted":"lastContacted","last contact":"lastContacted","next action":"nextAction","action":"nextAction","next due":"nextDue","due date":"nextDue","due":"nextDue","type":"type"};
+const CSV_MAP={
+  "name":"name","full name":"name","fullname":"name","full_name":"name",
+  "first name":"firstName","firstname":"firstName","first_name":"firstName","given name":"firstName","forename":"firstName",
+  "last name":"lastName","lastname":"lastName","last_name":"lastName","surname":"lastName","family name":"lastName",
+  "title":"title","job title":"title","jobtitle":"title","position":"title","role":"title","job_title":"title",
+  "company":"company","employer":"company","organization":"company","organisation":"company","company name":"company","firm":"company","account":"company",
+  "location":"location","city":"location","geography":"location","country":"location","region":"location",
+  "email":"email","email address":"email","work email":"email","e-mail":"email",
+  "phone":"phone","mobile":"phone","phone number":"phone","mobile number":"phone","tel":"phone",
+  "linkedin":"linkedin","linkedin url":"linkedin","linkedin profile":"linkedin","profile url":"linkedin","linkedin profile url":"linkedin",
+  "relationship":"relationship","status":"relationship",
+  "notes":"notes","note":"notes","comments":"notes","bio":"notes",
+  "seniority":"seniority","level":"seniority","seniority level":"seniority","grade":"seniority",
+  "sectors":"sectors","sector":"sectors","expertise":"sectors","speciality":"sectors","specialty":"sectors","industry":"sectors","function":"sectors",
+  "last contacted":"lastContacted","last contact":"lastContacted","date contacted":"lastContacted",
+  "next action":"nextAction","action":"nextAction","follow up":"nextAction","task":"nextAction",
+  "next due":"nextDue","due date":"nextDue","due":"nextDue","follow up date":"nextDue",
+  "type":"type","person type":"type","contact type":"type",
+};
 
 function parseCSV(text){
   const lines=text.trim().split(/\r?\n/);
@@ -290,7 +270,7 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
   const[preview,setPreview]=useState([]);
   const[results,setResults]=useState(null);
   const fileRef=useRef(null);
-  const CRM_FIELDS=["ignore","name","title","company","location","type","seniority","sectors","linkedin","email","relationship","lastContacted","nextAction","nextDue","notes"];
+  const CRM_FIELDS=["ignore","name","firstName","lastName","title","company","location","type","seniority","sectors","linkedin","email","phone","relationship","lastContacted","nextAction","nextDue","notes"];
 
   const handleFile=e=>{
     const file=e.target.files[0];if(!file)return;
@@ -305,15 +285,32 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
     setMappings(auto);setStep("map");
   };
   const mapRow=row=>{
-    const p={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
+    const p={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
+    let firstName="",lastName="";
     Object.entries(mappings).forEach(([csvH,crmF])=>{
       if(!crmF||crmF==="ignore")return;
       const val=(row[csvH]||"").trim();if(!val)return;
-      if(crmF==="sectors")p.sectors=val.split(/[,;|]/).map(s=>s.trim()).filter(Boolean);
+      if(crmF==="firstName")firstName=val;
+      else if(crmF==="lastName")lastName=val;
+      else if(crmF==="sectors")p.sectors=val.split(/[,;|]/).map(s=>s.trim()).filter(Boolean);
       else p[crmF]=val;
     });
-    const tl=(p.type||"").toLowerCase();p.type=tl.includes("contact")||tl.includes("client")?"contact":"candidate";
-    const rl=(p.relationship||"").toLowerCase();p.relationship=rl.includes("hot")?"Hot":rl.includes("cold")?"Cold":rl.includes("new")?"New":"Warm";
+    // Combine first + last name if separate columns
+    if(firstName||lastName)p.name=[firstName,lastName].filter(Boolean).join(" ");
+    // Normalise type
+    const tl=(p.type||"").toLowerCase();
+    p.type=tl.includes("contact")||tl.includes("client")?"contact":"candidate";
+    // Normalise relationship
+    const rl=(p.relationship||"").toLowerCase();
+    p.relationship=rl.includes("hot")?"Hot":rl.includes("cold")?"Cold":rl.includes("new")?"New":"Warm";
+    // Normalise seniority
+    if(p.seniority){
+      const sl=p.seniority.toLowerCase();
+      if(/(c-suite|partner|chief|president|founder|managing director)/i.test(sl))p.seniority="C-Suite / Partner";
+      else if(/(director|vice president|vp)/i.test(sl))p.seniority="VP / Director";
+      else if(/(manager|principal|associate director|senior)/i.test(sl))p.seniority="Manager / Principal";
+      else if(/(analyst|consultant|associate|junior|graduate)/i.test(sl))p.seniority="Analyst / Consultant";
+    }
     return p;
   };
   const runImport=()=>{
@@ -731,7 +728,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}
           {list.length===0&&<div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13}}>No results</div>}
         </div>
         <div style={{padding:"12px 16px",borderTop:"1px solid "+G200,display:"flex",gap:8,flexWrap:"wrap"}}>
-          <LinkedInPaste onParsed={p=>{setPrefill(p);setModal("add");}}/>
+          
           <Btn variant="ghost" small onClick={()=>setModal("csv")}>⬆ Import CSV</Btn>
         </div>
       </div>
@@ -843,10 +840,7 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
           })}
           {list.length===0&&<div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13}}>No results</div>}
         </div>
-        <div style={{padding:"12px 16px",borderTop:`1px solid ${G200}`}}>
-          <CompanyLinkedInPaste onParsed={parsed=>{setForm({...BLANKCO,...parsed,openMandates:"0"});setModal("add");}}/>
-          <div style={{fontSize:11,color:G400,marginTop:6}}>Paste a LinkedIn company page to auto-fill.</div>
-        </div>
+
       </div>
 
       {selC?(
@@ -1248,12 +1242,19 @@ function GlobalSearch({people,companies,onNavigate}){
 // ── LinkedIn parsers ─────────────────────────────────────────
 function parseLinkedInProfile(text){
   const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
-  const skip=["message","connect","follow","more","highlights","about","experience","education","activity","featured","contact","mutual","connections","followers","posts","comments","premium","following","open to"];
+  const skipExact=["message","connect","follow","more","highlights","about","experience","education","activity","featured","contact","connections","followers","posts","comments","premium","following"];
+  const skipStart=["open to","add profile","visit my","500+","1st","2nd","3rd","see all","you and","mutual","robert","christian"];
   let name="";
   for(const line of lines){
+    const ll=line.toLowerCase();
     const w=line.split(/\s+/);
-    if(w.length>=2&&w.length<=5&&!line.includes("|")&&!line.includes("@")&&!line.includes("http")&&!skip.some(s=>line.toLowerCase().startsWith(s))&&/^[A-Za-z\s.\-\']+$/.test(line)){
-      name=line.replace(/,\s*(Assoc|PhD|MD|MBA|MSc|BSc|BA|MA|Dr\.?).*/i,"").trim();break;
+    if(w.length>=2&&w.length<=5
+      &&!line.includes("|")&&!line.includes("@")&&!line.includes("http")&&!line.includes("•")
+      &&!skipExact.includes(ll)
+      &&!skipStart.some(s=>ll.startsWith(s))
+      &&/^[A-Za-zÀ-ÿ\s.\-\']+$/.test(line)){
+      name=line.replace(/,\s*(Assoc|PhD|MD|MBA|MSc|BSc|BA|MA|Dr\.?|CPD).*/i,"").trim();
+      break;
     }
   }
   let title="",company="";
