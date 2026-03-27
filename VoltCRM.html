@@ -20,14 +20,12 @@ input::placeholder,textarea::placeholder{color:#ced4da}
 <div id="root"></div>
 <script type="text/babel">
 const{useState,useMemo,useEffect,useCallback,useRef}=React;
-
 window.storage={
   get:async k=>{try{const v=localStorage.getItem(k);return v?{key:k,value:v}:null;}catch{return null;}},
   set:async(k,v)=>{try{localStorage.setItem(k,v);return{key:k,value:v};}catch{return null;}},
   delete:async k=>{try{localStorage.removeItem(k);return{key:k,deleted:true};}catch{return null;}},
   list:async prefix=>{try{const keys=Object.keys(localStorage).filter(k=>!prefix||k.startsWith(prefix));return{keys};}catch{return{keys:[]};}}
 };
-
 
 const LOGO_SRC = "https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png";
 
@@ -218,73 +216,6 @@ function QuickLog({item,onUpdate}){
   );
 }
 
-
-// ── Local LinkedIn parsers (no API) ──────────────────────────
-function parseLinkedInProfile(text){
-  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
-  const skip=["message","connect","follow","more","highlights","about","experience","education","activity","featured","contact","mutual","connections","followers","posts","comments","premium","following","open to"];
-  let name="";
-  for(const line of lines){
-    const w=line.split(/\s+/);
-    if(w.length>=2&&w.length<=5&&!line.includes("|")&&!line.includes("@")&&!line.includes("http")&&!skip.some(s=>line.toLowerCase().startsWith(s))&&/^[A-Za-zÀ-ÿ\s.\-']+$/.test(line)){
-      name=line.replace(/,\s*(Assoc|PhD|MD|MBA|MSc|BSc|BA|MA|Dr\.?).*/i,"").trim();break;
-    }
-  }
-  let title="",company="";
-  for(const line of lines){
-    if(line.includes("|")&&!line.includes("http")){
-      const parts=line.split("|").map(p=>p.trim()).filter(Boolean);
-      if(parts.length>=2){title=parts[0].trim();company=parts[1].replace(/·.*/,"").trim();break;}
-    }
-  }
-  if(!title){for(const line of lines){if(/(founder|director|manager|partner|consultant|analyst|head of|vp |vice president|officer)/i.test(line)&&line.length<100){title=line;break;}}}
-  let location="";
-  for(const line of lines){
-    if(/(metropolitan area|united kingdom|ireland|germany|france|switzerland|netherlands|united states)/i.test(line)&&line.length<60){location=line.replace(/Contact info.*/i,"").trim();break;}
-    if(/^[A-Z][a-z]+,\s*[A-Z]/.test(line)&&line.length<50){location=line;break;}
-  }
-  const emailM=text.match(/[\w.\-]+@[\w.\-]+\.[a-z]{2,}/i);
-  const email=emailM?emailM[0]:"";
-  const phoneM=text.match(/(\+?[\d\s\-()]{10,18})/);
-  let phone="";
-  if(phoneM){const p=phoneM[1].trim();if(p.replace(/\D/g,"").length>=10)phone=p;}
-  const liM=text.match(/linkedin\.com\/in\/[\w\-]+/i);
-  const linkedin=liM?"https://www."+liM[0]:"";
-  let seniority="Manager / Principal";
-  const tl=(title||"").toLowerCase();
-  if(/(founder|ceo|coo|cfo|chief|partner|president|managing director)/i.test(tl))seniority="C-Suite / Partner";
-  else if(/(vp |vice president|director)/i.test(tl))seniority="VP / Director";
-  else if(/(analyst|graduate|junior)/i.test(tl))seniority="Analyst / Consultant";
-  const ft=text.toLowerCase();
-  const sectors=[];
-  const km={"Life Sciences":["life science","pharma","biopharma"],"Strategy":["strategy","management consulting","consulting"],"Commercial":["commercial","sales"],"Oncology":["oncology","cancer"],"RWE":["real world evidence","rwe"],"Market Access":["market access","hta"],"Operations":["operations"],"MedTech":["medtech","medical device"],"Digital Health":["digital health"],"Biotech":["biotech","biotechnology"],"Regulatory":["regulatory"],"Pricing":["pricing","heor","health economics"]};
-  for(const[s,kws]of Object.entries(km)){if(kws.some(k=>ft.includes(k)))sectors.push(s);}
-  return{name,title,company,location,seniority,sectors,linkedin,email,phone};
-}
-
-function parseLinkedInCompany(text){
-  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
-  const skip=["home","about","posts","jobs","people","videos","linkedin","follow","message","website","industry","company size","headquarters","founded","followers"];
-  let name="";
-  for(const line of lines){
-    if(line.length>2&&line.length<80&&!line.includes("http")&&!line.includes("#")&&!skip.some(w=>line.toLowerCase().startsWith(w))){name=line;break;}
-  }
-  let hq="";
-  for(const line of lines){
-    if(/(headquarters|hq):/i.test(line)){hq=line.replace(/(headquarters|hq):\s*/i,"").trim();break;}
-    if(/(metropolitan area|united kingdom|ireland|germany|france|london|boston|new york)/i.test(line)&&line.length<60){hq=line;break;}
-  }
-  let type="Consulting";
-  const ft=text.toLowerCase();
-  if(/(pharma|pharmaceutical)/i.test(ft))type="Pharma";
-  else if(/biotech/i.test(ft))type="Biotech";
-  else if(/medtech|medical device/i.test(ft))type="MedTech";
-  let notes="";
-  const ai=text.search(/\bAbout\b/i);
-  if(ai>-1)notes=text.slice(ai+5).trim().slice(0,200).replace(/\n+/g," ");
-  return{name,hq,type,tier:"Prospect",relationship:"Cold",notes};
-}
-
 // ── LinkedIn paste ────────────────────────────────────────────
 function LinkedInPaste({onParsed}){
   const[open,setOpen]=useState(false);
@@ -307,50 +238,15 @@ function LinkedInPaste({onParsed}){
   };
   return(
     <>
-      <Btn variant="teal" onClick={()=>setOpen(true)} style={{fontSize:13,padding:"7px 14px"}}>⚡ Paste from LinkedIn</Btn>
+      <Btn variant="teal" small onClick={()=>setOpen(true)}>⚡ LinkedIn</Btn>
       {open&&(
         <ModalEl title="Import from LinkedIn" onClose={()=>{setOpen(false);setText("");setError("");}}>
-          <p style={{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}}>Open a LinkedIn profile → Ctrl+A (select all) → Ctrl+C (copy) → paste below. Works with full page paste — extracts name, title, company, email, phone automatically.</p>
+          <p style={{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}}>On any LinkedIn profile: select all (Cmd/Ctrl+A), copy, paste below. AI extracts fields automatically.</p>
           <Tarea value={text} onChange={setText} placeholder="Paste LinkedIn profile text here…" rows={10}/>
           {error&&<div style={{color:DANGER,fontSize:12,marginTop:8}}>{error}</div>}
           <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
             <Btn variant="ghost" onClick={()=>{setOpen(false);setText("");}}>Cancel</Btn>
             <Btn onClick={parse} style={{opacity:loading?0.6:1}}>{loading?"Parsing…":"Import Profile"}</Btn>
-          </div>
-        </ModalEl>
-      )}
-    </>
-  );
-}
-
-
-// ── LinkedIn paste for Companies ─────────────────────────────
-function CompanyLinkedInPaste({onParsed}){
-  const[open,setOpen]=useState(false);
-  const[text,setText]=useState("");
-  const[loading,setLoading]=useState(false);
-  const[error,setError]=useState("");
-  const parse=()=>{
-    if(!text.trim())return;
-    setLoading(true);setError("");
-    try{
-      const result=parseLinkedInCompany(text);
-      if(!result.name){setError("Could not find company name — try pasting more of the page.");setLoading(false);return;}
-      onParsed(result);setOpen(false);setText("");
-    }catch(e){setError("Error: "+e.message);}
-    setLoading(false);
-  };
-  return(
-    <>
-      <Btn variant="teal" onClick={()=>setOpen(true)} style={{fontSize:13,padding:"7px 14px"}}>⚡ Paste from LinkedIn</Btn>
-      {open&&(
-        <ModalEl title="Import Company from LinkedIn" onClose={()=>{setOpen(false);setText("");setError("");}}>
-          <p style={{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}}>Open the LinkedIn company page → Ctrl+A → Ctrl+C → paste below.</p>
-          <Tarea value={text} onChange={setText} placeholder="Paste LinkedIn company page text here…" rows={10}/>
-          {error&&<div style={{color:DANGER,fontSize:12,marginTop:8}}>{error}</div>}
-          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <Btn variant="ghost" onClick={()=>{setOpen(false);setText("");}}>Cancel</Btn>
-            <Btn onClick={parse} style={{opacity:loading?0.6:1}}>{loading?"Parsing…":"Import Company"}</Btn>
           </div>
         </ModalEl>
       )}
@@ -947,9 +843,9 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
           })}
           {list.length===0&&<div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13}}>No results</div>}
         </div>
-        <div style={{padding:"12px 16px",borderTop:"1px solid "+G200}}>
+        <div style={{padding:"12px 16px",borderTop:`1px solid ${G200}`}}>
           <CompanyLinkedInPaste onParsed={parsed=>{setForm({...BLANKCO,...parsed,openMandates:"0"});setModal("add");}}/>
-          <div style={{fontSize:11,color:G400,marginTop:6,lineHeight:1.4}}>Paste a LinkedIn company page to auto-fill details.</div>
+          <div style={{fontSize:11,color:G400,marginTop:6}}>Paste a LinkedIn company page to auto-fill.</div>
         </div>
       </div>
 
@@ -1349,18 +1245,76 @@ function GlobalSearch({people,companies,onNavigate}){
   );
 }
 
+// ── LinkedIn parsers ─────────────────────────────────────────
+function parseLinkedInProfile(text){
+  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
+  const skip=["message","connect","follow","more","highlights","about","experience","education","activity","featured","contact","mutual","connections","followers","posts","comments","premium","following","open to"];
+  let name="";
+  for(const line of lines){
+    const w=line.split(/\s+/);
+    if(w.length>=2&&w.length<=5&&!line.includes("|")&&!line.includes("@")&&!line.includes("http")&&!skip.some(s=>line.toLowerCase().startsWith(s))&&/^[A-Za-z\s.\-\']+$/.test(line)){
+      name=line.replace(/,\s*(Assoc|PhD|MD|MBA|MSc|BSc|BA|MA|Dr\.?).*/i,"").trim();break;
+    }
+  }
+  let title="",company="";
+  for(const line of lines){
+    if(line.includes("|")&&!line.includes("http")){
+      const parts=line.split("|").map(p=>p.trim()).filter(Boolean);
+      if(parts.length>=2){title=parts[0].trim();company=parts[1].replace(/\·.*/,"").trim();break;}
+    }
+  }
+  if(!title){for(const line of lines){if(/(founder|director|manager|partner|consultant|analyst|head of|vp |vice president|officer)/i.test(line)&&line.length<100){title=line;break;}}}
+  let location="";
+  for(const line of lines){
+    if(/(metropolitan area|united kingdom|ireland|germany|france|switzerland|netherlands|united states)/i.test(line)&&line.length<60){location=line.replace(/Contact info.*/i,"").trim();break;}
+    if(/^[A-Z][a-z]+,\s*[A-Z]/.test(line)&&line.length<50){location=line;break;}
+  }
+  const emailM=text.match(/[\w.\-]+@[\w.\-]+\.[a-z]{2,}/i);
+  const email=emailM?emailM[0]:"";
+  const phoneM=text.match(/(\+?[\d\s\-()]{10,18})/);
+  let phone="";
+  if(phoneM){const p=phoneM[1].trim();if(p.replace(/\D/g,"").length>=10)phone=p;}
+  const liM=text.match(/linkedin\.com\/in\/[\w\-]+/i);
+  const linkedin=liM?"https://www."+liM[0]:"";
+  let seniority="Manager / Principal";
+  const tl=(title||"").toLowerCase();
+  if(/(founder|ceo|coo|cfo|chief|partner|president|managing director)/i.test(tl))seniority="C-Suite / Partner";
+  else if(/(vp |vice president|director)/i.test(tl))seniority="VP / Director";
+  else if(/(analyst|graduate|junior)/i.test(tl))seniority="Analyst / Consultant";
+  const ft=text.toLowerCase();
+  const sectors=[];
+  const km={"Life Sciences":["life science","pharma","biopharma"],"Strategy":["strategy","management consulting","consulting"],"Commercial":["commercial","sales"],"Oncology":["oncology","cancer"],"RWE":["real world evidence","rwe"],"Market Access":["market access","hta"],"Operations":["operations"],"MedTech":["medtech","medical device"],"Digital Health":["digital health"],"Biotech":["biotech","biotechnology"],"Regulatory":["regulatory"],"Pricing":["pricing","heor","health economics"]};
+  for(const[s,kws]of Object.entries(km)){if(kws.some(k=>ft.includes(k)))sectors.push(s);}
+  return{name,title,company,location,seniority,sectors,linkedin,email,phone};
+}
+function parseLinkedInCompany(text){
+  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
+  const skip=["home","about","posts","jobs","people","videos","linkedin","follow","message","website","industry","company size","headquarters","founded","followers"];
+  let name="";
+  for(const line of lines){if(line.length>2&&line.length<80&&!line.includes("http")&&!line.includes("#")&&!skip.some(w=>line.toLowerCase().startsWith(w))){name=line;break;}}
+  let hq="";
+  for(const line of lines){
+    if(/(headquarters|hq):/i.test(line)){hq=line.replace(/(headquarters|hq):\s*/i,"").trim();break;}
+    if(/(metropolitan area|united kingdom|ireland|germany|france|london|boston|new york)/i.test(line)&&line.length<60){hq=line;break;}
+  }
+  let type="Consulting";
+  const ft=text.toLowerCase();
+  if(/(pharma|pharmaceutical)/i.test(ft))type="Pharma";
+  else if(/biotech/i.test(ft))type="Biotech";
+  else if(/medtech|medical device/i.test(ft))type="MedTech";
+  let notes="";
+  const ai=text.search(/\bAbout\b/i);
+  if(ai>-1)notes=text.slice(ai+5).trim().slice(0,200).replace(/\n+/g," ");
+  return{name,hq,type,tier:"Prospect",relationship:"Cold",notes};
+}
 
-// ── Airtable sync ─────────────────────────────────────────────
+// ── Airtable ─────────────────────────────────────────────────
 let AT_TOKEN=localStorage.getItem("volt_at_token")||"";
 let AT_BASE=localStorage.getItem("volt_at_base")||"";
 let AT_TABLE=localStorage.getItem("volt_at_table")||"";
-
 async function atFetch(path,opts={}){
-  const r=await fetch("https://api.airtable.com/v0/"+AT_BASE+"/"+AT_TABLE+path,{
-    ...opts,headers:{"Authorization":"Bearer "+AT_TOKEN,"Content-Type":"application/json",...(opts.headers||{})}
-  });
-  if(!r.ok)throw new Error("Airtable error "+r.status);
-  return r.json();
+  const r=await fetch("https://api.airtable.com/v0/"+AT_BASE+"/"+AT_TABLE+path,{...opts,headers:{"Authorization":"Bearer "+AT_TOKEN,"Content-Type":"application/json",...(opts.headers||{})}});
+  if(!r.ok)throw new Error("AT "+r.status);return r.json();
 }
 async function getOrCreate(name){
   const d=await atFetch("?filterByFormula=Name%3D%22"+encodeURIComponent(name)+"%22");
@@ -1381,19 +1335,17 @@ async function saveToAirtable(name,data){
   const rec=await getOrCreate(name);
   await atFetch("/"+rec.id,{method:"PATCH",body:JSON.stringify({fields:{Notes:JSON.stringify(data)}})});
 }
-
-// ── Setup screen ──────────────────────────────────────────────
 function SetupScreen({onComplete}){
   const[token,setToken]=useState("");
   const[base,setBase]=useState("appD0JD8AUdtR6thY");
   const[testing,setTesting]=useState(false);
   const[error,setError]=useState("");
   const save=async()=>{
-    if(!token.trim()){setError("Please enter your Airtable token");return;}
+    if(!token.trim()){setError("Please enter your token");return;}
     setTesting(true);setError("");
     try{
       const r=await fetch("https://api.airtable.com/v0/"+base+"/tblUL48Km1j2m8sRU?maxRecords=1",{headers:{"Authorization":"Bearer "+token.trim()}});
-      if(!r.ok)throw new Error("Connection failed ("+r.status+") — check your token");
+      if(!r.ok)throw new Error("Failed ("+r.status+") — check your token");
       localStorage.setItem("volt_at_token",token.trim());
       localStorage.setItem("volt_at_base",base.trim());
       localStorage.setItem("volt_at_table","tblUL48Km1j2m8sRU");
@@ -1402,30 +1354,55 @@ function SetupScreen({onComplete}){
     }catch(e){setTesting(false);setError(e.message);}
   };
   return(
-    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:"#f8f9fa",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:W,borderRadius:14,padding:"40px 48px",width:520,maxWidth:"100%",boxShadow:"0 4px 24px #0002",border:"1px solid "+G200}}>
-        <div style={{fontWeight:800,fontSize:20,color:NAVY,marginBottom:4}}>{"VOLT"}<span style={{fontWeight:400}}>{"CONSULTING"}</span></div>
-        <div style={{fontSize:10.5,color:TEAL,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:24,fontWeight:700}}>Internal CRM</div>
-        <h2 style={{fontSize:18,fontWeight:700,color:NAVY,marginBottom:8}}>Connect to Airtable</h2>
-        <p style={{fontSize:13,color:G600,marginBottom:24,lineHeight:1.6}}>Enter your credentials once. Stored in this browser only — never in the file.</p>
+    <div style={{fontFamily:"Aptos,Calibri,\'Segoe UI\',sans-serif",background:"#f8f9fa",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#fff",borderRadius:14,padding:"40px 48px",width:520,maxWidth:"100%",boxShadow:"0 4px 24px #0002",border:"1px solid #e9ecef"}}>
+        <img src={LOGO_SRC} alt="VoltConsulting" style={{height:32,marginBottom:24,objectFit:"contain"}} onError={e=>e.target.style.display="none"}/>
+        <h2 style={{fontSize:18,fontWeight:700,color:"#0D1B2A",marginBottom:8}}>Connect to Airtable</h2>
+        <p style={{fontSize:13,color:"#6c757d",marginBottom:24,lineHeight:1.6}}>Enter your credentials once. Stored in this browser only.</p>
         <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Personal Access Token</div>
-          <input value={token} onChange={e=>setToken(e.target.value)} placeholder="patXXXXXX…"
-            style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+          <div style={{fontSize:11,color:"#6c757d",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Personal Access Token</div>
+          <input value={token} onChange={e=>setToken(e.target.value)} placeholder="patXXXXXX…" style={{width:"100%",border:"1px solid #dee2e6",borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
         </div>
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Base ID</div>
-          <input value={base} onChange={e=>setBase(e.target.value)} placeholder="appXXXXXX…"
-            style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+          <div style={{fontSize:11,color:"#6c757d",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Base ID</div>
+          <input value={base} onChange={e=>setBase(e.target.value)} placeholder="appXXXXXX…" style={{width:"100%",border:"1px solid #dee2e6",borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
         </div>
-        {error&&<div style={{background:"#fff5f5",border:"1px solid "+DANGER+"44",borderRadius:6,padding:"10px 14px",fontSize:13,color:DANGER,marginBottom:16}}>{error}</div>}
-        <button onClick={save} disabled={testing}
-          style={{background:TEAL,color:W,border:"none",borderRadius:7,padding:"11px 24px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",fontFamily:"inherit",opacity:testing?0.7:1}}>
-          {testing?"Testing connection…":"Connect & Open CRM"}
+        {error&&<div style={{color:"#dc3545",fontSize:13,marginBottom:12}}>{error}</div>}
+        <button onClick={save} disabled={testing} style={{background:"#00C2C7",color:"#fff",border:"none",borderRadius:7,padding:"11px 24px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",fontFamily:"inherit",opacity:testing?0.7:1}}>
+          {testing?"Testing…":"Connect & Open CRM"}
         </button>
-        <div style={{marginTop:12,fontSize:12,color:G400,textAlign:"center"}}>Each team member enters credentials once on first visit.</div>
+        <div style={{marginTop:12,fontSize:12,color:"#adb5bd",textAlign:"center"}}>Each team member enters this once on first visit.</div>
       </div>
     </div>
+  );
+}
+function CompanyLinkedInPaste({onParsed}){
+  const[open,setOpen]=useState(false);
+  const[text,setText]=useState("");
+  const[error,setError]=useState("");
+  const parse=()=>{
+    if(!text.trim())return;
+    try{
+      const result=parseLinkedInCompany(text);
+      if(!result.name){setError("Could not find company name — paste more of the page.");return;}
+      onParsed(result);setOpen(false);setText("");
+    }catch(e){setError("Error: "+e.message);}
+  };
+  return(
+    <>
+      <Btn variant="teal" onClick={()=>setOpen(true)} style={{fontSize:13,padding:"7px 14px"}}>⚡ Paste from LinkedIn</Btn>
+      {open&&(
+        <ModalEl title="Import Company from LinkedIn" onClose={()=>{setOpen(false);setText("");setError("");}}>
+          <p style={{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}}>Open the LinkedIn company page → Ctrl+A → Ctrl+C → paste below.</p>
+          <Tarea value={text} onChange={setText} placeholder="Paste LinkedIn company page text here…" rows={10}/>
+          {error&&<div style={{color:DANGER,fontSize:12,marginTop:8}}>{error}</div>}
+          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
+            <Btn variant="ghost" onClick={()=>{setOpen(false);setText("");}}>Cancel</Btn>
+            <Btn onClick={parse}>Import Company</Btn>
+          </div>
+        </ModalEl>
+      )}
+    </>
   );
 }
 
@@ -1439,14 +1416,13 @@ function App(){
   const[companies,setCompanies]=useState(SEED_COMPANIES);
   const[ready,setReady]=useState(false);
   const[saveState,setSaveState]=useState(null);
-  const[syncStatus,setSyncStatus]=useState("loading");
 
   const[showSetup,setShowSetup]=useState(!localStorage.getItem("volt_at_token"));
+  const[syncStatus,setSyncStatus]=useState("loading");
 
   useEffect(()=>{
-    if(showSetup)return;
+    if(showSetup){setReady(true);return;}
     (async()=>{
-      setSyncStatus("loading");
       try{
         const data=await loadFromAirtable();
         if(data.people&&data.people.length>0)setPeople(data.people);
@@ -1455,7 +1431,6 @@ function App(){
         else{const sc=await sGet("voltcrm5-companies");if(sc)setCompanies(sc);}
         setSyncStatus("ok");
       }catch(e){
-        console.warn("AT load fail:",e.message);
         const sp=await sGet("voltcrm5-people");const sc=await sGet("voltcrm5-companies");
         if(sp)setPeople(sp);if(sc)setCompanies(sc);
         setSyncStatus("offline");
@@ -1470,8 +1445,7 @@ function App(){
     try{
       if(key==="people")await saveToAirtable("PEOPLE",data);
       else if(key==="companies")await saveToAirtable("COMPANIES",data);
-      setSyncStatus("ok");
-    }catch(e){console.warn("AT save fail:",e.message);setSyncStatus("offline");}
+    }catch(e){console.warn("AT save:",e.message);}
     setSaveState("saved");
     setTimeout(()=>setSaveState(null),2500);
   },[]);
@@ -1479,12 +1453,9 @@ function App(){
   const handleNavigate=(targetView,id)=>{setView(targetView);setNavSel(id);setTimeout(()=>setNavSel(null),500);};
   const overdueCount=[...people,...companies].filter(x=>x.nextDue&&new Date(x.nextDue)<new Date()).length;
 
-  if(showSetup)return <SetupScreen onComplete={()=>{setShowSetup(false);window.location.reload();}}/>;
-
   if(!ready)return(
-    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:W,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
-      <div style={{fontWeight:800,fontSize:16,color:TEAL}}>VOLT<span style={{fontWeight:400,color:NAVY}}>CONSULTING</span></div>
-      <div style={{fontSize:13,color:G600}}>Connecting to Airtable…</div>
+    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:W,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <img src={LOGO_SRC} alt="VoltConsulting" style={{height:36,opacity:0.5}}/>
     </div>
   );
 
@@ -1533,12 +1504,14 @@ function App(){
         </div>
       </div>
 
-      {saveState&&<div style={{position:"fixed",bottom:18,right:20,background:saveState==="saved"?OK+"15":G100,border:"1px solid "+(saveState==="saved"?OK:G300),borderRadius:20,padding:"5px 16px",fontSize:12,color:saveState==="saved"?OK:G600,zIndex:500,pointerEvents:"none",fontWeight:600}}>{saveState==="saved"?"✓ Synced to Airtable":"Syncing…"}</div>}
-      {!saveState&&syncStatus==="offline"&&<div style={{position:"fixed",bottom:18,right:20,background:"#fff8e1",border:"1px solid "+WARN,borderRadius:20,padding:"5px 16px",fontSize:12,color:WARN,zIndex:500,pointerEvents:"none",fontWeight:600}}>⚠ Offline — saved locally</div>}
+      {saveState&&(
+        <div style={{position:"fixed",bottom:18,right:20,background:saveState==="saved"?OK+"15":G100,border:"1px solid "+(saveState==="saved"?OK:G300),borderRadius:20,padding:"5px 16px",fontSize:12,color:saveState==="saved"?OK:G600,zIndex:500,pointerEvents:"none",fontWeight:600}}>
+          {saveState==="saved"?"✓ Saved":"Saving…"}
+        </div>
+      )}
     </div>
   );
 }
-
 
 const root=ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App/>);
