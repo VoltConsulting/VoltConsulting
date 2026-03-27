@@ -457,28 +457,68 @@ function LinkedInPaste({onParsed}){
   );
 }
 
+
+// ── Local LinkedIn company page parser ───────────────────────
+function parseLinkedInCompany(text){
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+
+  // Company name: usually first prominent line
+  let name = "";
+  const skipWords = ["home","about","posts","jobs","people","videos","linkedin","follow","message","website","industry","company size","headquarters","founded","followers","employees"];
+  for(const line of lines){
+    if(line.length > 2 && line.length < 80 &&
+       !line.includes("http") && !line.includes("#") &&
+       !line.toLowerCase().includes("linkedin") &&
+       !skipWords.some(w => line.toLowerCase().startsWith(w))){
+      name = line.trim();
+      break;
+    }
+  }
+
+  // HQ: look for location patterns
+  let hq = "";
+  for(const line of lines){
+    if(/(headquarters|hq):/i.test(line)){
+      hq = line.replace(/(headquarters|hq):\s*/i,"").trim();
+      break;
+    }
+    if(/(metropolitan area|united kingdom|united states|ireland|germany|france|switzerland|netherlands|belgium|spain|italy|sweden|denmark|norway|london|new york|boston|paris|berlin|zurich|amsterdam)/i.test(line) && line.length < 60){
+      hq = line.trim();
+      break;
+    }
+  }
+
+  // Company type
+  let type = "Consulting";
+  const fullText = text.toLowerCase();
+  if(/(pharma|pharmaceutical|drug|medicine|clinical|biologic)/i.test(fullText)) type = "Pharma";
+  else if(/(biotech|biotechnology|gene therapy|cell therapy)/i.test(fullText)) type = "Biotech";
+  else if(/(medical device|medtech|diagnostics|surgical|implant)/i.test(fullText)) type = "MedTech";
+
+  // Notes: grab the About/description section
+  let notes = "";
+  const aboutIdx = text.search(/\bAbout\b/i);
+  if(aboutIdx > -1){
+    const afterAbout = text.slice(aboutIdx + 5).trim();
+    notes = afterAbout.slice(0, 300).replace(/\n+/g," ").trim();
+  }
+
+  return { name, hq, type, tier:"Prospect", relationship:"Cold", notes };
+}
+
 // ── LinkedIn paste for Companies ─────────────────────────────
 function CompanyLinkedInPaste({onParsed}){
   const[open,setOpen]=useState(false);
   const[text,setText]=useState("");
   const[loading,setLoading]=useState(false);
   const[error,setError]=useState("");
-  const parse=async()=>{
-    if(!text.trim())return;
-    setLoading(true);setError("");
-    try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-dangerous-request-allowlist":"*"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
-          messages:[{role:"user",content:"You are extracting data from a LinkedIn COMPANY page. Extract details about the company itself, not any individual person.\n\nReturn ONLY valid JSON, no markdown, no explanation.\n\nSchema: {\"name\":\"Full company name\",\"type\":\"one of: Consulting, Pharma, Biotech, MedTech, Other\",\"hq\":\"City, Country of headquarters\",\"notes\":\"1-2 sentence summary of what the company does, from their About section\"}\n\nLinkedIn company page text:\n"+text.slice(0,4000)}]})});
-      if(!res.ok){const errText=await res.text();throw new Error("API error "+res.status+": "+errText);}
-      const data=await res.json();
-      const raw=(data.content?.[0]?.text||"").trim();
-      const clean=raw.replace(/^```json|^```|```$/gm,"").trim();
-      const parsed=JSON.parse(clean);
-      onParsed(parsed);setOpen(false);setText("");
+      try{
+      const result = parseLinkedInCompany(text);
+      if(!result.name) throw new Error("Could not find a company name. Make sure you copied the company page.");
+      onParsed(result);setOpen(false);setText("");
     }catch(err){
       console.error("Company parse error:",err);
-      setError("Error: "+err.message+". If running from a local file, try hosting on Netlify first.");
+      setError("Could not import: "+err.message);
     }
     setLoading(false);
   };
