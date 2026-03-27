@@ -1420,146 +1420,143 @@ function CompanyLinkedInPaste({onParsed}){
 
 // ── Campaigns view ────────────────────────────────────────────
 function exportToInstantly(people, campaignName) {
-  const members = people.filter(p => (p.campaigns||[]).includes(campaignName));
-  if(!members.length){alert("No people in this campaign yet.");return;}
-  
-  const rows = [
-    ["First Name","Last Name","Email","Company","Job Title"]
-  ];
-  members.forEach(p => {
-    const nameParts = (p.name||"").trim().split(" ");
-    const firstName = nameParts[0]||"";
-    const lastName = nameParts.slice(1).join(" ")||"";
-    rows.push([firstName, lastName, p.email||"", p.company||"", p.title||""]);
-  });
+  const members = people.filter(p => (p.campaigns||[]).includes(campaignName) && p.email);
+  const all = people.filter(p => (p.campaigns||[]).includes(campaignName));
+  if(!all.length){alert("No people in this campaign yet.");return;}
+  if(!members.length){alert("No one in this campaign has an email address yet. Add emails in the People view first.");return;}
 
-  const csv = rows.map(r => r.map(v => `"${(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], {type:"text/csv"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = campaignName.replace(/[^a-z0-9]/gi,"_") + "_instantly.csv";
-  a.click();
-  URL.revokeObjectURL(url);
+  const rows = [["First Name","Last Name","Email","Company","Job Title"]];
+  members.forEach(p => {
+    const parts=(p.name||"").trim().split(" ");
+    rows.push([parts[0]||"", parts.slice(1).join(" ")||"", p.email||"", p.company||"", p.title||""]);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob=new Blob([csv],{type:"text/csv"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=campaignName.replace(/[^a-z0-9]/gi,"_")+"_instantly.csv";
+  a.click();URL.revokeObjectURL(url);
 }
 
-function CampaignsView({people, setPeople, persist}) {
-  const [newCampaign, setNewCampaign] = useState("");
-  const [selCampaign, setSelCampaign] = useState(null);
-  const [emptyCampaigns, setEmptyCampaigns] = useState([]);
+function CampaignsView({people,setPeople,persist}){
+  // Store campaign names in localStorage so they persist
+  const loadCampaigns=()=>{
+    try{return JSON.parse(localStorage.getItem("volt-campaigns")||"[]");}catch{return[];}
+  };
+  const saveCampaignsList=list=>{
+    localStorage.setItem("volt-campaigns",JSON.stringify(list));
+  };
 
-  // Derive all campaigns from people
-  const allCampaigns = useMemo(() => {
-    const map = {};
-    emptyCampaigns.forEach(c => { if(!map[c]) map[c] = []; });
-    people.forEach(p => (p.campaigns||[]).forEach(c => {
-      if(!map[c]) map[c] = [];
-      map[c].push(p);
-    }));
-    return Object.entries(map).sort((a,b) => b[1].length - a[1].length);
-  }, [people, emptyCampaigns]);
+  const[campaignNames,setCampaignNames]=useState(loadCampaigns);
+  const[selCampaign,setSelCampaign]=useState(null);
+  const[newName,setNewName]=useState("");
 
-  const createCampaign = () => {
-    const name = newCampaign.trim();
-    if(!name) return;
-    if(!allCampaigns.find(([n])=>n===name)){
-      // Add to a special campaigns registry stored in people metadata
-      // We'll track empty campaigns via state
-      setEmptyCampaigns(prev => [...prev.filter(c=>c!==name), name]);
+  // Merge campaign names from people too (in case imported)
+  const allNames=useMemo(()=>{
+    const fromPeople=new Set();
+    people.forEach(p=>(p.campaigns||[]).forEach(c=>fromPeople.add(c)));
+    const merged=[...new Set([...campaignNames,...fromPeople])];
+    return merged;
+  },[people,campaignNames]);
+
+  const addCampaign=()=>{
+    const name=newName.trim();
+    if(!name)return;
+    if(!allNames.includes(name)){
+      const updated=[...campaignNames,name];
+      setCampaignNames(updated);
+      saveCampaignsList(updated);
     }
     setSelCampaign(name);
-    setNewCampaign("");
+    setNewName("");
   };
 
-  const removePerson = (personId) => {
-    const updated = people.map(p => p.id === personId
-      ? {...p, campaigns: (p.campaigns||[]).filter(c => c !== selCampaign)}
-      : p
-    );
-    setPeople(updated);
-    persist("people", updated);
+  const deleteCampaign=()=>{
+    if(!selCampaign)return;
+    if(!confirm(`Delete campaign "${selCampaign}"? People won't be deleted.`))return;
+    const updatedNames=campaignNames.filter(c=>c!==selCampaign);
+    setCampaignNames(updatedNames);
+    saveCampaignsList(updatedNames);
+    const updatedPeople=people.map(p=>({...p,campaigns:(p.campaigns||[]).filter(c=>c!==selCampaign)}));
+    setPeople(updatedPeople);persist("people",updatedPeople);
+    setSelCampaign(null);
   };
 
-  const members = selCampaign ? people.filter(p => (p.campaigns||[]).includes(selCampaign)) : [];
-  const nonMembers = selCampaign ? people.filter(p => !(p.campaigns||[]).includes(selCampaign)) : [];
-
-  const addToCampaign = (personId) => {
-    const updated = people.map(p => p.id === personId
-      ? {...p, campaigns: [...new Set([...(p.campaigns||[]), selCampaign])]}
-      : p
-    );
-    setPeople(updated);
-    persist("people", updated);
+  const addPerson=personId=>{
+    const updated=people.map(p=>p.id===personId?{...p,campaigns:[...new Set([...(p.campaigns||[]),selCampaign])]}:p);
+    setPeople(updated);persist("people",updated);
+  };
+  const removePerson=personId=>{
+    const updated=people.map(p=>p.id===personId?{...p,campaigns:(p.campaigns||[]).filter(c=>c!==selCampaign)}:p);
+    setPeople(updated);persist("people",updated);
   };
 
-  return (
+  const members=selCampaign?people.filter(p=>(p.campaigns||[]).includes(selCampaign)):[];
+  const nonMembers=selCampaign?people.filter(p=>!(p.campaigns||[]).includes(selCampaign)):[];
+  const withEmail=members.filter(p=>p.email);
+  const noEmail=members.filter(p=>!p.email);
+
+  return(
     <div style={{display:"flex",height:"100%",minHeight:0}}>
-      {/* Campaign list */}
+      {/* Sidebar */}
       <div style={{width:280,flexShrink:0,borderRight:`1px solid ${G200}`,display:"flex",flexDirection:"column",background:W}}>
-        <div style={{padding:"16px 16px 12px",borderBottom:`1px solid ${G200}`}}>
+        <div style={{padding:"16px 16px 14px",borderBottom:`1px solid ${G200}`}}>
           <div style={{fontWeight:700,color:NAVY,fontSize:15,marginBottom:12}}>Campaigns</div>
           <div style={{display:"flex",gap:8}}>
-            <Inp value={newCampaign} onChange={setNewCampaign} placeholder="New campaign name…" style={{fontSize:12}}/>
-            <Btn small onClick={createCampaign}>+ Add</Btn>
+            <input
+              value={newName}
+              onChange={e=>setNewName(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter")addCampaign();}}
+              placeholder="Campaign name…"
+              style={{flex:1,border:"1px solid "+G300,borderRadius:6,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"inherit"}}
+            />
+            <button
+              onClick={e=>{e.preventDefault();e.stopPropagation();addCampaign();}}
+              style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"7px 14px",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+              + Add
+            </button>
           </div>
         </div>
         <div style={{overflowY:"auto",flex:1,padding:"8px 8px"}}>
-          {allCampaigns.length === 0 && (
-            <div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13,padding:"0 16px",lineHeight:1.6}}>
-              No campaigns yet. Create one above then add people to it.
+          {allNames.length===0&&(
+            <div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13,padding:"0 16px",lineHeight:1.7}}>
+              No campaigns yet.<br/>Type a name above and click + Add.
             </div>
           )}
-          {allCampaigns.map(([name, members]) => {
-            const isSel = selCampaign === name;
-            const hasEmail = members.filter(p => p.email).length;
-            return (
-              <div key={name} onClick={() => setSelCampaign(name)}
+          {allNames.map(name=>{
+            const mems=people.filter(p=>(p.campaigns||[]).includes(name));
+            const hasEmail=mems.filter(p=>p.email).length;
+            const isSel=selCampaign===name;
+            return(
+              <div key={name} onClick={()=>setSelCampaign(name)}
                 style={{padding:"12px 14px",borderRadius:8,marginBottom:4,cursor:"pointer",background:isSel?TL:"transparent",border:`1px solid ${isSel?TM:"transparent"}`}}>
-                <div style={{fontWeight:700,color:NAVY,fontSize:14}}>{name}</div>
-                <div style={{fontSize:12,color:G600,marginTop:3}}>
-                  {members.length} people · {hasEmail} with email
-                </div>
-                {hasEmail < members.length && (
-                  <div style={{fontSize:11,color:WARN,marginTop:2}}>
-                    ⚠ {members.length - hasEmail} missing email
-                  </div>
-                )}
+                <div style={{fontWeight:700,color:NAVY,fontSize:13.5}}>{name}</div>
+                <div style={{fontSize:12,color:G600,marginTop:3}}>{mems.length} people · {hasEmail} with email</div>
+                {mems.length>0&&hasEmail<mems.length&&<div style={{fontSize:11,color:WARN,marginTop:2}}>⚠ {mems.length-hasEmail} missing email</div>}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Campaign detail */}
-      {selCampaign ? (
+      {/* Detail */}
+      {selCampaign?(
         <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
           {/* Header */}
           <div style={{background:W,borderBottom:`1px solid ${G200}`,padding:"18px 28px",flexShrink:0}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:noEmail.length>0?12:0}}>
               <div>
                 <h2 style={{fontSize:20,fontWeight:700,color:NAVY,margin:0}}>{selCampaign}</h2>
-                <div style={{fontSize:13,color:G600,marginTop:4}}>
-                  {members.length} contacts · {members.filter(p=>p.email).length} with email
-                </div>
+                <div style={{fontSize:13,color:G600,marginTop:4}}>{members.length} contacts · {withEmail.length} ready to export</div>
               </div>
               <div style={{display:"flex",gap:10}}>
-                <Btn variant="ghost" small onClick={() => {
-                  if(confirm(`Delete campaign "${selCampaign}"? People won't be deleted, just removed from this campaign.`)){
-                    const updated = people.map(p => ({...p, campaigns:(p.campaigns||[]).filter(c=>c!==selCampaign)}));
-                    setPeople(updated);persist("people",updated);
-                    setEmptyCampaigns(prev=>prev.filter(c=>c!==selCampaign));
-                    setSelCampaign(null);
-                  }
-                }}>Delete Campaign</Btn>
-                <Btn onClick={() => exportToInstantly(people, selCampaign)}
-                  style={{background:OK,fontSize:13}}>
-                  ⬇ Export to Instantly CSV
-                </Btn>
+                <Btn variant="ghost" small onClick={deleteCampaign}>Delete</Btn>
+                <Btn onClick={()=>exportToInstantly(people,selCampaign)} style={{background:OK,fontSize:13}}>⬇ Export to Instantly</Btn>
               </div>
             </div>
-            {members.filter(p=>!p.email).length > 0 && (
-              <div style={{marginTop:12,background:"#fff8e1",border:`1px solid ${WARN}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:G800}}>
-                <strong style={{color:WARN}}>⚠ {members.filter(p=>!p.email).length} people are missing an email address</strong> — they won't appear in the Instantly export. Add their emails in the People view first.
+            {noEmail.length>0&&(
+              <div style={{background:"#fff8e1",border:`1px solid ${WARN}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:G800}}>
+                <strong style={{color:WARN}}>⚠ {noEmail.length} people missing email</strong> — add their emails in People view before exporting.
               </div>
             )}
           </div>
@@ -1567,63 +1564,53 @@ function CampaignsView({people, setPeople, persist}) {
           <div style={{flex:1,overflowY:"auto",padding:"20px 28px",background:G50}}>
             {/* Members */}
             <div style={{background:W,borderRadius:8,border:`1px solid ${G200}`,marginBottom:20}}>
-              <div style={{padding:"14px 18px",borderBottom:`1px solid ${G200}`,fontWeight:700,color:NAVY,fontSize:13}}>
+              <div style={{padding:"12px 18px",borderBottom:`1px solid ${G200}`,fontWeight:700,color:NAVY,fontSize:13}}>
                 In this campaign ({members.length})
               </div>
-              {members.length === 0 ? (
+              {members.length===0?(
                 <div style={{padding:"20px 18px",color:G400,fontSize:13}}>No one added yet. Add people from the list below.</div>
-              ) : members.map(p => (
+              ):members.map(p=>(
                 <div key={p.id} style={{display:"flex",gap:12,alignItems:"center",padding:"11px 18px",borderBottom:`1px solid ${G100}`}}>
                   <div style={{width:32,height:32,borderRadius:"50%",background:TEAL+"15",border:`1.5px solid ${TEAL}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:TEAL,flexShrink:0}}>
                     {(p.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div>
-                    <div style={{fontSize:11,color:G600}}>{p.title}{p.company?` · ${p.company}`:""}</div>
-                    {p.email
-                      ? <div style={{fontSize:11,color:TEAL,marginTop:1}}>{p.email}</div>
-                      : <div style={{fontSize:11,color:DANGER,marginTop:1}}>⚠ No email — won't export</div>
-                    }
+                    <div style={{fontSize:11,color:G600}}>{[p.title,p.company].filter(Boolean).join(" · ")}</div>
+                    {p.email?<div style={{fontSize:11,color:TEAL,marginTop:1}}>{p.email}</div>:<div style={{fontSize:11,color:DANGER,marginTop:1}}>⚠ No email — won't export</div>}
                   </div>
-                  <button onClick={() => removePerson(p.id)}
-                    style={{background:"transparent",border:`1px solid ${G300}`,borderRadius:6,padding:"4px 10px",fontSize:11,color:G600,cursor:"pointer"}}>
-                    Remove
-                  </button>
+                  <button onClick={()=>removePerson(p.id)} style={{background:"transparent",border:`1px solid ${G300}`,borderRadius:6,padding:"4px 10px",fontSize:11,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
                 </div>
               ))}
             </div>
 
             {/* Add people */}
             <div style={{background:W,borderRadius:8,border:`1px solid ${G200}`}}>
-              <div style={{padding:"14px 18px",borderBottom:`1px solid ${G200}`,fontWeight:700,color:NAVY,fontSize:13}}>
-                Add to this campaign ({nonMembers.length} available)
+              <div style={{padding:"12px 18px",borderBottom:`1px solid ${G200}`,fontWeight:700,color:NAVY,fontSize:13}}>
+                Add to campaign ({nonMembers.length} people)
               </div>
-              {nonMembers.length === 0 ? (
+              {nonMembers.length===0?(
                 <div style={{padding:"20px 18px",color:G400,fontSize:13}}>Everyone is already in this campaign.</div>
-              ) : nonMembers.map(p => (
-                <div key={p.id} style={{display:"flex",gap:12,alignItems:"center",padding:"11px 18px",borderBottom:`1px solid ${G100}`}}>
+              ):nonMembers.map(p=>(
+                <div key={p.id} style={{display:"flex",gap:12,alignItems:"center",padding:"10px 18px",borderBottom:`1px solid ${G100}`}}>
                   <div style={{width:32,height:32,borderRadius:"50%",background:G200,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:G600,flexShrink:0}}>
                     {(p.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div>
-                    <div style={{fontSize:11,color:G600}}>{p.title}{p.company?` · ${p.company}`:""}</div>
-                    {!p.email && <div style={{fontSize:11,color:WARN,marginTop:1}}>No email yet</div>}
+                    <div style={{fontSize:11,color:G600}}>{[p.title,p.company].filter(Boolean).join(" · ")}</div>
+                    {!p.email&&<div style={{fontSize:11,color:WARN,marginTop:1}}>No email yet</div>}
                   </div>
-                  <button onClick={() => addToCampaign(p.id)}
-                    style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-                    + Add
-                  </button>
+                  <button onClick={()=>addPerson(p.id)} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>
                 </div>
               ))}
             </div>
           </div>
         </div>
-      ) : (
+      ):(
         <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:G400,background:G50}}>
           <div style={{fontSize:32}}>📧</div>
-          <div style={{fontSize:13}}>Select a campaign to manage it</div>
-          <div style={{fontSize:12,color:G400}}>or create a new one on the left</div>
+          <div style={{fontSize:13}}>Select a campaign or create a new one</div>
         </div>
       )}
     </div>
