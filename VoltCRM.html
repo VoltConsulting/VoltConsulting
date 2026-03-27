@@ -45,15 +45,15 @@ const today=new Date().toISOString().slice(0,10);
 const dF=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
 
 const SEED_PEOPLE=[
-  {id:1,type:"candidate",name:"Dr. Sarah Chen",title:"VP Strategy",company:"Huron Consulting",companyId:5,location:"London",seniority:"VP / Director",sectors:["Life Sciences","Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-5),nextAction:"Follow up re: CRA opportunity",nextDue:dF(2),relationship:"Warm",notes:"Strong BCG background. Open to right move."},
-  {id:2,type:"candidate",name:"James Okafor",title:"Principal",company:"ZS Associates",companyId:6,location:"Boston",seniority:"Manager / Principal",sectors:["Commercial","Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-30),nextAction:"Check in — placement anniversary",nextDue:dF(7),relationship:"Hot",notes:"Placed at CRA Jan 2025. Great referral source."},
-  {id:3,type:"candidate",name:"Priya Mehta",title:"Associate Director",company:"IQVIA",companyId:7,location:"New York",seniority:"Manager / Principal",sectors:["RWE","Market Access"],linkedin:"",email:"",phone:"",lastContacted:dF(-14),nextAction:"Send Roche JD",nextDue:dF(1),relationship:"Warm",notes:"6-12 month horizon. Wants boutique."},
-  {id:4,type:"contact",name:"Maria Lopez",title:"Chief People Officer",company:"Charles River Associates",companyId:1,location:"Boston",seniority:"C-Suite / Partner",sectors:["Strategy","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-3),nextAction:"Send shortlist for Energy role",nextDue:dF(1),relationship:"Hot",notes:"Key decision maker. Prefers WhatsApp."},
-  {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),nextAction:"Schedule longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Very responsive. Wants weekly updates."},
+  {id:1,type:"candidate",name:"Dr. Sarah Chen",title:"VP Strategy",company:"Huron Consulting",companyId:5,location:"London",seniority:"VP / Director",sectors:["Life Sciences","Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-5),campaigns:[],nextAction:"Follow up re: CRA opportunity",nextDue:dF(2),relationship:"Warm",notes:"Strong BCG background. Open to right move."},
+  {id:2,type:"candidate",name:"James Okafor",title:"Principal",company:"ZS Associates",companyId:6,location:"Boston",seniority:"Manager / Principal",sectors:["Commercial","Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-30),campaigns:[],nextAction:"Check in — placement anniversary",nextDue:dF(7),relationship:"Hot",notes:"Placed at CRA Jan 2025. Great referral source."},
+  {id:3,type:"candidate",name:"Priya Mehta",title:"Associate Director",company:"IQVIA",companyId:7,location:"New York",seniority:"Manager / Principal",sectors:["RWE","Market Access"],linkedin:"",email:"",phone:"",lastContacted:dF(-14),campaigns:[],nextAction:"Send Roche JD",nextDue:dF(1),relationship:"Warm",notes:"6-12 month horizon. Wants boutique."},
+  {id:4,type:"contact",name:"Maria Lopez",title:"Chief People Officer",company:"Charles River Associates",companyId:1,location:"Boston",seniority:"C-Suite / Partner",sectors:["Strategy","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-3),campaigns:[],nextAction:"Send shortlist for Energy role",nextDue:dF(1),relationship:"Hot",notes:"Key decision maker. Prefers WhatsApp."},
+  {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),campaigns:[],nextAction:"Schedule longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Very responsive. Wants weekly updates."},
 ];
 const SEED_COMPANIES=[
-  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openMandates:2,lastContacted:dF(-3),nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Hot",notes:"Retained engagement ongoing."},
-  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openMandates:1,lastContacted:dF(-7),nextAction:"Longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Global Oncology search."},
+  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openMandates:2,lastContacted:dF(-3),campaigns:[],nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Hot",notes:"Retained engagement ongoing."},
+  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openMandates:1,lastContacted:dF(-7),campaigns:[],nextAction:"Longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Global Oncology search."},
   {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openMandates:0,lastContacted:dF(-45),nextAction:"Introductory call",nextDue:dF(10),relationship:"Cold",notes:"Intro via network."},
   {id:4,name:"Vertex Pharmaceuticals",type:"Pharma",tier:"Warm",hq:"Boston",keyContact:"James Carney",openMandates:0,lastContacted:dF(-20),nextAction:"Follow up on pipeline",nextDue:dF(5),relationship:"Warm",notes:"Warm intro via Brinda."},
   {id:5,name:"Huron Consulting",type:"Consulting",tier:"Prospect",hq:"Chicago",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
@@ -490,6 +490,14 @@ function OverviewTab({selP,people,setPeople,persist}){
         </div>
       )}
 
+            {/* Campaign tags */}
+      {(selP.campaigns||[]).length>0&&(
+        <div style={{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200,marginBottom:14}}>
+          <div style={{fontSize:11,color:G600,marginBottom:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Campaigns</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(selP.campaigns||[]).map(c=><Badge key={c} label={"📧 "+c} color={OK}/>)}</div>
+        </div>
+      )}
+
       {/* Notes snapshot */}
       {selP.notes&&(
         <div style={{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200}}>
@@ -622,7 +630,7 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
 }
 
 // ── Person form ───────────────────────────────────────────────
-const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
+const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:"",campaigns:[]};
 function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
   const[f,setF]=useState({...BLANKP,...(init||{}),...(prefill||{})});
   const[dupes,setDupes]=useState([]);
@@ -1407,8 +1415,211 @@ function CompanyLinkedInPaste({onParsed}){
   );
 }
 
+
+// ── Campaigns view ────────────────────────────────────────────
+function exportToInstantly(people, campaignName) {
+  const members = people.filter(p => (p.campaigns||[]).includes(campaignName));
+  if(!members.length){alert("No people in this campaign yet.");return;}
+  
+  const rows = [
+    ["First Name","Last Name","Email","Company","Job Title"]
+  ];
+  members.forEach(p => {
+    const nameParts = (p.name||"").trim().split(" ");
+    const firstName = nameParts[0]||"";
+    const lastName = nameParts.slice(1).join(" ")||"";
+    rows.push([firstName, lastName, p.email||"", p.company||"", p.title||""]);
+  });
+
+  const csv = rows.map(r => r.map(v => `"${(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = campaignName.replace(/[^a-z0-9]/gi,"_") + "_instantly.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function CampaignsView({people, setPeople, persist}) {
+  const [newCampaign, setNewCampaign] = useState("");
+  const [selCampaign, setSelCampaign] = useState(null);
+
+  // Derive all campaigns from people
+  const allCampaigns = useMemo(() => {
+    const map = {};
+    people.forEach(p => (p.campaigns||[]).forEach(c => {
+      if(!map[c]) map[c] = [];
+      map[c].push(p);
+    }));
+    return Object.entries(map).sort((a,b) => b[1].length - a[1].length);
+  }, [people]);
+
+  const createCampaign = () => {
+    if(!newCampaign.trim()) return;
+    setSelCampaign(newCampaign.trim());
+    setNewCampaign("");
+  };
+
+  const removePerson = (personId) => {
+    const updated = people.map(p => p.id === personId
+      ? {...p, campaigns: (p.campaigns||[]).filter(c => c !== selCampaign)}
+      : p
+    );
+    setPeople(updated);
+    persist("people", updated);
+  };
+
+  const members = selCampaign ? people.filter(p => (p.campaigns||[]).includes(selCampaign)) : [];
+  const nonMembers = selCampaign ? people.filter(p => !(p.campaigns||[]).includes(selCampaign)) : [];
+
+  const addToCampaign = (personId) => {
+    const updated = people.map(p => p.id === personId
+      ? {...p, campaigns: [...new Set([...(p.campaigns||[]), selCampaign])]}
+      : p
+    );
+    setPeople(updated);
+    persist("people", updated);
+  };
+
+  return (
+    <div style={{display:"flex",height:"100%",minHeight:0}}>
+      {/* Campaign list */}
+      <div style={{width:280,flexShrink:0,borderRight:`1px solid ${G200}`,display:"flex",flexDirection:"column",background:W}}>
+        <div style={{padding:"16px 16px 12px",borderBottom:`1px solid ${G200}`}}>
+          <div style={{fontWeight:700,color:NAVY,fontSize:15,marginBottom:12}}>Campaigns</div>
+          <div style={{display:"flex",gap:8}}>
+            <Inp value={newCampaign} onChange={setNewCampaign} placeholder="New campaign name…" style={{fontSize:12}}/>
+            <Btn small onClick={createCampaign}>+ Add</Btn>
+          </div>
+        </div>
+        <div style={{overflowY:"auto",flex:1,padding:"8px 8px"}}>
+          {allCampaigns.length === 0 && (
+            <div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13,padding:"0 16px",lineHeight:1.6}}>
+              No campaigns yet. Create one above then add people to it.
+            </div>
+          )}
+          {allCampaigns.map(([name, members]) => {
+            const isSel = selCampaign === name;
+            const hasEmail = members.filter(p => p.email).length;
+            return (
+              <div key={name} onClick={() => setSelCampaign(name)}
+                style={{padding:"12px 14px",borderRadius:8,marginBottom:4,cursor:"pointer",background:isSel?TL:"transparent",border:`1px solid ${isSel?TM:"transparent"}`}}>
+                <div style={{fontWeight:700,color:NAVY,fontSize:14}}>{name}</div>
+                <div style={{fontSize:12,color:G600,marginTop:3}}>
+                  {members.length} people · {hasEmail} with email
+                </div>
+                {hasEmail < members.length && (
+                  <div style={{fontSize:11,color:WARN,marginTop:2}}>
+                    ⚠ {members.length - hasEmail} missing email
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Campaign detail */}
+      {selCampaign ? (
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          {/* Header */}
+          <div style={{background:W,borderBottom:`1px solid ${G200}`,padding:"18px 28px",flexShrink:0}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <h2 style={{fontSize:20,fontWeight:700,color:NAVY,margin:0}}>{selCampaign}</h2>
+                <div style={{fontSize:13,color:G600,marginTop:4}}>
+                  {members.length} contacts · {members.filter(p=>p.email).length} with email
+                </div>
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                <Btn variant="ghost" small onClick={() => {
+                  if(confirm(`Delete campaign "${selCampaign}"? People won't be deleted, just removed from this campaign.`)){
+                    const updated = people.map(p => ({...p, campaigns:(p.campaigns||[]).filter(c=>c!==selCampaign)}));
+                    setPeople(updated);persist("people",updated);setSelCampaign(null);
+                  }
+                }}>Delete Campaign</Btn>
+                <Btn onClick={() => exportToInstantly(people, selCampaign)}
+                  style={{background:OK,fontSize:13}}>
+                  ⬇ Export to Instantly CSV
+                </Btn>
+              </div>
+            </div>
+            {members.filter(p=>!p.email).length > 0 && (
+              <div style={{marginTop:12,background:"#fff8e1",border:`1px solid ${WARN}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:G800}}>
+                <strong style={{color:WARN}}>⚠ {members.filter(p=>!p.email).length} people are missing an email address</strong> — they won't appear in the Instantly export. Add their emails in the People view first.
+              </div>
+            )}
+          </div>
+
+          <div style={{flex:1,overflowY:"auto",padding:"20px 28px",background:G50}}>
+            {/* Members */}
+            <div style={{background:W,borderRadius:8,border:`1px solid ${G200}`,marginBottom:20}}>
+              <div style={{padding:"14px 18px",borderBottom:`1px solid ${G200}`,fontWeight:700,color:NAVY,fontSize:13}}>
+                In this campaign ({members.length})
+              </div>
+              {members.length === 0 ? (
+                <div style={{padding:"20px 18px",color:G400,fontSize:13}}>No one added yet. Add people from the list below.</div>
+              ) : members.map(p => (
+                <div key={p.id} style={{display:"flex",gap:12,alignItems:"center",padding:"11px 18px",borderBottom:`1px solid ${G100}`}}>
+                  <div style={{width:32,height:32,borderRadius:"50%",background:TEAL+"15",border:`1.5px solid ${TEAL}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:TEAL,flexShrink:0}}>
+                    {(p.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div>
+                    <div style={{fontSize:11,color:G600}}>{p.title}{p.company?` · ${p.company}`:""}</div>
+                    {p.email
+                      ? <div style={{fontSize:11,color:TEAL,marginTop:1}}>{p.email}</div>
+                      : <div style={{fontSize:11,color:DANGER,marginTop:1}}>⚠ No email — won't export</div>
+                    }
+                  </div>
+                  <button onClick={() => removePerson(p.id)}
+                    style={{background:"transparent",border:`1px solid ${G300}`,borderRadius:6,padding:"4px 10px",fontSize:11,color:G600,cursor:"pointer"}}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Add people */}
+            <div style={{background:W,borderRadius:8,border:`1px solid ${G200}`}}>
+              <div style={{padding:"14px 18px",borderBottom:`1px solid ${G200}`,fontWeight:700,color:NAVY,fontSize:13}}>
+                Add to this campaign ({nonMembers.length} available)
+              </div>
+              {nonMembers.length === 0 ? (
+                <div style={{padding:"20px 18px",color:G400,fontSize:13}}>Everyone is already in this campaign.</div>
+              ) : nonMembers.map(p => (
+                <div key={p.id} style={{display:"flex",gap:12,alignItems:"center",padding:"11px 18px",borderBottom:`1px solid ${G100}`}}>
+                  <div style={{width:32,height:32,borderRadius:"50%",background:G200,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:G600,flexShrink:0}}>
+                    {(p.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div>
+                    <div style={{fontSize:11,color:G600}}>{p.title}{p.company?` · ${p.company}`:""}</div>
+                    {!p.email && <div style={{fontSize:11,color:WARN,marginTop:1}}>No email yet</div>}
+                  </div>
+                  <button onClick={() => addToCampaign(p.id)}
+                    style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                    + Add
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:G400,background:G50}}>
+          <div style={{fontSize:32}}>📧</div>
+          <div style={{fontSize:13}}>Select a campaign to manage it</div>
+          <div style={{fontSize:12,color:G400}}>or create a new one on the left</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ROOT APP ──────────────────────────────────────────────────
-const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"map",label:"Market Map",icon:"◌"}];
+const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"campaigns",label:"Campaigns",icon:"◇"},{id:"map",label:"Market Map",icon:"◌"}];
 
 function App(){
   const[view,setView]=useState("bd");
@@ -1501,7 +1712,8 @@ function App(){
           {view==="bd"&&<BDTracker people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist}/>}
           {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel}/>}
           {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}}/>}
-          {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate}/>}
+          {view==="campaigns"&&<CampaignsView people={people} setPeople={setPeople} persist={persist}/>}
+        {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate}/>}
         </div>
       </div>
 
