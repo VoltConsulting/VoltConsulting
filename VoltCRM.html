@@ -18,6 +18,25 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect, useCallback, useRef } = React;
 
+    // Global error boundary
+    class ErrorBoundary extends React.Component {
+      constructor(props){super(props);this.state={error:null};}
+      static getDerivedStateFromError(e){return{error:e};}
+      render(){
+        if(this.state.error)return(
+          <div style={{padding:40,fontFamily:"sans-serif",color:"#dc3545",background:"#fff5f5",minHeight:"100vh"}}>
+            <h2>CRM Error</h2>
+            <pre style={{background:"#fff",padding:20,borderRadius:8,fontSize:12,overflow:"auto",color:"#333"}}>
+              {this.state.error.toString()}
+              {this.state.error.stack}
+            </pre>
+            <p>Please screenshot this and send to your developer.</p>
+          </div>
+        );
+        return this.props.children;
+      }
+    }
+
 // ── Airtable sync (simple JSON blob approach) ─────────────────
 // Credentials stored in browser localStorage — never in the file
 let AT_TOKEN  = localStorage.getItem("volt_at_token") || "";
@@ -1573,12 +1592,7 @@ function App(){
       </div>
 
       <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        {isLocalFile&&(
-          <div style={{background:"#fff8e1",borderBottom:"1px solid "+WARN,padding:"8px 24px",fontSize:12,color:G700,flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontWeight:700,color:WARN}}>⚠ Running from local file:</span>
-            LinkedIn AI import may be blocked by your browser. For full features, host on Netlify (drag & drop at netlify.com/drop) or open via a local server.
-          </div>
-        )}
+  
         <div style={{background:W,borderBottom:"1px solid "+G200,padding:"12px 24px",display:"flex",alignItems:"center",gap:16,flexShrink:0}}>
           <GlobalSearch people={people} companies={companies} onNavigate={handleNavigate}/>
           <div style={{fontSize:12,color:G400,whiteSpace:"nowrap"}}>{people.length+" people · "+companies.length+" companies"}</div>
@@ -1604,7 +1618,17 @@ function App(){
 
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    root.render(<ErrorBoundary><App /></ErrorBoundary>);
+
+    // Also catch any top-level JS errors
+    window.onerror = function(msg, src, line, col, err) {
+      document.getElementById('root').innerHTML =
+        '<div style="padding:40px;font-family:sans-serif;color:#dc3545;background:#fff5f5;min-height:100vh">' +
+        '<h2>CRM Load Error</h2>' +
+        '<pre style="background:#fff;padding:20px;border-radius:8px;font-size:12px;overflow:auto;color:#333">' +
+        msg + '\nLine: ' + line + '\nSource: ' + src +
+        '</pre><p>Please screenshot this and send to your developer.</p></div>';
+    };
   </script>
 </body>
 </html>
