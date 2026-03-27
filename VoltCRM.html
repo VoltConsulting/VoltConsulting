@@ -316,9 +316,9 @@ function LinkedInPaste({onParsed}){
     if(!text.trim())return;
     setLoading(true);setError("");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-dangerous-request-allowlist":"*"},
         body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
-          messages:[{role:"user",content:"Extract the PRIMARY person's details from this LinkedIn profile page text. LinkedIn pages often contain duplicated text and noise - ignore it and focus on the main person at the top.\n\nThe text may be messy with repeated words/phrases - that is normal, work with it.\n\nReturn ONLY a valid JSON object, absolutely nothing else, no backticks, no explanation.\n\nJSON fields:\n- name: their full name (string)\n- title: their current job title (string)\n- company: their current employer (string)\n- location: city and country (string)\n- seniority: exactly one of [Analyst / Consultant, Manager / Principal, VP / Director, C-Suite / Partner]\n- sectors: array of relevant tags from [Life Sciences, Strategy, Commercial, Oncology, RWE, Market Access, Operations, MedTech, Digital Health, Biotech, Regulatory, Pricing, Other]\n- linkedin: their LinkedIn profile URL if visible, else empty string\n\nProfile text:\n"+text.slice(0,5000)}]})});
+          messages:[{role:"user",content:"Extract the PRIMARY person's details from this LinkedIn profile page text. LinkedIn pages often contain duplicated text and noise - ignore it and focus on the main person at the top.\n\nThe text may be messy with repeated words/phrases - that is normal, work with it.\n\nReturn ONLY a valid JSON object, absolutely nothing else, no backticks, no explanation.\n\nJSON fields:\n- name: their full name (string)\n- title: their current job title (string)\n- company: their current employer (string)\n- location: city and country (string)\n- seniority: exactly one of [Analyst / Consultant, Manager / Principal, VP / Director, C-Suite / Partner]\n- sectors: array of relevant tags from [Life Sciences, Strategy, Commercial, Oncology, RWE, Market Access, Operations, MedTech, Digital Health, Biotech, Regulatory, Pricing, Other]\n- linkedin: their LinkedIn profile URL if visible, else empty string\n\n- email: their email address if mentioned in the text, else empty string\n- phone: their phone number if mentioned in the text, else empty string\n\nProfile text:\n"+text.slice(0,5000)}]})});
       if(!res.ok){const errText=await res.text();throw new Error("API error "+res.status+": "+errText);}
       const data=await res.json();
       const raw=(data.content?.[0]?.text||"").trim();
@@ -329,7 +329,7 @@ function LinkedInPaste({onParsed}){
       onParsed(parsed);setOpen(false);setText("");
     }catch(err){
       console.error("LinkedIn parse error:",err);
-      setError("Error: "+err.message+". If running from a local file, try hosting the CRM on Netlify first.");
+      setError("Could not import: "+err.message+". Try selecting just the top section of the profile (name, headline, current role).");
     }
     setLoading(false);
   };
@@ -364,7 +364,7 @@ function CompanyLinkedInPaste({onParsed}){
     if(!text.trim())return;
     setLoading(true);setError("");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-dangerous-request-allowlist":"*"},
         body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
           messages:[{role:"user",content:"You are extracting data from a LinkedIn COMPANY page. Extract details about the company itself, not any individual person.\n\nReturn ONLY valid JSON, no markdown, no explanation.\n\nSchema: {\"name\":\"Full company name\",\"type\":\"one of: Consulting, Pharma, Biotech, MedTech, Other\",\"hq\":\"City, Country of headquarters\",\"notes\":\"1-2 sentence summary of what the company does, from their About section\"}\n\nLinkedIn company page text:\n"+text.slice(0,4000)}]})});
       if(!res.ok){const errText=await res.text();throw new Error("API error "+res.status+": "+errText);}
