@@ -221,20 +221,22 @@ const CSV_MAP={
   "name":"name","full name":"name","fullname":"name","full_name":"name",
   "first name":"firstName","firstname":"firstName","first_name":"firstName","given name":"firstName","forename":"firstName",
   "last name":"lastName","lastname":"lastName","last_name":"lastName","surname":"lastName","family name":"lastName",
-  "title":"title","job title":"title","jobtitle":"title","position":"title","role":"title","job_title":"title",
-  "company":"company","employer":"company","organization":"company","organisation":"company","company name":"company","firm":"company","account":"company",
-  "location":"location","city":"location","geography":"location","country":"location","region":"location",
-  "email":"email","email address":"email","work email":"email","e-mail":"email",
-  "phone":"phone","mobile":"phone","phone number":"phone","mobile number":"phone","tel":"phone",
-  "linkedin":"linkedin","linkedin url":"linkedin","linkedin profile":"linkedin","profile url":"linkedin","linkedin profile url":"linkedin",
-  "relationship":"relationship","status":"relationship",
-  "notes":"notes","note":"notes","comments":"notes","bio":"notes",
-  "seniority":"seniority","level":"seniority","seniority level":"seniority","grade":"seniority",
-  "sectors":"sectors","sector":"sectors","expertise":"sectors","speciality":"sectors","specialty":"sectors","industry":"sectors","function":"sectors",
-  "last contacted":"lastContacted","last contact":"lastContacted","date contacted":"lastContacted",
+  "title":"title","job title":"title","jobtitle":"title","jobtitle":"title","position":"title","role":"title","job_title":"title",
+  "company":"company","employer":"company","organization":"company","organisation":"company","company name":"company","companyname":"company","firm":"company","account":"company","account name":"company",
+  "location":"location","city":"location","geography":"location","country":"location","region":"location","city, country":"location",
+  "email":"email","email address":"email","work email":"email","e-mail":"email","email1":"email","primary email":"email",
+  "phone":"phone","mobile":"phone","phone number":"phone","mobile number":"phone","tel":"phone","telephone":"phone","direct phone":"phone","phone1":"phone",
+  "linkedin":"linkedin","linkedin url":"linkedin","linkedin profile":"linkedin","profile url":"linkedin","linkedin profile url":"linkedin","linkedin_url":"linkedin",
+  "relationship":"relationship","status":"relationship","lead status":"relationship",
+  "notes":"notes","note":"notes","comments":"notes","bio":"notes","description":"notes",
+  "seniority":"seniority","level":"seniority","seniority level":"seniority","grade":"seniority","senority":"seniority",
+  "sectors":"sectors","sector":"sectors","expertise":"sectors","speciality":"sectors","specialty":"sectors","industry":"sectors","function":"sectors","department":"sectors",
+  "last contacted":"lastContacted","last contact":"lastContacted","date contacted":"lastContacted","last contacted from":"ignore","last_contacted":"lastContacted",
   "next action":"nextAction","action":"nextAction","follow up":"nextAction","task":"nextAction",
   "next due":"nextDue","due date":"nextDue","due":"nextDue","follow up date":"nextDue",
   "type":"type","person type":"type","contact type":"type",
+  "campaign name":"ignore","email provider":"ignore","verification status":"ignore","interest status":"ignore",
+  "email security gateway provider":"ignore","pause_until":"ignore","lead_status":"ignore",
 };
 
 function parseCSV(text){
@@ -270,7 +272,7 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
   const[preview,setPreview]=useState([]);
   const[results,setResults]=useState(null);
   const fileRef=useRef(null);
-  const CRM_FIELDS=["ignore","name","firstName","lastName","title","company","location","type","seniority","sectors","linkedin","email","phone","relationship","lastContacted","nextAction","nextDue","notes"];
+  const CRM_FIELDS=["ignore","firstName","lastName","name","title","company","location","email","phone","linkedin","type","seniority","sectors","relationship","lastContacted","nextAction","nextDue","notes"];
 
   const handleFile=e=>{
     const file=e.target.files[0];if(!file)return;
@@ -1444,20 +1446,28 @@ function exportToInstantly(people, campaignName) {
 function CampaignsView({people, setPeople, persist}) {
   const [newCampaign, setNewCampaign] = useState("");
   const [selCampaign, setSelCampaign] = useState(null);
+  const [emptyCampaigns, setEmptyCampaigns] = useState([]);
 
   // Derive all campaigns from people
   const allCampaigns = useMemo(() => {
     const map = {};
+    emptyCampaigns.forEach(c => { if(!map[c]) map[c] = []; });
     people.forEach(p => (p.campaigns||[]).forEach(c => {
       if(!map[c]) map[c] = [];
       map[c].push(p);
     }));
     return Object.entries(map).sort((a,b) => b[1].length - a[1].length);
-  }, [people]);
+  }, [people, emptyCampaigns]);
 
   const createCampaign = () => {
-    if(!newCampaign.trim()) return;
-    setSelCampaign(newCampaign.trim());
+    const name = newCampaign.trim();
+    if(!name) return;
+    if(!allCampaigns.find(([n])=>n===name)){
+      // Add to a special campaigns registry stored in people metadata
+      // We'll track empty campaigns via state
+      setEmptyCampaigns(prev => [...prev.filter(c=>c!==name), name]);
+    }
+    setSelCampaign(name);
     setNewCampaign("");
   };
 
@@ -1536,7 +1546,9 @@ function CampaignsView({people, setPeople, persist}) {
                 <Btn variant="ghost" small onClick={() => {
                   if(confirm(`Delete campaign "${selCampaign}"? People won't be deleted, just removed from this campaign.`)){
                     const updated = people.map(p => ({...p, campaigns:(p.campaigns||[]).filter(c=>c!==selCampaign)}));
-                    setPeople(updated);persist("people",updated);setSelCampaign(null);
+                    setPeople(updated);persist("people",updated);
+                    setEmptyCampaigns(prev=>prev.filter(c=>c!==selCampaign));
+                    setSelCampaign(null);
                   }
                 }}>Delete Campaign</Btn>
                 <Btn onClick={() => exportToInstantly(people, selCampaign)}
