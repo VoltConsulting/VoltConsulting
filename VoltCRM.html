@@ -264,6 +264,14 @@ function exportInstantlyCSV(people, campName){
 
 var USER_COLORS={David:'#00C2C7',Lauren:'#6f42c1',Brinda:'#e8a020'};
 
+function hexToRgb(hex){
+  hex=(hex||'#000').replace('#','');
+  var r=parseInt(hex.slice(0,2),16);
+  var g=parseInt(hex.slice(2,4),16);
+  var b=parseInt(hex.slice(4,6),16);
+  return r+','+g+','+b;
+}
+
 // localStorage cache
 function cacheGet(key){
   try{var v=localStorage.getItem('voltcrm_'+key);return v?JSON.parse(v):null;}catch(e){return null;}
@@ -669,12 +677,11 @@ function PersonDetail({person,companies,campaigns,onUpdate,onDelete,onClose}){
 }
 
 // ── People View ────────────────────────────────────────────────────────
-function PeopleView({data}){
+function PeopleView({data,ownerFilter,setOwnerFilter}){
   const {people,companies,campaigns,savePeople}=data;
   const [search,setSearch]=useState('');
   const [filterCamp,setFilterCamp]=useState('');
   const [filterSector,setFilterSector]=useState('');
-  const [filterOwner,setFilterOwner]=useState('');
   const [selected,setSelected]=useState(null);
   const [showAdd,setShowAdd]=useState(false);
   const [followUp,setFollowUp]=useState(null);
@@ -689,7 +696,7 @@ function PeopleView({data}){
       var matchQ=!q||(p.name&&p.name.toLowerCase().indexOf(q)>=0)||(p.company&&p.company.toLowerCase().indexOf(q)>=0)||(p.title&&p.title.toLowerCase().indexOf(q)>=0);
       var matchCamp=!filterCamp||(p.campaigns&&p.campaigns.indexOf(filterCamp)>=0);
       var matchSec=!filterSector||(p.sectors&&p.sectors.indexOf(filterSector)>=0);
-      var matchOwner=!filterOwner||p.owner===filterOwner;
+      var matchOwner=!ownerFilter||p.owner===ownerFilter;
       return matchQ&&matchCamp&&matchSec&&matchOwner;
     });
   }
@@ -738,11 +745,6 @@ function PeopleView({data}){
             <button className="btn btn-primary btn-sm" onClick={()=>setShowAdd(true)}>+ Add</button>
           </div>
           <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:6}}/>
-          <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-            {['David','Lauren','Brinda'].map(u=>(
-              <button key={u} className="btn btn-sm" style={{padding:'2px 8px',fontSize:11,background:filterOwner===u?USER_COLORS[u]:'#f1f5f9',color:filterOwner===u?'#fff':'var(--muted)',border:'none'}} onClick={()=>setFilterOwner(filterOwner===u?'':u)}>{u}</button>
-            ))}
-          </div>
         </div>
 
         {/* Campaign filter */}
@@ -912,13 +914,12 @@ function CompaniesView({data}){
 }
 
 // ── BD Tracker ────────────────────────────────────────────────────────
-function BDTrackerView({data}){
+function BDTrackerView({data,ownerFilter,setOwnerFilter}){
   const {people,savePeople}=data;
-  const [filterOwner,setFilterOwner]=useState('');
   const [followUp,setFollowUp]=useState(null);
 
   var tracked=people.filter(function(p){return p.nextAction&&p.nextAction.trim();});
-  if(filterOwner) tracked=tracked.filter(function(p){return p.owner===filterOwner;});
+  if(ownerFilter) tracked=tracked.filter(function(p){return p.owner===ownerFilter;});
   tracked=tracked.slice().sort(function(a,b){
     if(!a.nextActionDate) return 1;
     if(!b.nextActionDate) return -1;
@@ -961,11 +962,6 @@ function BDTrackerView({data}){
 
       {tracked.length>0&&(
         <div>
-          <div style={{display:'flex',gap:6,marginBottom:12}}>
-            {['David','Lauren','Brinda'].map(u=>(
-              <button key={u} className="btn btn-sm" style={{background:filterOwner===u?USER_COLORS[u]:'#f1f5f9',color:filterOwner===u?'#fff':'var(--muted)',border:'none'}} onClick={()=>setFilterOwner(filterOwner===u?'':u)}>{u}</button>
-            ))}
-          </div>
           <div className="card" style={{padding:0,overflow:'hidden'}}>
             <div className="tracker-row tracker-header" style={{gridTemplateColumns:'2fr 2fr 1.5fr 1fr auto'}}>
               <span>Person</span><span>Next Action</span><span>Company</span><span>Due</span><span></span>
@@ -1121,15 +1117,14 @@ function CampaignsView({data}){
 }
 
 // ── Market Map ─────────────────────────────────────────────────────────
-function MarketMapView({data}){
+function MarketMapView({data,ownerFilter,setOwnerFilter}){
   const {people}=data;
   const [filterSector,setFilterSector]=useState('');
-  const [filterOwner,setFilterOwner]=useState('');
   const [search,setSearch]=useState('');
 
   var filtered=people.filter(function(p){
     var matchS=!filterSector||(p.sectors&&p.sectors.indexOf(filterSector)>=0);
-    var matchO=!filterOwner||p.owner===filterOwner;
+    var matchO=!ownerFilter||p.owner===ownerFilter;
     var q=search.toLowerCase();
     var matchQ=!q||(p.name&&p.name.toLowerCase().indexOf(q)>=0)||(p.company&&p.company.toLowerCase().indexOf(q)>=0);
     return matchS&&matchO&&matchQ;
@@ -1143,10 +1138,6 @@ function MarketMapView({data}){
         <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:160}}/>
         {SECTORS.map(s=>(
           <span key={s} className={'tag '+(filterSector===s?'tag-active':'tag-inactive')} style={{fontSize:11}} onClick={()=>setFilterSector(filterSector===s?'':s)}>{s}</span>
-        ))}
-        <span style={{width:1,background:'var(--border)',margin:'0 2px'}}></span>
-        {['David','Lauren','Brinda'].map(u=>(
-          <button key={u} className="btn btn-sm" style={{fontSize:11,background:filterOwner===u?USER_COLORS[u]:'#f1f5f9',color:filterOwner===u?'#fff':'var(--muted)',border:'none'}} onClick={()=>setFilterOwner(filterOwner===u?'':u)}>{u}</button>
         ))}
       </div>
       {filtered.length===0&&<div className="empty">No people match filters</div>}
@@ -1174,15 +1165,21 @@ function MarketMapView({data}){
 }
 
 // ── Topbar stats ───────────────────────────────────────────────────────
-function TopBar({saving,syncErr,user,onLogout,people,onReload}){
-  var overdue=people.filter(function(p){return p.nextAction&&isOverdue(p.nextActionDate);}).length;
+function TopBar({saving,syncErr,user,ownerFilter,setOwnerFilter,onLogout,people,onReload}){
+  var overdue=people.filter(function(p){return p.nextAction&&isOverdue(p.nextActionDate)&&(!ownerFilter||p.owner===ownerFilter);}).length;
   return (
     <div className="topbar">
-      <div className="flex" style={{gap:16}}>
-        <span style={{fontSize:12,color:'var(--muted)'}}>
-          {saving?<span style={{color:'var(--teal)'}}>Saving...</span>:syncErr?<span style={{color:'var(--red)',fontSize:11}}>{syncErr}</span>:<span style={{color:'var(--green)'}}>✓ Synced</span>}
-        </span>
+      <div className="flex" style={{gap:12}}>
+        {ownerFilter?(
+          <span style={{fontSize:13,fontWeight:600,color:USER_COLORS[ownerFilter],background:'rgba('+hexToRgb(USER_COLORS[ownerFilter])+',0.12)',padding:'3px 10px',borderRadius:20}}>
+            {ownerFilter}'s view
+            <button onClick={()=>setOwnerFilter('')} style={{marginLeft:6,background:'none',border:'none',cursor:'pointer',color:USER_COLORS[ownerFilter],fontWeight:700,fontSize:13}}>×</button>
+          </span>
+        ):(
+          <span style={{fontSize:12,color:'var(--muted)'}}>All contacts</span>
+        )}
         {overdue>0&&<span className="badge badge-red">⚠ {overdue} overdue</span>}
+        {saving?<span style={{fontSize:12,color:'var(--teal)'}}>Saving...</span>:syncErr?<span style={{color:'var(--red)',fontSize:11}}>{syncErr}</span>:<span style={{fontSize:12,color:'var(--green)'}}>✓ Synced</span>}
       </div>
       <div className="flex" style={{gap:10}}>
         <button className="btn btn-ghost btn-sm" onClick={onReload}>↻ Refresh</button>
@@ -1198,10 +1195,15 @@ function App(){
   const [hasToken,setHasToken]=useState(!!getToken());
   const [user,setUser]=useState(getUser());
   const [view,setView]=useState('people');
+  const [ownerFilter,setOwnerFilter]=useState(getUser()||'');
   const data=useVoltData();
 
-  function handleLogin(u){localStorage.setItem('volt_user',u);setUser(u);}
-  function handleLogout(){localStorage.removeItem('volt_user');setUser('');}
+  function handleLogin(u){
+    localStorage.setItem('volt_user',u);
+    setUser(u);
+    setOwnerFilter(u);
+  }
+  function handleLogout(){localStorage.removeItem('volt_user');setUser('');setOwnerFilter('');}
 
   if(!hasToken) return <SetupScreen onDone={()=>setHasToken(true)}/>;
   if(!user) return <LoginScreen onLogin={handleLogin}/>;
@@ -1229,6 +1231,19 @@ function App(){
               </button>
             );
           })}
+          <div style={{margin:'12px 0',borderTop:'1px solid rgba(255,255,255,0.08)'}}></div>
+          <div style={{padding:'4px 16px 6px',fontSize:10,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:'0.06em'}}>View as</div>
+          <button className={'nav-item'+(ownerFilter===''?' active':'')} onClick={()=>setOwnerFilter('')}>
+            <span className="nav-icon">🌐</span><span>Everyone</span>
+          </button>
+          {['David','Lauren','Brinda'].map(function(u){
+            return (
+              <button key={u} className={'nav-item'+(ownerFilter===u?' active':'')} style={ownerFilter===u?{background:'rgba('+hexToRgb(USER_COLORS[u])+',0.18)',color:USER_COLORS[u],borderRight:'3px solid '+USER_COLORS[u]}:{}} onClick={()=>setOwnerFilter(u)}>
+                <span style={{width:8,height:8,borderRadius:'50%',background:USER_COLORS[u],display:'inline-block',marginLeft:6}}></span>
+                <span style={{marginLeft:6}}>{u}{u===user?' (me)':''}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="sidebar-footer">
           <div className="user-chip">
@@ -1239,17 +1254,17 @@ function App(){
         </div>
       </div>
       <div className="main">
-        <TopBar saving={data.saving} syncErr={data.syncErr} user={user} onLogout={handleLogout} people={data.people} onReload={data.reload}/>
+        <TopBar saving={data.saving} syncErr={data.syncErr} user={user} ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter} onLogout={handleLogout} people={data.people} onReload={data.reload}/>
         <div className="content" style={{padding:0,overflow:'hidden',height:'100%'}}>
           {data.loading?(
             <div className="empty" style={{paddingTop:80}}>Loading VoltCRM...</div>
           ):(
             <div style={{height:'100%'}}>
-              {view==='people'&&<PeopleView data={data}/>}
+              {view==='people'&&<PeopleView data={data} ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter}/>}
               {view==='companies'&&<CompaniesView data={data}/>}
-              {view==='tracker'&&<BDTrackerView data={data}/>}
+              {view==='tracker'&&<BDTrackerView data={data} ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter}/>}
               {view==='campaigns'&&<CampaignsView data={data}/>}
-              {view==='map'&&<MarketMapView data={data}/>}
+              {view==='map'&&<MarketMapView data={data} ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter}/>}
             </div>
           )}
         </div>
