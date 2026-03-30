@@ -676,6 +676,187 @@ function PersonDetail({person,companies,campaigns,onUpdate,onDelete,onClose}){
   );
 }
 
+// ── CSV Import ─────────────────────────────────────────────────────────
+function parseCSV(text){
+  var lines=text.split('\n').filter(function(l){return l.trim();});
+  if(lines.length<2) return [];
+  var headers=lines[0].split(',').map(function(h){return h.replace(/^"|"$/g,'').trim().toLowerCase();});
+  var rows=[];
+  for(var i=1;i<lines.length;i++){
+    var cols=[];
+    var cur='';var inQ=false;
+    for(var j=0;j<lines[i].length;j++){
+      var ch=lines[i][j];
+      if(ch==='"'){inQ=!inQ;}
+      else if(ch===','&&!inQ){cols.push(cur.trim());cur='';}
+      else{cur+=ch;}
+    }
+    cols.push(cur.trim());
+    var row={};
+    headers.forEach(function(h,idx){row[h]=cols[idx]||'';});
+    rows.push(row);
+  }
+  return rows;
+}
+
+function normalName(s){return (s||'').toLowerCase().replace(/\s+/g,' ').trim();}
+function normalEmail(s){return (s||'').toLowerCase().trim();}
+
+function findDupes(incoming, existing){
+  var results=[];
+  incoming.forEach(function(p){
+    var dupes=existing.filter(function(e){
+      var nameMatch=normalName(e.name)===normalName(p.name)&&normalName(p.name)!=='';
+      var emailMatch=normalEmail(e.email)===normalEmail(p.email)&&normalEmail(p.email)!=='';
+      return nameMatch||emailMatch;
+    });
+    results.push({person:p,dupes:dupes});
+  });
+  return results;
+}
+
+function mapRow(row, ownerUser){
+  var name='';
+  if(row['full name']) name=row['full name'];
+  else if(row['name']) name=row['name'];
+  else if(row['first name']||row['firstname']){
+    var fn=row['first name']||row['firstname']||'';
+    var ln=row['last name']||row['lastname']||row['surname']||'';
+    name=(fn+' '+ln).trim();
+  }
+  return {
+    id:uid(),
+    name:name,
+    title:row['job title']||row['title']||row['position']||'',
+    company:row['company']||row['company name']||row['organization']||'',
+    email:row['email']||row['email address']||'',
+    linkedin:row['linkedin']||row['linkedin url']||row['linkedin profile']||'',
+    phone:row['phone']||row['phone number']||'',
+    sectors:[],campaigns:[],notes:'',nextAction:'',nextActionDate:'',
+    owner:ownerUser||''
+  };
+}
+
+function CSVImportModal({people,onImport,onClose}){
+  const [step,setStep]=useState('upload'); // upload | review
+  const [rawText,setRawText]=useState('');
+  const [parsed,setParsed]=useState([]);
+  const [analysis,setAnalysis]=useState([]);
+  const [selections,setSelections]=useState({});
+  const fileRef=useRef(null);
+
+  function handleFile(e){
+    var file=e.target.files[0];
+    if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(ev){setRawText(ev.target.result);};
+    reader.readAsText(file);
+  }
+
+  function handleParse(){
+    if(!rawText.trim()){alert('Please upload a CSV file or paste CSV text.');return;}
+    var rows=parseCSV(rawText);
+    if(!rows.length){alert('Could not parse CSV — check the format.');return;}
+    var owner=getUser();
+    var mapped=rows.map(function(r){return mapRow(r,owner);}).filter(function(p){return p.name.trim();});
+    if(!mapped.length){alert('No rows with names found. Check your CSV has a Name, "First Name"/"Last Name", or "Full Name" column.');return;}
+    var dupeAnalysis=findDupes(mapped,people);
+    var sels={};
+    dupeAnalysis.forEach(function(item,i){sels[i]=item.dupes.length>0?'skip':'import';});
+    setParsed(mapped);
+    setAnalysis(dupeAnalysis);
+    setSelections(sels);
+    setStep('review');
+  }
+
+  function handleImport(){
+    var toImport=analysis.filter(function(item,i){return selections[i]==='import';}).map(function(item){return item.person;});
+    if(!toImport.length){alert('Nothing selected to import.');return;}
+    onImport(toImport);
+  }
+
+  var importCount=Object.keys(selections).filter(function(k){return selections[k]==='import';}).length;
+  var skipCount=Object.keys(selections).filter(function(k){return selections[k]==='skip';}).length;
+  var dupeCount=analysis.filter(function(a){return a.dupes.length>0;}).length;
+
+  return (
+    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal" style={{maxWidth:680}}>
+        <div className="modal-header">
+          <span className="modal-title">Import CSV</span>
+          <button className="close-btn" onClick={onClose}>&times;</button>
+        </div>
+        <div className="modal-body">
+          {step==='upload'&&(
+            <div>
+              <div style={{fontSize:13,color:'var(--muted)',marginBottom:12}}>
+                Accepts Apollo, LinkedIn, or any CSV. Columns auto-detected: Name / First Name / Last Name / Job Title / Company / Email / LinkedIn / Phone.
+              </div>
+              <div style={{border:'2px dashed var(--border)',borderRadius:8,padding:'20px',textAlign:'center',marginBottom:12,cursor:'pointer',background:'var(--pale)'}} onClick={()=>fileRef.current&&fileRef.current.click()}>
+                <div style={{fontSize:24,marginBottom:6}}>📂</div>
+                <div style={{fontSize:13,fontWeight:600}}>Click to upload CSV</div>
+                <div style={{fontSize:11,color:'var(--muted)'}}>or paste below</div>
+                <input ref={fileRef} type="file" accept=".csv" style={{display:'none'}} onChange={handleFile}/>
+              </div>
+              {rawText&&<div style={{fontSize:12,color:'var(--green)',marginBottom:8}}>✓ File loaded ({rawText.split('\n').length} lines)</div>}
+              <div className="form-group">
+                <label className="form-label">Or paste CSV text</label>
+                <textarea style={{minHeight:80,fontSize:11,fontFamily:'monospace'}} value={rawText} onChange={e=>setRawText(e.target.value)} placeholder="Paste CSV content here..."/>
+              </div>
+            </div>
+          )}
+
+          {step==='review'&&(
+            <div>
+              <div style={{display:'flex',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+                <span className="badge badge-teal">{parsed.length} rows parsed</span>
+                {dupeCount>0&&<span className="badge badge-amber">⚠ {dupeCount} possible duplicates</span>}
+                <span className="badge badge-teal" style={{background:'#f0fdf4',color:'#166534'}}>{importCount} will import</span>
+                {skipCount>0&&<span className="badge badge-gray">{skipCount} skipped</span>}
+              </div>
+              <div style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--border)',borderRadius:6}}>
+                <div style={{display:'grid',gridTemplateColumns:'2fr 1.5fr 1.5fr 1fr',gap:0,padding:'6px 10px',background:'#f8fafc',borderBottom:'1px solid var(--border)',fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'0.04em'}}>
+                  <span>Name</span><span>Company</span><span>Email</span><span>Action</span>
+                </div>
+                {analysis.map(function(item,i){
+                  var p=item.person;
+                  var hasDupe=item.dupes.length>0;
+                  return (
+                    <div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1.5fr 1.5fr 1fr',gap:0,padding:'7px 10px',borderBottom:'1px solid var(--border)',fontSize:12,background:hasDupe?'#fffbeb':'#fff',alignItems:'center'}}>
+                      <div>
+                        <div style={{fontWeight:600}}>{p.name||'—'}</div>
+                        {p.title&&<div style={{fontSize:11,color:'var(--muted)'}}>{p.title}</div>}
+                        {hasDupe&&<div style={{fontSize:10,color:'#b45309'}}>⚠ matches: {item.dupes.map(function(d){return d.name;}).join(', ')}</div>}
+                      </div>
+                      <span style={{color:'var(--muted)'}}>{p.company||'—'}</span>
+                      <span style={{color:'var(--muted)',fontSize:11}}>{p.email||'—'}</span>
+                      <select value={selections[i]||'import'} onChange={function(e){var s=Object.assign({},selections);s[i]=e.target.value;setSelections(s);}} style={{fontSize:11,padding:'3px 5px'}}>
+                        <option value="import">Import</option>
+                        <option value="skip">Skip</option>
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{marginTop:10,fontSize:12,color:'var(--muted)'}}>Duplicates are pre-set to Skip — change to Import if you want to add them anyway.</div>
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          {step==='upload'&&<button className="btn btn-primary" onClick={handleParse}>Parse CSV →</button>}
+          {step==='review'&&(
+            <div className="flex" style={{gap:8}}>
+              <button className="btn btn-ghost" onClick={()=>setStep('upload')}>← Back</button>
+              <button className="btn btn-primary" onClick={handleImport}>Import {importCount} contacts</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── People View ────────────────────────────────────────────────────────
 function PeopleView({data,ownerFilter,setOwnerFilter}){
   const {people,companies,campaigns,savePeople}=data;
@@ -684,6 +865,7 @@ function PeopleView({data,ownerFilter,setOwnerFilter}){
   const [filterSector,setFilterSector]=useState('');
   const [selected,setSelected]=useState(null);
   const [showAdd,setShowAdd]=useState(false);
+  const [showImport,setShowImport]=useState(false);
   const [followUp,setFollowUp]=useState(null);
 
   // Quick add state
@@ -704,7 +886,16 @@ function PeopleView({data,ownerFilter,setOwnerFilter}){
   function handleSave(p){
     var updated=people.slice();
     var idx=updated.findIndex(function(x){return x.id===p.id;});
-    if(idx>=0) updated[idx]=p; else updated.unshift(p);
+    if(idx>=0){
+      updated[idx]=p;
+    } else {
+      var dd=findDupes([p],people).filter(function(d){return d.dupes.length>0;});
+      if(dd.length>0){
+        var dnames=dd[0].dupes.map(function(d){return d.name;}).join(', ');
+        if(!window.confirm('Possible duplicate — '+dnames+' already exists. Add anyway?')) return;
+      }
+      updated.unshift(p);
+    }
     savePeople(updated);
     setSelected(p);
     setShowAdd(false);
@@ -713,6 +904,11 @@ function PeopleView({data,ownerFilter,setOwnerFilter}){
   function handleDelete(id){
     savePeople(people.filter(function(p){return p.id!==id;}));
     setSelected(null);
+  }
+
+  function handleImportCSV(newPeople){
+    savePeople(newPeople.concat(people));
+    setShowImport(false);
   }
 
   function handleUpdate(p){
@@ -726,6 +922,11 @@ function PeopleView({data,ownerFilter,setOwnerFilter}){
   function quickAdd(){
     if(!qa.name.trim()) return;
     var p=Object.assign({id:uid(),sectors:[],campaigns:[],notes:'',nextAction:'',nextActionDate:'',owner:getUser()},qa);
+    var dd2=findDupes([p],people).filter(function(d){return d.dupes.length>0;});
+    if(dd2.length>0){
+      var dnames2=dd2[0].dupes.map(function(d){return d.name;}).join(', ');
+      if(!window.confirm('Possible duplicate — '+dnames2+' already exists. Add anyway?')) return;
+    }
     savePeople([p].concat(people));
     setQa({name:'',title:'',company:'',email:''});
   }
@@ -736,13 +937,17 @@ function PeopleView({data,ownerFilter,setOwnerFilter}){
   return (
     <div className="split" style={{height:'100%'}}>
       {showAdd&&<PersonModal companies={companies} onSave={handleSave} onClose={()=>setShowAdd(false)}/>}
+      {showImport&&<CSVImportModal people={people} onImport={handleImportCSV} onClose={()=>setShowImport(false)}/>}
       {followUp&&<FollowUpModal person={followUp} onSave={function(p){handleUpdate(p);setFollowUp(null);}} onClose={()=>setFollowUp(null)}/>}
 
       <div className="split-list">
         <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)',background:'#fff'}}>
           <div className="flex-between" style={{marginBottom:8}}>
             <span style={{fontWeight:700,fontSize:14}}>People <span style={{color:'var(--muted)',fontWeight:400,fontSize:12}}>({people.length})</span></span>
-            <button className="btn btn-primary btn-sm" onClick={()=>setShowAdd(true)}>+ Add</button>
+            <div className="flex" style={{gap:5}}>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setShowImport(true)}>⬆ Import CSV</button>
+              <button className="btn btn-primary btn-sm" onClick={()=>setShowAdd(true)}>+ Add</button>
+            </div>
           </div>
           <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:6}}/>
         </div>
@@ -992,27 +1197,54 @@ function BDTrackerView({data,ownerFilter,setOwnerFilter}){
 }
 
 // ── Campaigns View ────────────────────────────────────────────────────
+var CAMP_STATUSES=['Draft','Live','Paused','Done'];
+var CAMP_STATUS_COLORS={
+  'Draft':{bg:'#f1f5f9',color:'#64748b'},
+  'Live':{bg:'#d1fae5',color:'#065f46'},
+  'Paused':{bg:'#fef3c7',color:'#92400e'},
+  'Done':{bg:'#e0f2fe',color:'#0369a1'}
+};
+var OUTCOMES=['','Replied','Interested','Converted','No reply','Bounced'];
+var OUTCOME_COLORS={
+  'Replied':{bg:'#d1fae5',color:'#065f46'},
+  'Interested':{bg:'#fef3c7',color:'#92400e'},
+  'Converted':{bg:'#e0f2fe',color:'#0369a1'},
+  'No reply':{bg:'#f1f5f9',color:'#64748b'},
+  'Bounced':{bg:'#fff0f0',color:'#e53e3e'},
+  '':{bg:'#f1f5f9',color:'#94a3b8'}
+};
+
+function campOutcomeKey(campId,personId){return 'co_'+campId+'_'+personId;}
+
 function CampaignsView({data}){
   const {people,campaigns,saveCampaigns,savePeople}=data;
   const [showNew,setShowNew]=useState(false);
   const [newName,setNewName]=useState('');
   const [selected,setSelected]=useState(null);
-  const [addPerson,setAddPerson]=useState('');
+  const [filterStatus,setFilterStatus]=useState('');
 
   function createCampaign(){
     if(!newName.trim()) return;
-    var c={id:uid(),name:newName.trim(),createdAt:today()};
+    var c={id:uid(),name:newName.trim(),createdAt:today(),status:'Draft',sequenceName:'',launchedAt:''};
     saveCampaigns([c].concat(campaigns));
     setNewName('');setShowNew(false);
     setSelected(c);
   }
+
+  function updateCampaign(updated){
+    var camps=campaigns.map(function(c){return c.id===updated.id?updated:c;});
+    saveCampaigns(camps);
+    setSelected(updated);
+  }
+
   function deleteCampaign(id){
-    if(!window.confirm('Delete campaign?')) return;
+    if(!window.confirm('Delete campaign and remove all outcome data?')) return;
     saveCampaigns(campaigns.filter(function(c){return c.id!==id;}));
-    // remove from all people
     var updated=people.map(function(p){
       var camps=p.campaigns?p.campaigns.filter(function(cid){return cid!==id;}):[];
-      return Object.assign({},p,{campaigns:camps});
+      var outcomes=Object.assign({},p.campOutcomes||{});
+      Object.keys(outcomes).forEach(function(k){if(k.indexOf('co_'+id+'_')===0) delete outcomes[k];});
+      return Object.assign({},p,{campaigns:camps,campOutcomes:outcomes});
     });
     savePeople(updated);
     if(selected&&selected.id===id) setSelected(null);
@@ -1022,6 +1254,8 @@ function CampaignsView({data}){
   var campPeople=selCamp?people.filter(function(p){return p.campaigns&&p.campaigns.indexOf(selCamp.id)>=0;}):[];
   var notInCamp=selCamp?people.filter(function(p){return !p.campaigns||p.campaigns.indexOf(selCamp.id)<0;}):[];
 
+  var visibleCamps=filterStatus?campaigns.filter(function(c){return c.status===filterStatus;}):campaigns;
+
   function addPersonToCamp(pid){
     var person=people.find(function(p){return p.id===pid;});
     if(!person||!selCamp) return;
@@ -1030,14 +1264,45 @@ function CampaignsView({data}){
     var updated=people.map(function(p){return p.id===pid?Object.assign({},p,{campaigns:camps}):p;});
     savePeople(updated);
   }
+
   function removePersonFromCamp(pid){
     var updated=people.map(function(p){
       if(p.id!==pid) return p;
       var camps=p.campaigns?p.campaigns.filter(function(cid){return cid!==selCamp.id;}):[];
-      return Object.assign({},p,{campaigns:camps});
+      var outcomes=Object.assign({},p.campOutcomes||{});
+      delete outcomes[campOutcomeKey(selCamp.id,pid)];
+      return Object.assign({},p,{campaigns:camps,campOutcomes:outcomes});
     });
     savePeople(updated);
   }
+
+  function setOutcome(pid,outcome){
+    var updated=people.map(function(p){
+      if(p.id!==pid) return p;
+      var outcomes=Object.assign({},p.campOutcomes||{});
+      outcomes[campOutcomeKey(selCamp.id,pid)]=outcome;
+      var extra={};
+      if(outcome==='Replied'||outcome==='Interested'){
+        extra={nextAction:'Follow up — replied to '+selCamp.name,nextActionDate:today()};
+      }
+      if(outcome==='Converted'){
+        extra={nextAction:'Convert — '+selCamp.name,nextActionDate:today()};
+      }
+      return Object.assign({},p,{campOutcomes:outcomes},extra);
+    });
+    savePeople(updated);
+  }
+
+  function getOutcome(p){
+    if(!selCamp) return '';
+    return (p.campOutcomes&&p.campOutcomes[campOutcomeKey(selCamp.id,p.id)])||'';
+  }
+
+  // Stats for selected campaign
+  var replied=campPeople.filter(function(p){var o=getOutcome(p);return o==='Replied'||o==='Interested'||o==='Converted';}).length;
+  var interested=campPeople.filter(function(p){return getOutcome(p)==='Interested';}).length;
+  var converted=campPeople.filter(function(p){return getOutcome(p)==='Converted';}).length;
+  var bounced=campPeople.filter(function(p){return getOutcome(p)==='Bounced';}).length;
 
   return (
     <div className="split" style={{height:'100%'}}>
@@ -1048,24 +1313,39 @@ function CampaignsView({data}){
             <button className="btn btn-primary btn-sm" onClick={()=>setShowNew(!showNew)}>+ New</button>
           </div>
           {showNew&&(
-            <div className="flex" style={{gap:6}}>
-              <input placeholder="Campaign name" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createCampaign()} style={{fontSize:12,padding:'5px 8px'}}/>
+            <div className="flex" style={{gap:6,marginBottom:6}}>
+              <input placeholder="Match Instantly sequence name exactly" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createCampaign()} style={{fontSize:12,padding:'5px 8px'}}/>
               <button className="btn btn-primary btn-sm" onClick={createCampaign}>Add</button>
             </div>
           )}
+          <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+            <span className={'tag '+(filterStatus===''?'tag-active':'tag-inactive')} style={{fontSize:10}} onClick={()=>setFilterStatus('')}>All</span>
+            {CAMP_STATUSES.map(function(s){
+              return <span key={s} className={'tag '+(filterStatus===s?'tag-active':'tag-inactive')} style={{fontSize:10}} onClick={()=>setFilterStatus(filterStatus===s?'':s)}>{s}</span>;
+            })}
+          </div>
         </div>
         <div>
-          {campaigns.length===0&&<div className="empty">No campaigns yet</div>}
-          {campaigns.map(function(c){
+          {visibleCamps.length===0&&<div className="empty">No campaigns</div>}
+          {visibleCamps.map(function(c){
             var cnt=people.filter(function(p){return p.campaigns&&p.campaigns.indexOf(c.id)>=0;}).length;
+            var sc=CAMP_STATUS_COLORS[c.status||'Draft'];
+            var repCnt=people.filter(function(p){
+              if(!p.campaigns||p.campaigns.indexOf(c.id)<0) return false;
+              var o=(p.campOutcomes&&p.campOutcomes[campOutcomeKey(c.id,p.id)])||'';
+              return o==='Replied'||o==='Interested'||o==='Converted';
+            }).length;
             return (
-              <div key={c.id} className="campaign-row" style={{background:selCamp&&selCamp.id===c.id?'var(--pale)':'',borderLeft:selCamp&&selCamp.id===c.id?'3px solid var(--teal)':'3px solid transparent',cursor:'pointer'}} onClick={()=>setSelected(c)}>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
-                  <div style={{fontSize:11,color:'var(--muted)'}}>{cnt} people</div>
+              <div key={c.id} className="campaign-row" style={{flexDirection:'column',alignItems:'stretch',background:selCamp&&selCamp.id===c.id?'var(--pale)':'',borderLeft:selCamp&&selCamp.id===c.id?'3px solid var(--teal)':'3px solid transparent',cursor:'pointer',gap:4}} onClick={()=>setSelected(c)}>
+                <div className="flex-between">
+                  <div style={{fontWeight:600,fontSize:13,flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
+                  <span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:sc.bg,color:sc.color,fontWeight:700,flexShrink:0,marginLeft:6}}>{c.status||'Draft'}</span>
                 </div>
-                <button className="btn btn-ghost btn-sm" onClick={function(e){e.stopPropagation();exportInstantlyCSV(people.filter(function(p){return p.campaigns&&p.campaigns.indexOf(c.id)>=0;}),c.name);}}>Export CSV</button>
-                <button className="btn btn-danger btn-sm" onClick={function(e){e.stopPropagation();deleteCampaign(c.id);}}>Delete</button>
+                <div className="flex" style={{gap:8}}>
+                  <span style={{fontSize:11,color:'var(--muted)'}}>{cnt} contacts</span>
+                  {repCnt>0&&<span style={{fontSize:11,color:'#065f46',fontWeight:600}}>{repCnt} replied</span>}
+                  {c.launchedAt&&<span style={{fontSize:11,color:'var(--muted)'}}>· {fmtDate(c.launchedAt)}</span>}
+                </div>
               </div>
             );
           })}
@@ -1075,40 +1355,87 @@ function CampaignsView({data}){
       <div className="split-detail">
         {selCamp?(
           <div>
-            <div className="flex-between" style={{marginBottom:16}}>
-              <div>
-                <div style={{fontWeight:800,fontSize:18}}>{selCamp.name}</div>
-                <div style={{fontSize:13,color:'var(--muted)'}}>{campPeople.length} people</div>
+            <div className="flex-between" style={{marginBottom:12}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:800,fontSize:18,marginBottom:4}}>{selCamp.name}</div>
+                <div className="flex" style={{gap:8,flexWrap:'wrap'}}>
+                  <select value={selCamp.status||'Draft'} onChange={function(e){updateCampaign(Object.assign({},selCamp,{status:e.target.value,launchedAt:e.target.value==='Live'&&!selCamp.launchedAt?today():selCamp.launchedAt}));}} style={{fontSize:12,padding:'3px 8px',borderRadius:6,fontWeight:600,background:CAMP_STATUS_COLORS[selCamp.status||'Draft'].bg,color:CAMP_STATUS_COLORS[selCamp.status||'Draft'].color,border:'none'}}>
+                    {CAMP_STATUSES.map(function(s){return <option key={s} value={s}>{s}</option>;})}
+                  </select>
+                  <span style={{fontSize:12,color:'var(--muted)'}}>{campPeople.length} contacts</span>
+                  {selCamp.launchedAt&&<span style={{fontSize:12,color:'var(--muted)'}}>Launched {fmtDate(selCamp.launchedAt)}</span>}
+                </div>
               </div>
-              <button className="btn btn-primary btn-sm" onClick={()=>exportInstantlyCSV(campPeople,selCamp.name)}>Export Instantly CSV</button>
+              <div className="flex" style={{gap:6,flexShrink:0}}>
+                <button className="btn btn-primary btn-sm" onClick={()=>exportInstantlyCSV(campPeople,selCamp.name)}>Export CSV</button>
+                <button className="btn btn-danger btn-sm" onClick={()=>deleteCampaign(selCamp.id)}>Delete</button>
+              </div>
             </div>
 
-            <div className="section-title" style={{marginBottom:8}}>Add people</div>
-            <select style={{marginBottom:16}} value="" onChange={function(e){if(e.target.value){addPersonToCamp(e.target.value);e.target.value='';}}} defaultValue="">
-              <option value="">Select person to add...</option>
-              {notInCamp.map(p=><option key={p.id} value={p.id}>{p.name}{p.company?' — '+p.company:''}</option>)}
-            </select>
+            <div className="form-group" style={{marginBottom:12}}>
+              <label className="form-label">Instantly sequence name</label>
+              <input value={selCamp.sequenceName||''} placeholder="Must match exactly in Instantly" onChange={function(e){updateCampaign(Object.assign({},selCamp,{sequenceName:e.target.value}));}} style={{fontSize:13}}/>
+            </div>
 
-            <div className="section-title" style={{marginBottom:8}}>People in this campaign</div>
-            {campPeople.length===0?<div style={{fontSize:13,color:'var(--muted)'}}>No one added yet</div>:campPeople.map(function(p){
-              return (
-                <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
-                  <div className="avatar" style={{background:avatarColor(p.name),width:28,height:28,fontSize:11}}>{initials(p.name)}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600}}>{p.name}</div>
-                    <div style={{fontSize:11,color:'var(--muted)'}}>{p.title}{p.company?' · '+p.company:''}</div>
-                  </div>
-                  <span style={{fontSize:11,color:'var(--muted)'}}>{p.email}</span>
-                  <button className="btn btn-danger btn-sm" onClick={()=>removePersonFromCamp(p.id)}>Remove</button>
+            {campPeople.length>0&&(
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}}>
+                {[
+                  {label:'Contacts',val:campPeople.length,color:'var(--navy)'},
+                  {label:'Replied',val:replied,color:'#065f46'},
+                  {label:'Interested',val:interested,color:'#92400e'},
+                  {label:'Converted',val:converted,color:'#0369a1'}
+                ].map(function(s){
+                  return (
+                    <div key={s.label} style={{background:'#f8fafc',border:'1px solid var(--border)',borderRadius:8,padding:'10px',textAlign:'center'}}>
+                      <div style={{fontSize:22,fontWeight:800,color:s.color}}>{s.val}</div>
+                      <div style={{fontSize:11,color:'var(--muted)'}}>{s.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex-between" style={{marginBottom:8}}>
+              <div className="section-title" style={{marginBottom:0}}>Contacts</div>
+              <select style={{fontSize:11,padding:'2px 6px',border:'1px solid var(--border)',borderRadius:6}} onChange={function(e){if(e.target.value){addPersonToCamp(e.target.value);e.target.value='';}}} defaultValue="">
+                <option value="">+ Add contact</option>
+                {notInCamp.map(p=><option key={p.id} value={p.id}>{p.name}{p.company?' — '+p.company:''}</option>)}
+              </select>
+            </div>
+
+            {campPeople.length===0?(
+              <div style={{fontSize:13,color:'var(--muted)',padding:'20px 0'}}>No contacts yet. Add people then export CSV to Instantly.</div>
+            ):(
+              <div style={{border:'1px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto auto',gap:0,padding:'6px 12px',background:'#f8fafc',borderBottom:'1px solid var(--border)',fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'0.04em'}}>
+                  <span>Name</span><span>Company</span><span style={{minWidth:110}}>Outcome</span><span></span>
                 </div>
-              );
-            })}
+                {campPeople.map(function(p){
+                  var outcome=getOutcome(p);
+                  var oc=OUTCOME_COLORS[outcome]||OUTCOME_COLORS[''];
+                  var isHot=outcome==='Replied'||outcome==='Interested'||outcome==='Converted';
+                  return (
+                    <div key={p.id} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto auto',gap:0,padding:'8px 12px',borderBottom:'1px solid var(--border)',alignItems:'center',background:isHot?'#f0fdf4':'#fff'}}>
+                      <div>
+                        <div style={{fontWeight:600,fontSize:13}}>{p.name}</div>
+                        <div style={{fontSize:11,color:'var(--muted)'}}>{p.title}</div>
+                      </div>
+                      <div style={{fontSize:12,color:'var(--muted)'}}>{p.company}</div>
+                      <select value={outcome} onChange={function(e){setOutcome(p.id,e.target.value);}} style={{fontSize:11,padding:'3px 6px',borderRadius:6,background:oc.bg,color:oc.color,border:'none',fontWeight:600,minWidth:110}}>
+                        {OUTCOMES.map(function(o){return <option key={o} value={o}>{o||'No status'}</option>;})}
+                      </select>
+                      <button className="btn btn-danger btn-sm" style={{marginLeft:6}} onClick={()=>removePersonFromCamp(p.id)}>×</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ):(
           <div className="empty" style={{paddingTop:80}}>
             <div style={{fontSize:32,marginBottom:10}}>📧</div>
-            <div style={{fontWeight:600}}>Select a campaign</div>
-            <div style={{fontSize:13}}>Export Instantly CSV with headers: First Name, Last Name, Email, Company, Job Title.</div>
+            <div style={{fontWeight:600,marginBottom:6}}>Select a campaign</div>
+            <div style={{fontSize:13,color:'var(--muted)'}}>Name your campaign to match the Instantly sequence exactly. Export CSV, upload to Instantly, then log outcomes here as replies come in.</div>
           </div>
         )}
       </div>
@@ -1246,9 +1573,10 @@ function App(){
           })}
         </div>
         <div className="sidebar-footer">
-          <div className="user-chip">
+          <div className="user-chip" onClick={()=>setOwnerFilter(ownerFilter===user?'':user)} title={ownerFilter===user?'Show everyone':'Show only my contacts'} style={{cursor:'pointer',padding:'6px 8px',borderRadius:6,background:ownerFilter===user?'rgba(255,255,255,0.1)':'transparent',transition:'background 0.15s'}}>
             <span className="user-dot" style={{background:USER_COLORS[user]||'var(--teal)'}}></span>
-            <span style={{fontSize:12,opacity:0.8}}>{user}</span>
+            <span style={{fontSize:12,opacity:0.9,flex:1}}>{user}</span>
+            <span style={{fontSize:10,opacity:0.5}}>{ownerFilter===user?'● my view':'○ all'}</span>
           </div>
           <div style={{fontSize:10,opacity:0.4,marginTop:4}}>VoltCRM v1.0</div>
         </div>
