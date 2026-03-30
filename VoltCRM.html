@@ -1,1732 +1,1264 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>VoltConsulting CRM</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoltCRM | VoltConsulting</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-html,body,#root{height:100%;width:100%;overflow:hidden}
-body{font-family:Aptos,Calibri,'Segoe UI',sans-serif;background:#f8f9fa}
-input,textarea,select,button{font-family:Aptos,Calibri,'Segoe UI',sans-serif}
-input::placeholder,textarea::placeholder{color:#ced4da}
-::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#dee2e6;border-radius:3px}
+:root{
+  --teal:#00C2C7;--navy:#0D1B2A;--pale:#e6fafa;
+  --david:#00C2C7;--lauren:#6f42c1;--brinda:#e8a020;
+  --bg:#f5f7fa;--card:#fff;--border:#e2e8f0;
+  --text:#0D1B2A;--muted:#64748b;--red:#e53e3e;--green:#38a169;
+  --font:'Segoe UI',Calibri,system-ui,sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+#root{display:flex;flex-direction:column;min-height:100vh}
+
+/* Layout */
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;background:var(--navy);color:#fff;display:flex;flex-direction:column;flex-shrink:0}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.content{flex:1;overflow-y:auto;padding:20px}
+
+/* Sidebar */
+.sidebar-logo{padding:16px;border-bottom:1px solid rgba(255,255,255,0.1)}
+.sidebar-logo img{height:28px;filter:brightness(0) invert(1)}
+.sidebar-nav{flex:1;padding:8px 0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;color:rgba(255,255,255,0.7);cursor:pointer;font-size:14px;transition:all 0.15s;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{background:rgba(255,255,255,0.08);color:#fff}
+.nav-item.active{background:rgba(0,194,199,0.2);color:var(--teal);border-right:3px solid var(--teal)}
+.nav-icon{font-size:16px;width:20px;text-align:center}
+.sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.1)}
+.user-chip{display:flex;align-items:center;gap:8px;font-size:13px}
+.user-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px}
+.card-sm{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:12px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all 0.15s;font-family:var(--font)}
+.btn-primary{background:var(--teal);color:#fff}
+.btn-primary:hover{background:#00a8ac}
+.btn-secondary{background:var(--pale);color:var(--teal);border:1px solid var(--teal)}
+.btn-secondary:hover{background:#d0f5f6}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg)}
+.btn-danger{background:#fff0f0;color:var(--red);border:1px solid #fecaca}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+/* Form */
+input,select,textarea{font-family:var(--font);font-size:13px;border:1px solid var(--border);border-radius:6px;padding:7px 10px;width:100%;color:var(--text);background:#fff;transition:border 0.15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal)}
+textarea{resize:vertical;min-height:70px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-group{margin-bottom:12px}
+.form-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:0.04em}
+
+/* Tags */
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all 0.15s}
+.tag-active{background:var(--teal);color:#fff;border-color:var(--teal)}
+.tag-inactive{background:#f1f5f9;color:var(--muted);border-color:var(--border)}
+.tag-inactive:hover{border-color:var(--teal);color:var(--teal)}
+
+/* Person list */
+.person-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:6px;cursor:pointer;transition:background 0.1s;border-bottom:1px solid var(--border)}
+.person-row:hover{background:var(--pale)}
+.person-row:last-child{border-bottom:none}
+.avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;color:#fff}
+.person-info{flex:1;min-width:0}
+.person-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.person-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.follow-btn{background:none;border:none;cursor:pointer;font-size:16px;padding:4px 6px;border-radius:4px;color:var(--muted)}
+.follow-btn:hover{background:var(--pale);color:var(--teal)}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:16px}
+.tab{padding:8px 16px;font-size:13px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-weight:500;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font);transition:all 0.15s}
+.tab.active{color:var(--teal);border-bottom-color:var(--teal)}
+.tab:hover{color:var(--text)}
+
+/* Badge */
+.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-teal{background:var(--pale);color:var(--teal)}
+.badge-red{background:#fff0f0;color:var(--red)}
+.badge-amber{background:#fffbeb;color:#b45309}
+.badge-purple{background:#f5f3ff;color:#7c3aed}
+.badge-gray{background:#f1f5f9;color:var(--muted)}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(13,27,42,0.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:#fff;border-radius:10px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-weight:700;font-size:16px}
+.modal-body{padding:20px}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0 4px;line-height:1}
+.close-btn:hover{color:var(--text)}
+
+/* Grid */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* Split layout */
+.split{display:flex;gap:0;height:100%;overflow:hidden}
+.split-list{width:300px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:#fff}
+.split-detail{flex:1;overflow-y:auto;padding:20px}
+
+/* Stat */
+.stat{text-align:center;padding:12px}
+.stat-num{font-size:24px;font-weight:800;color:var(--navy)}
+.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em}
+
+/* Setup screen */
+.setup{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy)}
+.setup-card{background:#fff;border-radius:12px;padding:40px;max-width:440px;width:100%;text-align:center}
+.setup-logo{height:36px;margin-bottom:24px}
+.setup-title{font-size:22px;font-weight:800;color:var(--navy);margin-bottom:6px}
+.setup-sub{font-size:14px;color:var(--muted);margin-bottom:28px}
+
+/* Login screen */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy)}
+.login-card{background:#fff;border-radius:12px;padding:40px;max-width:360px;width:100%;text-align:center}
+.user-btn{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:8px;border:2px solid var(--border);cursor:pointer;background:#fff;width:100%;margin-bottom:10px;font-family:var(--font);font-size:14px;font-weight:600;transition:all 0.15s}
+.user-btn:hover{border-color:var(--teal);background:var(--pale)}
+
+/* Inline quick-add */
+.quick-add{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--pale)}
+.quick-add input{padding:5px 8px;font-size:12px}
+
+/* BD Tracker */
+.tracker-row{display:grid;grid-template-columns:2fr 2fr 1.5fr 1fr auto;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px}
+.tracker-header{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;padding:8px 12px;border-bottom:2px solid var(--border);background:#f8fafc}
+.overdue{background:#fff5f5}
+
+/* Market map */
+.mm-grid{display:flex;flex-wrap:wrap;gap:10px;padding:16px}
+.mm-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;transition:all 0.15s;min-width:160px}
+.mm-card:hover{border-color:var(--teal);box-shadow:0 2px 8px rgba(0,194,199,0.15)}
+.sector-bubble{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px}
+
+/* Misc */
+.empty{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+.search-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px}
+.search-bar input{flex:1}
+.section-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px}
+.kv{display:flex;gap:8px;margin-bottom:8px;font-size:13px}
+.kv-k{color:var(--muted);min-width:90px;flex-shrink:0}
+.kv-v{font-weight:500}
+.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
+.flex{display:flex;align-items:center;gap:8px}
+.flex-between{display:flex;align-items:center;justify-content:space-between}
+.campaign-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px}
+
+textarea.notes-area{min-height:100px;font-size:13px}
 </style>
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel">
-const{useState,useMemo,useEffect,useCallback,useRef}=React;
-window.storage={
-  get:async k=>{try{const v=localStorage.getItem(k);return v?{key:k,value:v}:null;}catch{return null;}},
-  set:async(k,v)=>{try{localStorage.setItem(k,v);return{key:k,value:v};}catch{return null;}},
-  delete:async k=>{try{localStorage.removeItem(k);return{key:k,deleted:true};}catch{return null;}},
-  list:async prefix=>{try{const keys=Object.keys(localStorage).filter(k=>!prefix||k.startsWith(prefix));return{keys};}catch{return{keys:[]};}}
-};
 
-const LOGO_SRC = "https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png";
+<script>
+// ── Non-JSX utilities ───────────────────────────────────────────────
+var AIRTABLE_BASE = 'appD0JD8AUdtR6thY';
+var AIRTABLE_TABLE = 'tblUL48Km1j2m8sRU';
 
-const TEAL="#00C2C7",NAVY="#0D1B2A",TL="#e6fafa",TM="#b3f0f1";
-const W="#fff",G50="#f8f9fa",G100="#f1f3f5",G200="#e9ecef",G300="#dee2e6";
-const G400="#ced4da",G600="#6c757d",G700="#495057",G800="#343a40",G900="#212529";
-const DANGER="#dc3545",WARN="#e8a020",OK="#198754";
-const REL={Hot:"#dc3545",Warm:"#e8a020",Cold:"#ced4da",New:"#00C2C7"};
-const SC={"Life Sciences":"#00C2C7","Strategy":"#6f42c1","Commercial":"#e8a020","Oncology":"#dc3545","RWE":"#0dcaf0","Market Access":"#6610f2","Operations":"#198754","MedTech":"#fd7e14","Digital Health":"#d63384","Biotech":"#20c997","Regulatory":"#ffc107","Pricing":"#0d6efd","Other":"#6c757d"};
-const SECTORS=Object.keys(SC);
-const TC_MAP={"Key Client":TEAL,"Warm":WARN,"Prospect":G600};
+function getToken(){return localStorage.getItem('volt_at_token')||'';}
+function getUser(){return localStorage.getItem('volt_user')||'';}
 
-async function sGet(k){try{const r=await window.storage.get(k);return r?JSON.parse(r.value):null;}catch{return null;}}
-async function sSet(k,v){try{await window.storage.set(k,JSON.stringify(v));}catch{}}
-
-const today=new Date().toISOString().slice(0,10);
-const dF=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
-
-const SEED_PEOPLE=[
-  {id:1,type:"candidate",name:"Dr. Sarah Chen",title:"VP Strategy",company:"Huron Consulting",companyId:5,location:"London",seniority:"VP / Director",sectors:["Life Sciences","Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-5),campaigns:[],nextAction:"Follow up re: CRA opportunity",nextDue:dF(2),relationship:"Warm",notes:"Strong BCG background. Open to right move."},
-  {id:2,type:"candidate",name:"James Okafor",title:"Principal",company:"ZS Associates",companyId:6,location:"Boston",seniority:"Manager / Principal",sectors:["Commercial","Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-30),campaigns:[],nextAction:"Check in — placement anniversary",nextDue:dF(7),relationship:"Hot",notes:"Placed at CRA Jan 2025. Great referral source."},
-  {id:3,type:"candidate",name:"Priya Mehta",title:"Associate Director",company:"IQVIA",companyId:7,location:"New York",seniority:"Manager / Principal",sectors:["RWE","Market Access"],linkedin:"",email:"",phone:"",lastContacted:dF(-14),campaigns:[],nextAction:"Send Roche JD",nextDue:dF(1),relationship:"Warm",notes:"6-12 month horizon. Wants boutique."},
-  {id:4,type:"contact",name:"Maria Lopez",title:"Chief People Officer",company:"Charles River Associates",companyId:1,location:"Boston",seniority:"C-Suite / Partner",sectors:["Strategy","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-3),campaigns:[],nextAction:"Send shortlist for Energy role",nextDue:dF(1),relationship:"Hot",notes:"Key decision maker. Prefers WhatsApp."},
-  {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),campaigns:[],nextAction:"Schedule longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Very responsive. Wants weekly updates."},
-];
-const SEED_COMPANIES=[
-  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openMandates:2,lastContacted:dF(-3),campaigns:[],nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Hot",notes:"Retained engagement ongoing."},
-  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openMandates:1,lastContacted:dF(-7),campaigns:[],nextAction:"Longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Global Oncology search."},
-  {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openMandates:0,lastContacted:dF(-45),nextAction:"Introductory call",nextDue:dF(10),relationship:"Cold",notes:"Intro via network."},
-  {id:4,name:"Vertex Pharmaceuticals",type:"Pharma",tier:"Warm",hq:"Boston",keyContact:"James Carney",openMandates:0,lastContacted:dF(-20),nextAction:"Follow up on pipeline",nextDue:dF(5),relationship:"Warm",notes:"Warm intro via Brinda."},
-  {id:5,name:"Huron Consulting",type:"Consulting",tier:"Prospect",hq:"Chicago",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
-  {id:6,name:"ZS Associates",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
-  {id:7,name:"IQVIA",type:"Pharma",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
-];
-
-function normalize(s){return(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");}
-function similarity(a,b){
-  const na=normalize(a),nb=normalize(b);
-  if(!na||!nb)return 0;
-  if(na===nb)return 1;
-  if(na.includes(nb)||nb.includes(na))return 0.85;
-  const bigrams=s=>{const b=new Set();for(let i=0;i<s.length-1;i++)b.add(s.slice(i,i+2));return b;};
-  const ba=bigrams(na),bb=bigrams(nb);
-  let inter=0;ba.forEach(g=>{if(bb.has(g))inter++;});
-  return(2*inter)/(ba.size+bb.size||1);
-}
-function findDupePeople(name,company,people,excludeId){
-  return people.filter(p=>{
-    if(p.id===excludeId)return false;
-    const ns=similarity(name,p.name);
-    if(ns<0.8)return false;
-    if(company&&p.company)return similarity(company,p.company)>0.7||ns>0.92;
-    return ns>0.92;
-  });
-}
-function findDupeCompanies(name,companies,excludeId){
-  return companies.filter(c=>c.id!==excludeId&&similarity(name,c.name)>=0.82);
-}
-function autoLinkCompany(personCompany,companies){
-  if(!personCompany?.trim())return{companies,companyId:null};
-  const match=companies.find(c=>similarity(personCompany,c.name)>=0.82);
-  if(match)return{companies,companyId:match.id};
-  const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created from people record."};
-  return{companies:[...companies,newCo],companyId:newCo.id};
+function airtableHeaders(){
+  return {'Authorization':'Bearer '+getToken(),'Content-Type':'application/json'};
 }
 
-// ── UI primitives ─────────────────────────────────────────────
-const Av=({name="?",size=36,color=TEAL})=>{
-  const i=name.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-  return <div style={{width:size,height:size,borderRadius:"50%",background:color+"15",border:"1.5px solid "+color+"40",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.33,fontWeight:700,color,flexShrink:0}}>{i}</div>;
-};
-const Badge=({label,color=TEAL})=>(
-  <span style={{background:color+"12",color,border:"1px solid "+color+"35",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{label}</span>
-);
-const RelDot=({rel})=>(
-  <span style={{display:"inline-flex",alignItems:"center",gap:5}}>
-    <span style={{width:7,height:7,borderRadius:"50%",background:REL[rel]||G400,display:"inline-block"}}/>
-    <span style={{fontSize:11,color:REL[rel]||G600,fontWeight:600}}>{rel}</span>
-  </span>
-);
-const DueTag=({due})=>{
-  if(!due)return null;
-  const d=Math.ceil((new Date(due)-new Date())/86400000);
-  if(d>3)return <span style={{fontSize:11,color:G600}}>{due}</span>;
-  if(d>=0)return <span style={{fontSize:11,fontWeight:700,color:WARN}}>{d===0?"Due today":"Due in "+d+"d"}</span>;
-  return <span style={{fontSize:11,fontWeight:700,color:DANGER}}>{"Overdue "+Math.abs(d)+"d"}</span>;
-};
-const Inp=({value,onChange,placeholder,type="text",style={}})=>(
-  <input type={type} value={value??""} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-    style={{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",color:G900,fontSize:13,outline:"none",width:"100%",fontFamily:"inherit",...style}}/>
-);
-const Tarea=({value,onChange,placeholder,rows=3})=>(
-  <textarea value={value??""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows}
-    style={{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",color:G900,fontSize:13,outline:"none",width:"100%",fontFamily:"inherit",resize:"vertical"}}/>
-);
-const SelEl=({value,onChange,options,style={}})=>(
-  <select value={value} onChange={e=>onChange(e.target.value)}
-    style={{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",color:G900,fontSize:13,outline:"none",fontFamily:"inherit",width:"100%",cursor:"pointer",...style}}>
-    {options.map(o=>typeof o==="string"?<option key={o} value={o}>{o}</option>:<option key={o.v} value={o.v}>{o.l}</option>)}
-  </select>
-);
-const Btn=({children,onClick,variant="primary",small,style={}})=>{
-  const vs={primary:{bg:TEAL,color:W,border:"none"},ghost:{bg:"transparent",color:G600,border:"1px solid "+G300},danger:{bg:"transparent",color:DANGER,border:"1px solid "+DANGER+"44"},teal:{bg:TL,color:TEAL,border:"1px solid "+TM}};
-  const v=vs[variant]||vs.primary;
-  return <button onClick={onClick} style={{background:v.bg,color:v.color,border:v.border,borderRadius:6,padding:small?"5px 12px":"8px 18px",fontWeight:600,fontSize:small?12:13,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",...style}}>{children}</button>;
-};
-const Fld=({label,children,span2})=>(
-  <div style={{marginBottom:14,gridColumn:span2?"span 2":"span 1"}}>
-    <div style={{fontSize:11,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div>
-    {children}
-  </div>
-);
-const ModalEl=({title,onClose,children,wide})=>(
-  <div style={{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}} onClick={onClose}>
-    <div onClick={e=>e.stopPropagation()} style={{background:W,borderRadius:12,padding:"28px 32px",width:wide?700:560,maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px #0003",border:"1px solid "+G200}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22,paddingBottom:16,borderBottom:"1px solid "+G200}}>
-        <span style={{fontWeight:700,fontSize:18,color:NAVY}}>{title}</span>
-        <button onClick={onClose} style={{background:"none",border:"none",color:G400,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
-      </div>
-      {children}
-    </div>
-  </div>
-);
-const InfoCard=({label,children})=>(
-  <div style={{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"12px 16px"}}>
-    <div style={{fontSize:10.5,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div>
-    {children}
-  </div>
-);
-const TabBar=({tabs,active,onChange})=>(
-  <div style={{display:"flex",borderBottom:"1px solid "+G200}}>
-    {tabs.map(t=>(
-      <button key={t} onClick={()=>onChange(t)} style={{background:"none",border:"none",borderBottom:"2px solid "+(active===t?TEAL:"transparent"),marginBottom:-1,padding:"10px 18px",fontSize:13,fontWeight:active===t?700:400,color:active===t?TEAL:G600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.12s"}}>{t}</button>
-    ))}
-  </div>
-);
-const DupeBanner=({dupes,onDismiss})=>{
-  if(!dupes||dupes.length===0)return null;
-  return(
-    <div style={{background:"#fff8e1",border:"1px solid "+WARN,borderRadius:8,padding:"12px 16px",marginBottom:16}}>
-      <div style={{fontWeight:700,color:WARN,fontSize:13,marginBottom:6}}>⚠ Possible duplicate{dupes.length>1?"s":""} found</div>
-      {dupes.map(d=><div key={d.id} style={{fontSize:13,color:G800,marginBottom:3}}><strong>{d.name}</strong> — {d.title||d.type} at {d.company||d.hq||""}</div>)}
-      <div style={{display:"flex",gap:10,marginTop:10}}>
-        <Btn variant="ghost" small onClick={onDismiss}>Save anyway</Btn>
-        <span style={{fontSize:12,color:G600,alignSelf:"center"}}>or close to cancel</span>
-      </div>
-    </div>
-  );
-};
-const SectorPicker=({selected,onChange})=>(
-  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-    {SECTORS.map(s=>{
-      const on=selected.includes(s),c=SC[s];
-      return <button key={s} onClick={()=>onChange(on?selected.filter(x=>x!==s):[...selected,s])} style={{background:on?c+"15":W,color:on?c:G600,border:"1px solid "+(on?c+"50":G300),borderRadius:4,padding:"4px 10px",fontSize:11,fontWeight:on?700:400,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>;
-    })}
-  </div>
-);
-
-// ── Quick log panel ───────────────────────────────────────────
-function QuickLog({item,onUpdate}){
-  const[note,setNote]=useState("");
-  const[na,setNa]=useState(item.nextAction||"");
-  const[nd,setNd]=useState(item.nextDue||"");
-  const log=()=>{
-    const ts=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
-    const newNote=note.trim()?"["+ts+"] "+note.trim()+"\n\n"+(item.notes||""):item.notes;
-    onUpdate({notes:newNote,lastContacted:today,nextAction:na,nextDue:nd});
-    setNote("");
-  };
-  return(
-    <div style={{background:G50,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200}}>
-      <div style={{fontSize:11,color:TEAL,marginBottom:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Log Interaction</div>
-      <Tarea value={note} onChange={setNote} placeholder="Notes from this call, email or meeting…" rows={2}/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
-        <div>
-          <div style={{fontSize:11,color:G600,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Next Action</div>
-          <Inp value={na} onChange={setNa} placeholder="Follow up / Send JD…"/>
-        </div>
-        <div>
-          <div style={{fontSize:11,color:G600,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Due Date</div>
-          <Inp type="date" value={nd} onChange={setNd}/>
-        </div>
-      </div>
-      <div style={{marginTop:10,display:"flex",justifyContent:"flex-end"}}>
-        <Btn small onClick={log}>✓ Log & Update</Btn>
-      </div>
-    </div>
-  );
+function airtableUrl(extra){
+  return 'https://api.airtable.com/v0/'+AIRTABLE_BASE+'/'+AIRTABLE_TABLE+(extra||'');
 }
 
-// ── CSV importer ──────────────────────────────────────────────
-const CSV_MAP={
-  "name":"name","full name":"name","fullname":"name","full_name":"name",
-  "first name":"firstName","firstname":"firstName","first_name":"firstName","given name":"firstName","forename":"firstName",
-  "last name":"lastName","lastname":"lastName","last_name":"lastName","surname":"lastName","family name":"lastName",
-  "title":"title","job title":"title","jobtitle":"title","jobtitle":"title","position":"title","role":"title","job_title":"title",
-  "company":"company","employer":"company","organization":"company","organisation":"company","company name":"company","companyname":"company","firm":"company","account":"company","account name":"company",
-  "location":"location","city":"location","geography":"location","country":"location","region":"location","city, country":"location",
-  "email":"email","email address":"email","work email":"email","e-mail":"email","email1":"email","primary email":"email",
-  "phone":"phone","mobile":"phone","phone number":"phone","mobile number":"phone","tel":"phone","telephone":"phone","direct phone":"phone","phone1":"phone",
-  "linkedin":"linkedin","linkedin url":"linkedin","linkedin profile":"linkedin","profile url":"linkedin","linkedin profile url":"linkedin","linkedin_url":"linkedin",
-  "relationship":"relationship","status":"relationship","lead status":"relationship",
-  "notes":"notes","note":"notes","comments":"notes","bio":"notes","description":"notes",
-  "seniority":"seniority","level":"seniority","seniority level":"seniority","grade":"seniority","senority":"seniority",
-  "sectors":"sectors","sector":"sectors","expertise":"sectors","speciality":"sectors","specialty":"sectors","industry":"sectors","function":"sectors","department":"sectors",
-  "last contacted":"lastContacted","last contact":"lastContacted","date contacted":"lastContacted","last contacted from":"ignore","last_contacted":"lastContacted",
-  "next action":"nextAction","action":"nextAction","follow up":"nextAction","task":"nextAction",
-  "next due":"nextDue","due date":"nextDue","due":"nextDue","follow up date":"nextDue",
-  "type":"type","person type":"type","contact type":"type",
-  "campaign name":"ignore","email provider":"ignore","verification status":"ignore","interest status":"ignore",
-  "email security gateway provider":"ignore","pause_until":"ignore","lead_status":"ignore",
-};
-
-function parseCSV(text){
-  const lines=text.trim().split(/\r?\n/);
-  if(lines.length<2)return{headers:[],rows:[]};
-  const first=lines[0];
-  const delim=first.split("\t").length>first.split(",").length?"\t":",";
-  const parseRow=line=>{
-    const cols=[];let cur="",inQ=false;
-    for(let i=0;i<line.length;i++){
-      const c=line[i];
-      if(c==='"'&&!inQ)inQ=true;
-      else if(c==='"'&&inQ&&line[i+1]==='"'){cur+='"';i++;}
-      else if(c==='"'&&inQ)inQ=false;
-      else if(c===delim&&!inQ){cols.push(cur.trim());cur="";}
-      else cur+=c;
-    }
-    cols.push(cur.trim());return cols;
-  };
-  const headers=parseRow(lines[0]).map(h=>h.replace(/^"|"$/g,"").trim());
-  const rows=lines.slice(1).filter(l=>l.trim()).map(l=>{
-    const vals=parseRow(l);const obj={};
-    headers.forEach((h,i)=>{obj[h]=vals[i]||"";});return obj;
-  });
-  return{headers,rows};
-}
-
-function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
-  const[step,setStep]=useState("upload");
-  const[raw,setRaw]=useState("");
-  const[parsed,setParsed]=useState(null);
-  const[mappings,setMappings]=useState({});
-  const[preview,setPreview]=useState([]);
-  const[results,setResults]=useState(null);
-  const fileRef=useRef(null);
-  const CRM_FIELDS=["ignore","firstName","lastName","name","title","company","location","email","phone","linkedin","type","seniority","sectors","relationship","lastContacted","nextAction","nextDue","notes"];
-
-  const handleFile=e=>{
-    const file=e.target.files[0];if(!file)return;
-    const reader=new FileReader();
-    reader.onload=ev=>processText(ev.target.result);
-    reader.readAsText(file);
-  };
-  const processText=text=>{
-    setRaw(text);const p=parseCSV(text);setParsed(p);
-    const auto={};
-    p.headers.forEach(h=>{auto[h]=CSV_MAP[h.toLowerCase().trim()]||"ignore";});
-    setMappings(auto);setStep("map");
-  };
-  const mapRow=row=>{
-    const p={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
-    let firstName="",lastName="";
-    Object.entries(mappings).forEach(([csvH,crmF])=>{
-      if(!crmF||crmF==="ignore")return;
-      const val=(row[csvH]||"").trim();if(!val)return;
-      if(crmF==="firstName")firstName=val;
-      else if(crmF==="lastName")lastName=val;
-      else if(crmF==="sectors")p.sectors=val.split(/[,;|]/).map(s=>s.trim()).filter(Boolean);
-      else p[crmF]=val;
-    });
-    // Combine first + last name if separate columns
-    if(firstName||lastName)p.name=[firstName,lastName].filter(Boolean).join(" ");
-    // Normalise type
-    const tl=(p.type||"").toLowerCase();
-    p.type=tl.includes("contact")||tl.includes("client")?"contact":"candidate";
-    // Normalise relationship
-    const rl=(p.relationship||"").toLowerCase();
-    p.relationship=rl.includes("hot")?"Hot":rl.includes("cold")?"Cold":rl.includes("new")?"New":"Warm";
-    // Normalise seniority
-    if(p.seniority){
-      const sl=p.seniority.toLowerCase();
-      if(/(c-suite|partner|chief|president|founder|managing director)/i.test(sl))p.seniority="C-Suite / Partner";
-      else if(/(director|vice president|vp)/i.test(sl))p.seniority="VP / Director";
-      else if(/(manager|principal|associate director|senior)/i.test(sl))p.seniority="Manager / Principal";
-      else if(/(analyst|consultant|associate|junior|graduate)/i.test(sl))p.seniority="Analyst / Consultant";
-    }
-    return p;
-  };
-  const runImport=()=>{
-    const allRows=parsed.rows.map(mapRow).filter(r=>r.name.trim());
-    let np=[...people],nc=[...companies],added=0,skipped=0;
-    allRows.forEach(r=>{
-      if(findDupePeople(r.name,r.company,np).length>0){skipped++;return;}
-      const{companies:updCos,companyId}=autoLinkCompany(r.company,nc);
-      nc=updCos;np=[{...r,id:Date.now()+Math.random(),companyId},...np];added++;
-    });
-    setPeople(np);persist("people",np);setCompanies(nc);persist("companies",nc);
-    setResults({added,skipped,total:allRows.length});setStep("done");
-  };
-
-  if(step==="upload")return(
-    <div>
-      <p style={{color:G600,fontSize:13,marginBottom:20,lineHeight:1.6}}>Import from any CSV or TSV — LinkedIn exports, spreadsheets, old CRM. Auto-maps columns, detects duplicates, links to companies.</p>
-      <div style={{border:"2px dashed "+G300,borderRadius:10,padding:"32px",textAlign:"center",marginBottom:16,background:G50}}>
-        <div style={{fontSize:32,marginBottom:10}}>📄</div>
-        <div style={{fontWeight:600,color:NAVY,marginBottom:6}}>Drop a CSV or TSV file</div>
-        <div style={{color:G600,fontSize:13,marginBottom:16}}>or click to browse</div>
-        <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" onChange={handleFile} style={{display:"none"}}/>
-        <Btn onClick={()=>fileRef.current&&fileRef.current.click()}>Choose File</Btn>
-      </div>
-      <div style={{marginBottom:8,color:G600,fontSize:12,textAlign:"center"}}>— or paste CSV data directly —</div>
-      <Tarea value={raw} onChange={setRaw} placeholder={"name,title,company,location\nDr. Sarah Chen,VP Strategy,Huron Consulting,London"} rows={4}/>
-      {raw.trim()&&<div style={{marginTop:10,display:"flex",justifyContent:"flex-end"}}><Btn onClick={()=>processText(raw)}>Parse →</Btn></div>}
-    </div>
-  );
-
-  if(step==="map"&&parsed)return(
-    <div>
-      <p style={{color:G600,fontSize:13,marginBottom:16}}><strong style={{color:NAVY}}>{parsed.rows.length} rows</strong>, <strong style={{color:NAVY}}>{parsed.headers.length} columns</strong>. Map each column to a CRM field.</p>
-      <div style={{border:"1px solid "+G200,borderRadius:8,overflow:"hidden",marginBottom:20}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",background:G100,padding:"10px 16px",fontSize:11,fontWeight:700,color:G600,textTransform:"uppercase"}}>
-          <div>CSV Column</div><div>Sample</div><div>Map to</div>
-        </div>
-        {parsed.headers.map((h,i)=>(
-          <div key={h} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"10px 16px",borderTop:"1px solid "+G200,alignItems:"center",background:i%2===0?W:G50}}>
-            <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{h}</div>
-            <div style={{fontSize:12,color:G600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(parsed.rows[0]?.[h]||"—").slice(0,25)}</div>
-            <SelEl value={mappings[h]||"ignore"} onChange={v=>setMappings(m=>({...m,[h]:v}))} options={CRM_FIELDS} style={{fontSize:12,padding:"5px 8px"}}/>
-          </div>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-        <Btn variant="ghost" onClick={()=>setStep("upload")}>← Back</Btn>
-        <Btn onClick={()=>{setPreview(parsed.rows.slice(0,5).map(mapRow));setStep("preview");}}>Preview →</Btn>
-      </div>
-    </div>
-  );
-
-  if(step==="preview")return(
-    <div>
-      <p style={{color:G600,fontSize:13,marginBottom:16}}>First 5 of <strong style={{color:NAVY}}>{parsed.rows.length}</strong> rows. Duplicates skipped automatically.</p>
-      <div style={{border:"1px solid "+G200,borderRadius:8,overflow:"hidden",marginBottom:16}}>
-        {preview.map((p,i)=>(
-          <div key={i} style={{display:"flex",gap:12,alignItems:"center",padding:"12px 16px",borderBottom:"1px solid "+G200,background:i%2===0?W:G50}}>
-            <Av name={p.name||"?"} size={32} color={p.type==="contact"?"#6f42c1":TEAL}/>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name||"(no name)"}</div>
-              <div style={{fontSize:12,color:G600}}>{[p.title,p.company,p.location].filter(Boolean).join(" · ")}</div>
-            </div>
-            <RelDot rel={p.relationship}/>
-          </div>
-        ))}
-      </div>
-      <div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:NAVY}}>
-        <strong style={{color:TEAL}}>On import:</strong> each person is duplicate-checked, linked to their company (auto-created if needed), and added instantly.
-      </div>
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-        <Btn variant="ghost" onClick={()=>setStep("map")}>← Back</Btn>
-        <Btn onClick={runImport}>Import {parsed.rows.length} People</Btn>
-      </div>
-    </div>
-  );
-
-  if(step==="done"&&results)return(
-    <div style={{textAlign:"center",padding:"20px 0"}}>
-      <div style={{fontSize:48,marginBottom:16}}>✓</div>
-      <h3 style={{fontSize:20,fontWeight:700,color:NAVY,marginBottom:20}}>Import complete</h3>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,maxWidth:360,margin:"0 auto 24px"}}>
-        <div style={{background:OK+"10",border:"1px solid "+OK+"30",borderRadius:8,padding:"16px"}}>
-          <div style={{fontSize:28,fontWeight:800,color:OK}}>{results.added}</div>
-          <div style={{fontSize:12,color:G600,marginTop:4}}>Added</div>
-        </div>
-        <div style={{background:WARN+"10",border:"1px solid "+WARN+"30",borderRadius:8,padding:"16px"}}>
-          <div style={{fontSize:28,fontWeight:800,color:WARN}}>{results.skipped}</div>
-          <div style={{fontSize:12,color:G600,marginTop:4}}>Skipped</div>
-        </div>
-        <div style={{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"16px"}}>
-          <div style={{fontSize:28,fontWeight:800,color:NAVY}}>{results.total}</div>
-          <div style={{fontSize:12,color:G600,marginTop:4}}>Total</div>
-        </div>
-      </div>
-      <Btn onClick={onClose}>Done</Btn>
-    </div>
-  );
+async function atGet(rowName){
+  var url = airtableUrl('?filterByFormula=({Name}="'+rowName+'")&maxRecords=1');
+  var res = await fetch(url,{headers:airtableHeaders()});
+  var d = await res.json();
+  if(d.records && d.records.length>0){
+    var notes = d.records[0].fields.Notes||'[]';
+    try{return {id:d.records[0].id, data:JSON.parse(notes)};}catch(e){return {id:d.records[0].id,data:[]};}
+  }
   return null;
 }
 
+async function atUpsert(rowName, data){
+  var existing = await atGet(rowName);
+  var body = {fields:{Name:rowName,Notes:JSON.stringify(data)}};
+  if(existing && existing.id){
+    await fetch(airtableUrl('/'+existing.id),{method:'PATCH',headers:airtableHeaders(),body:JSON.stringify(body)});
+  } else {
+    await fetch(airtableUrl(),{method:'POST',headers:airtableHeaders(),body:JSON.stringify(body)});
+  }
+}
 
-// ── Inline-editable overview tab ─────────────────────────────
-function InlineField({label,value,onChange,type="text",href,linkLabel}){
-  const[editing,setEditing]=useState(false);
-  const[draft,setDraft]=useState(value||"");
-  const inputRef=useRef(null);
-  useEffect(()=>{if(editing&&inputRef.current)inputRef.current.focus();},[editing]);
+function uid(){return 'v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 
-  const commit=()=>{onChange(draft);setEditing(false);};
-  const cancel=()=>{setDraft(value||"");setEditing(false);};
+function initials(name){
+  if(!name) return '?';
+  var parts = name.trim().split(' ');
+  if(parts.length>=2) return (parts[0][0]+parts[parts.length-1][0]).toUpperCase();
+  return name.slice(0,2).toUpperCase();
+}
 
-  return(
-    <div style={{borderBottom:"1px solid "+G100,paddingBottom:10,marginBottom:10}}>
-      <div style={{fontSize:10.5,color:G400,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</div>
-      {editing?(
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <input ref={inputRef} type={type} value={draft} onChange={e=>setDraft(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Escape")cancel();}}
-            style={{flex:1,background:W,border:"1.5px solid "+TEAL,borderRadius:6,padding:"6px 10px",color:G900,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-          <button onClick={commit} style={{background:TEAL,color:W,border:"none",borderRadius:5,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓</button>
-          <button onClick={cancel} style={{background:"transparent",color:G400,border:"1px solid "+G300,borderRadius:5,padding:"5px 8px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+function avatarColor(name){
+  var colors=['#00a8ac','#6f42c1','#e8a020','#0284c7','#059669','#dc2626','#7c3aed','#0891b2'];
+  var h=0;
+  for(var i=0;i<(name||'').length;i++) h=(h+(name||'').charCodeAt(i))%colors.length;
+  return colors[h];
+}
+
+var SECTORS=['Strategy','Market Access','HEOR','Reg Affairs','Med Affairs','Comms','Commercial','Data/Analytics','Portfolio','Other'];
+var SECTOR_COLORS={
+  'Strategy':'#dbeafe','Market Access':'#d1fae5','HEOR':'#fef3c7','Reg Affairs':'#ede9fe',
+  'Med Affairs':'#fce7f3','Comms':'#ffedd5','Commercial':'#e0f2fe','Data/Analytics':'#f0fdf4',
+  'Portfolio':'#fdf4ff','Other':'#f1f5f9'
+};
+var SECTOR_TEXT={
+  'Strategy':'#1d4ed8','Market Access':'#065f46','HEOR':'#92400e','Reg Affairs':'#5b21b6',
+  'Med Affairs':'#9d174d','Comms':'#c2410c','Commercial':'#0369a1','Data/Analytics':'#14532d',
+  'Portfolio':'#7e22ce','Other':'#475569'
+};
+
+function today(){
+  var d=new Date();
+  return d.toISOString().slice(0,10);
+}
+
+function isOverdue(dateStr){
+  if(!dateStr) return false;
+  return dateStr < today();
+}
+
+function fmtDate(dateStr){
+  if(!dateStr) return '';
+  try{
+    var d=new Date(dateStr+'T00:00:00');
+    return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  }catch(e){return dateStr;}
+}
+
+function exportInstantlyCSV(people, campName){
+  var rows=[['First Name','Last Name','Email','Company','Job Title']];
+  people.forEach(function(p){
+    var parts=(p.name||'').trim().split(' ');
+    var fn=parts[0]||'';
+    var ln=parts.slice(1).join(' ')||'';
+    rows.push([fn,ln,p.email||'',p.company||'',p.title||'']);
+  });
+  var csv=rows.map(function(r){return r.map(function(c){return '"'+(c||'').replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var blob=new Blob([csv],{type:'text/csv'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(campName||'campaign')+'_instantly.csv';
+  a.click();
+}
+
+var USER_COLORS={David:'#00C2C7',Lauren:'#6f42c1',Brinda:'#e8a020'};
+
+// localStorage cache
+function cacheGet(key){
+  try{var v=localStorage.getItem('voltcrm_'+key);return v?JSON.parse(v):null;}catch(e){return null;}
+}
+function cacheSet(key,val){
+  try{localStorage.setItem('voltcrm_'+key,JSON.stringify(val));}catch(e){}
+}
+</script>
+
+<script type="text/babel">
+const {useState,useEffect,useCallback,useRef} = React;
+
+// ── Setup & Login ──────────────────────────────────────────────────────
+function SetupScreen({onDone}){
+  const [tok,setTok]=useState('');
+  const [err,setErr]=useState('');
+  const [testing,setTesting]=useState(false);
+
+  async function handleTest(){
+    if(!tok.trim()){setErr('Please enter your Airtable token');return;}
+    setTesting(true);setErr('');
+    try{
+      localStorage.setItem('volt_at_token',tok.trim());
+      const url='https://api.airtable.com/v0/'+AIRTABLE_BASE+'/'+AIRTABLE_TABLE+'?maxRecords=1';
+      const res=await fetch(url,{headers:{'Authorization':'Bearer '+tok.trim()}});
+      if(res.ok){onDone();}
+      else{setErr('Token invalid or no access. Check the token and base ID.');localStorage.removeItem('volt_at_token');}
+    }catch(e){setErr('Connection failed.');}
+    setTesting(false);
+  }
+
+  return (
+    <div className="setup">
+      <div className="setup-card">
+        <img className="setup-logo" src="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" alt="VoltConsulting"/>
+        <div className="setup-title">VoltCRM Setup</div>
+        <div className="setup-sub">Enter your Airtable Personal Access Token to connect the shared data store.</div>
+        <div className="form-group" style={{textAlign:'left'}}>
+          <label className="form-label">Airtable Token</label>
+          <input type="password" placeholder="pat..." value={tok} onChange={e=>setTok(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleTest()}/>
         </div>
-      ):(
-        <div style={{display:"flex",alignItems:"center",gap:8,minHeight:24}}>
-          {value?(
-            href
-              ?<a href={href} target="_blank" rel="noreferrer" style={{color:TEAL,fontSize:13,fontWeight:600,textDecoration:"none",flex:1}}>{linkLabel||value}</a>
-              :<span style={{color:NAVY,fontSize:13,fontWeight:600,flex:1}}>{value}</span>
-          ):(
-            <span style={{color:G300,fontSize:13,fontStyle:"italic",flex:1}}>Click to add…</span>
-          )}
-          <button onClick={()=>{setDraft(value||"");setEditing(true);}}
-            style={{background:"transparent",border:"1px solid "+G200,borderRadius:5,padding:"3px 8px",fontSize:11,color:G400,cursor:"pointer",fontFamily:"inherit",flexShrink:0,opacity:0.7}}>
-            ✏
+        {err&&<div style={{color:'var(--red)',fontSize:13,marginBottom:12}}>{err}</div>}
+        <button className="btn btn-primary" style={{width:'100%'}} onClick={handleTest} disabled={testing}>
+          {testing?'Testing...':'Connect & Save'}
+        </button>
+        <div style={{fontSize:11,color:'var(--muted)',marginTop:12}}>Token is stored in your browser only — never in any file.</div>
+      </div>
+    </div>
+  );
+}
+
+function LoginScreen({onLogin}){
+  return (
+    <div className="login">
+      <div className="login-card">
+        <img style={{height:32,marginBottom:24}} src="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" alt="VoltConsulting"/>
+        <div style={{fontWeight:800,fontSize:20,color:'var(--navy)',marginBottom:6}}>VoltCRM</div>
+        <div style={{fontSize:13,color:'var(--muted)',marginBottom:28}}>Who's logged in today?</div>
+        {['David','Lauren','Brinda'].map(u=>(
+          <button key={u} className="user-btn" onClick={()=>onLogin(u)}>
+            <span style={{width:32,height:32,borderRadius:'50%',background:USER_COLORS[u],display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:700,fontSize:14}}>{u[0]}</span>
+            <span>{u}</span>
           </button>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
 
-function OverviewTab({selP,people,setPeople,persist}){
-  const save=(field,value)=>{
-    const updated=people.map(p=>p.id===selP.id?{...p,[field]:value}:p);
-    setPeople(updated);persist("people",updated);
-  };
-  return(
-    <div>
-      {/* Contact details — all inline editable */}
-      <div style={{background:W,borderRadius:8,border:"1px solid "+G200,padding:"16px 18px",marginBottom:14,boxShadow:"0 1px 3px #0001"}}>
-        <div style={{fontSize:11,color:G600,marginBottom:14,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Contact Details</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
-          <InlineField label="Email" value={selP.email} onChange={v=>save("email",v)} type="email"
-            href={selP.email?"mailto:"+selP.email:null}/>
-          <InlineField label="Phone" value={selP.phone} onChange={v=>save("phone",v)} type="tel"
-            href={selP.phone?"tel:"+selP.phone:null}/>
-          <InlineField label="LinkedIn" value={selP.linkedin} onChange={v=>save("linkedin",v)} type="url"
-            href={selP.linkedin||null} linkLabel="View profile ↗"/>
-          <InlineField label="Location" value={selP.location} onChange={v=>save("location",v)}/>
-          <InlineField label="Title" value={selP.title} onChange={v=>save("title",v)}/>
-          <InlineField label="Company" value={selP.company} onChange={v=>save("company",v)}/>
+// ── Data Layer ─────────────────────────────────────────────────────────
+function useVoltData(){
+  const [people,setPeople]=useState([]);
+  const [companies,setCompanies]=useState([]);
+  const [campaigns,setCampaigns]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [syncErr,setSyncErr]=useState('');
+
+  async function loadData(){
+    setSyncErr('');
+    const cached_p=cacheGet('people');
+    const cached_c=cacheGet('companies');
+    const cached_camp=cacheGet('campaigns');
+    if(cached_p) setPeople(cached_p);
+    if(cached_c) setCompanies(cached_c);
+    if(cached_camp) setCampaigns(cached_camp);
+    setLoading(false);
+    try{
+      const [pr,cr,campr]=await Promise.all([atGet('PEOPLE'),atGet('COMPANIES'),atGet('CAMPAIGNS')]);
+      const pp=(pr&&pr.data)||[];
+      const cc=(cr&&cr.data)||[];
+      const camps=(campr&&campr.data)||[];
+      setPeople(pp);setCompanies(cc);setCampaigns(camps);
+      cacheSet('people',pp);cacheSet('companies',cc);cacheSet('campaigns',camps);
+    }catch(e){setSyncErr('Airtable sync failed — working from cache.');}
+  }
+
+  useEffect(()=>{loadData();},[]);
+
+  async function savePeople(updated){
+    setSaving(true);
+    setPeople(updated);cacheSet('people',updated);
+    try{await atUpsert('PEOPLE',updated);}catch(e){setSyncErr('Save failed — data cached locally.');}
+    setSaving(false);
+  }
+  async function saveCompanies(updated){
+    setSaving(true);
+    setCompanies(updated);cacheSet('companies',updated);
+    try{await atUpsert('COMPANIES',updated);}catch(e){setSyncErr('Save failed.');}
+    setSaving(false);
+  }
+  async function saveCampaigns(updated){
+    setSaving(true);
+    setCampaigns(updated);cacheSet('campaigns',updated);
+    try{await atUpsert('CAMPAIGNS',updated);}catch(e){setSyncErr('Save failed.');}
+    setSaving(false);
+  }
+
+  return {people,companies,campaigns,loading,saving,syncErr,savePeople,saveCompanies,saveCampaigns,reload:loadData};
+}
+
+// ── Person Form Modal ─────────────────────────────────────────────────
+function PersonModal({person,companies,onSave,onClose}){
+  const blank={id:'',name:'',title:'',company:'',email:'',linkedin:'',phone:'',sectors:[],notes:'',nextAction:'',nextActionDate:'',campaigns:[],owner:getUser()};
+  const [f,setF]=useState(person?Object.assign({},blank,person):blank);
+
+  function set(k,v){setF(function(prev){var n=Object.assign({},prev);n[k]=v;return n;});}
+  function toggleSector(s){
+    setF(function(prev){
+      var n=Object.assign({},prev);
+      var secs=n.sectors?n.sectors.slice():[];
+      var idx=secs.indexOf(s);
+      if(idx>=0) secs.splice(idx,1); else secs.push(s);
+      n.sectors=secs;
+      return n;
+    });
+  }
+  function handleSave(){
+    if(!f.name.trim()){alert('Name required');return;}
+    var p=Object.assign({},f,{id:f.id||uid()});
+    onSave(p);
+  }
+
+  return (
+    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal">
+        <div className="modal-header">
+          <span className="modal-title">{person?'Edit Person':'Add Person'}</span>
+          <button className="close-btn" onClick={onClose}>&times;</button>
+        </div>
+        <div className="modal-body">
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Full Name *</label><input value={f.name} onChange={e=>set('name',e.target.value)}/></div>
+            <div className="form-group"><label className="form-label">Job Title</label><input value={f.title||''} onChange={e=>set('title',e.target.value)}/></div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Company</label>
+              <input value={f.company||''} onChange={e=>set('company',e.target.value)} list="co-list"/>
+              <datalist id="co-list">{companies.map(c=><option key={c.id} value={c.name}/>)}</datalist>
+            </div>
+            <div className="form-group"><label className="form-label">Email</label><input type="email" value={f.email||''} onChange={e=>set('email',e.target.value)}/></div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">LinkedIn URL</label><input value={f.linkedin||''} onChange={e=>set('linkedin',e.target.value)}/></div>
+            <div className="form-group"><label className="form-label">Phone</label><input value={f.phone||''} onChange={e=>set('phone',e.target.value)}/></div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Sectors</label>
+            <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+              {SECTORS.map(s=>(
+                <span key={s} className={'tag '+(f.sectors&&f.sectors.indexOf(s)>=0?'tag-active':'tag-inactive')} onClick={()=>toggleSector(s)}>{s}</span>
+              ))}
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Next Action</label><input value={f.nextAction||''} onChange={e=>set('nextAction',e.target.value)}/></div>
+            <div className="form-group"><label className="form-label">Due Date</label><input type="date" value={f.nextActionDate||''} onChange={e=>set('nextActionDate',e.target.value)}/></div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Owner</label>
+            <select value={f.owner||''} onChange={e=>set('owner',e.target.value)}>
+              <option value="">None</option>
+              {['David','Lauren','Brinda'].map(u=><option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+          <div className="form-group"><label className="form-label">Notes</label><textarea className="notes-area" value={f.notes||''} onChange={e=>set('notes',e.target.value)}/></div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>Save Person</button>
         </div>
       </div>
-
-      {/* Seniority + last contacted */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-        <InfoCard label="Seniority"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selP.seniority||"—"}</div></InfoCard>
-        <InfoCard label="Last Contacted"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selP.lastContacted||"—"}</div></InfoCard>
-      </div>
-
-      {/* Sectors */}
-      {(selP.sectors||[]).length>0&&(
-        <div style={{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200,marginBottom:14}}>
-          <div style={{fontSize:11,color:G600,marginBottom:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Expertise</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(selP.sectors||[]).map(s=><Badge key={s} label={s} color={SC[s]||G600}/>)}</div>
-        </div>
-      )}
-
-            {/* Campaign tags */}
-      {(selP.campaigns||[]).length>0&&(
-        <div style={{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200,marginBottom:14}}>
-          <div style={{fontSize:11,color:G600,marginBottom:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Campaigns</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(selP.campaigns||[]).map(c=><Badge key={c} label={"📧 "+c} color={OK}/>)}</div>
-        </div>
-      )}
-
-      {/* Notes snapshot */}
-      {selP.notes&&(
-        <div style={{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200}}>
-          <div style={{fontSize:11,color:G600,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Notes snapshot</div>
-          <div style={{color:G700,fontSize:13,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{selP.notes.slice(0,300)}{selP.notes.length>300?"…":""}</div>
-        </div>
-      )}
     </div>
   );
 }
 
-// ── People detail panel with tabs ─────────────────────────────
-function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,setSel}){
-  const[tab,setTab]=useState("Overview");
-  useEffect(()=>setTab("Overview"),[selP?.id]);
-  const companyPeople=selP&&selP.companyId?people.filter(p=>p.companyId===selP.companyId&&p.id!==selP.id):[];
-  const co=selP?companies.find(c=>c.id===selP.companyId):null;
-  const logUpdate=f=>{const u=people.map(p=>p.id===selP.id?{...p,...f}:p);setPeople(u);persist("people",u);};
-
-  if(!selP)return(
-    <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:G400,background:G50}}>
-      <div style={{fontSize:32}}>👤</div>
-      <div style={{fontSize:13}}>Select someone to view their profile</div>
+// ── Company Form Modal ────────────────────────────────────────────────
+function CompanyModal({company,onSave,onClose}){
+  const blank={id:'',name:'',website:'',hq:'',size:'',tier:'',sectors:[],notes:''};
+  const [f,setF]=useState(company?Object.assign({},blank,company):blank);
+  function set(k,v){setF(function(p){var n=Object.assign({},p);n[k]=v;return n;});}
+  function toggleSector(s){
+    setF(function(prev){
+      var n=Object.assign({},prev);
+      var secs=n.sectors?n.sectors.slice():[];
+      var idx=secs.indexOf(s);
+      if(idx>=0) secs.splice(idx,1); else secs.push(s);
+      n.sectors=secs;
+      return n;
+    });
+  }
+  function handleSave(){
+    if(!f.name.trim()){alert('Company name required');return;}
+    onSave(Object.assign({},f,{id:f.id||uid()}));
+  }
+  return (
+    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal">
+        <div className="modal-header">
+          <span className="modal-title">{company?'Edit Company':'Add Company'}</span>
+          <button className="close-btn" onClick={onClose}>&times;</button>
+        </div>
+        <div className="modal-body">
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Company Name *</label><input value={f.name} onChange={e=>set('name',e.target.value)}/></div>
+            <div className="form-group"><label className="form-label">Website</label><input value={f.website||''} onChange={e=>set('website',e.target.value)}/></div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">HQ Location</label><input value={f.hq||''} onChange={e=>set('hq',e.target.value)}/></div>
+            <div className="form-group"><label className="form-label">Size (employees)</label><input value={f.size||''} onChange={e=>set('size',e.target.value)}/></div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Tier</label>
+            <select value={f.tier||''} onChange={e=>set('tier',e.target.value)}>
+              <option value="">Select</option>
+              <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option><option>Tier 4</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Sectors</label>
+            <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+              {SECTORS.map(s=>(
+                <span key={s} className={'tag '+(f.sectors&&f.sectors.indexOf(s)>=0?'tag-active':'tag-inactive')} onClick={()=>toggleSector(s)}>{s}</span>
+              ))}
+            </div>
+          </div>
+          <div className="form-group"><label className="form-label">Notes</label><textarea value={f.notes||''} onChange={e=>set('notes',e.target.value)}/></div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>Save Company</button>
+        </div>
+      </div>
     </div>
   );
+}
 
-  return(
-    <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}}>
-      {/* Header */}
-      <div style={{background:W,borderBottom:"1px solid "+G200,padding:"20px 28px 0",flexShrink:0}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-          <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
-            <Av name={selP.name} size={48} color={selP.type==="contact"?"#6f42c1":TEAL}/>
+// ── Follow-up Modal ────────────────────────────────────────────────────
+function FollowUpModal({person,onSave,onClose}){
+  const [action,setAction]=useState(person.nextAction||'');
+  const [date,setDate]=useState(person.nextActionDate||today());
+  function handleSave(){
+    onSave(Object.assign({},person,{nextAction:action,nextActionDate:date}));
+  }
+  return (
+    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal" style={{maxWidth:380}}>
+        <div className="modal-header">
+          <span className="modal-title">Set Follow-up — {person.name}</span>
+          <button className="close-btn" onClick={onClose}>&times;</button>
+        </div>
+        <div className="modal-body">
+          <div className="form-group"><label className="form-label">Next Action</label><input value={action} onChange={e=>setAction(e.target.value)} placeholder="e.g. Send intro email"/></div>
+          <div className="form-group"><label className="form-label">Due Date</label><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Person Detail ──────────────────────────────────────────────────────
+function PersonDetail({person,companies,campaigns,onUpdate,onDelete,onClose}){
+  const [tab,setTab]=useState('Overview');
+  const [editing,setEditing]=useState(false);
+  const [notesDraft,setNotesDraft]=useState(person.notes||'');
+  const [notesChanged,setNotesChanged]=useState(false);
+
+  function handleNotesChange(v){setNotesDraft(v);setNotesChanged(true);}
+  function saveNotes(){onUpdate(Object.assign({},person,{notes:notesDraft}));setNotesChanged(false);}
+
+  function toggleSector(s){
+    var secs=person.sectors?person.sectors.slice():[];
+    var idx=secs.indexOf(s);
+    if(idx>=0) secs.splice(idx,1); else secs.push(s);
+    onUpdate(Object.assign({},person,{sectors:secs}));
+  }
+  function removeCampaign(cid){
+    var camps=person.campaigns?person.campaigns.slice():[];
+    camps=camps.filter(function(x){return x!==cid;});
+    onUpdate(Object.assign({},person,{campaigns:camps}));
+  }
+  function addToCampaign(cid){
+    var camps=person.campaigns?person.campaigns.slice():[];
+    if(camps.indexOf(cid)<0) camps.push(cid);
+    onUpdate(Object.assign({},person,{campaigns:camps}));
+  }
+
+  var company=companies.find(function(c){return c.name===person.company;})||null;
+  var ownerColor=USER_COLORS[person.owner]||'var(--muted)';
+
+  return (
+    <div className="split-detail">
+      {editing&&<PersonModal person={person} companies={companies} onSave={function(p){onUpdate(p);setEditing(false);}} onClose={()=>setEditing(false)}/>}
+      <div className="flex-between" style={{marginBottom:16}}>
+        <div className="flex" style={{gap:12}}>
+          <div className="avatar" style={{background:avatarColor(person.name),width:44,height:44,fontSize:16}}>{initials(person.name)}</div>
+          <div>
+            <div style={{fontWeight:800,fontSize:18}}>{person.name}</div>
+            <div style={{fontSize:13,color:'var(--muted)'}}>{person.title}{person.title&&person.company?' · ':''}{person.company}</div>
+          </div>
+        </div>
+        <div className="flex" style={{gap:6}}>
+          {person.owner&&<span style={{fontSize:11,padding:'3px 8px',borderRadius:10,background:ownerColor+'22',color:ownerColor,fontWeight:700}}>{person.owner}</span>}
+          <button className="btn btn-ghost btn-sm" onClick={()=>setEditing(true)}>Edit</button>
+          <button className="btn btn-danger btn-sm" onClick={()=>{if(window.confirm('Delete '+person.name+'?'))onDelete(person.id);}}>Delete</button>
+        </div>
+      </div>
+
+      <div className="tabs">
+        {['Overview','BD Follow-up','Notes','Company'].map(t=>(
+          <button key={t} className={'tab'+(tab===t?' active':'')} onClick={()=>setTab(t)}>{t}</button>
+        ))}
+      </div>
+
+      {tab==='Overview'&&(
+        <div>
+          <div className="grid-2" style={{marginBottom:14}}>
+            {person.email&&<a href={'mailto:'+person.email} style={{fontSize:13,color:'var(--teal)'}}>{person.email}</a>}
+            {person.phone&&<span style={{fontSize:13}}>{person.phone}</span>}
+            {person.linkedin&&<a href={person.linkedin} target="_blank" style={{fontSize:13,color:'var(--teal)'}}>LinkedIn</a>}
+          </div>
+          <div className="section-title" style={{marginBottom:6}}>Sectors</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:14}}>
+            {SECTORS.map(s=>(
+              <span key={s} className={'tag '+(person.sectors&&person.sectors.indexOf(s)>=0?'tag-active':'tag-inactive')} onClick={()=>toggleSector(s)}>{s}</span>
+            ))}
+          </div>
+          <div className="section-title" style={{marginBottom:6}}>Campaigns</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+            {person.campaigns&&person.campaigns.length>0?person.campaigns.map(function(cid){
+              var camp=campaigns.find(function(c){return c.id===cid;});
+              return camp?<span key={cid} className="tag tag-active" style={{gap:6}}>{camp.name}<span onClick={()=>removeCampaign(cid)} style={{cursor:'pointer',opacity:0.7}}>&times;</span></span>:null;
+            }):<span style={{fontSize:12,color:'var(--muted)'}}>No campaigns</span>}
+            <select style={{fontSize:12,padding:'2px 6px',border:'1px solid var(--border)',borderRadius:6}} onChange={function(e){if(e.target.value){addToCampaign(e.target.value);e.target.value='';}}} defaultValue="">
+              <option value="">+ Add to campaign</option>
+              {campaigns.filter(function(c){return !person.campaigns||person.campaigns.indexOf(c.id)<0;}).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {tab==='BD Follow-up'&&(
+        <div>
+          <div className="card-sm" style={{marginBottom:12}}>
+            <div className="kv"><span className="kv-k">Next Action</span><span className="kv-v">{person.nextAction||<span style={{color:'var(--muted)'}}>None set</span>}</span></div>
+            <div className="kv"><span className="kv-k">Due</span><span className="kv-v" style={{color:isOverdue(person.nextActionDate)?'var(--red)':'inherit'}}>{fmtDate(person.nextActionDate)||'—'}</span></div>
+          </div>
+          <div className="form-group"><label className="form-label">Next Action</label><input defaultValue={person.nextAction||''} onBlur={function(e){onUpdate(Object.assign({},person,{nextAction:e.target.value}));}}/></div>
+          <div className="form-group"><label className="form-label">Due Date</label><input type="date" defaultValue={person.nextActionDate||''} onBlur={function(e){onUpdate(Object.assign({},person,{nextActionDate:e.target.value}));}}/></div>
+        </div>
+      )}
+
+      {tab==='Notes'&&(
+        <div>
+          <textarea className="notes-area" style={{width:'100%',minHeight:180}} value={notesDraft} onChange={e=>handleNotesChange(e.target.value)}/>
+          {notesChanged&&<button className="btn btn-primary btn-sm" style={{marginTop:8}} onClick={saveNotes}>Save Notes</button>}
+        </div>
+      )}
+
+      {tab==='Company'&&(
+        <div>
+          {company?(
             <div>
-              <h2 style={{fontSize:20,fontWeight:700,color:NAVY,margin:0}}>{selP.name}</h2>
-              <div style={{color:G600,fontSize:13,marginTop:2}}>{[selP.title,selP.company].filter(Boolean).join(" · ")}</div>
-              <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-                <RelDot rel={selP.relationship}/>
-                <Badge label={selP.type==="candidate"?"Candidate":"Client Contact"} color={selP.type==="contact"?"#6f42c1":TEAL}/>
-                <Badge label={selP.seniority} color={G600}/>
-              </div>
+              <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>{company.name}</div>
+              {company.website&&<div className="kv"><span className="kv-k">Website</span><a className="kv-v" href={company.website} target="_blank" style={{color:'var(--teal)'}}>{company.website}</a></div>}
+              {company.hq&&<div className="kv"><span className="kv-k">HQ</span><span className="kv-v">{company.hq}</span></div>}
+              {company.size&&<div className="kv"><span className="kv-k">Size</span><span className="kv-v">{company.size}</span></div>}
+              {company.tier&&<div className="kv"><span className="kv-k">Tier</span><span className="kv-v">{company.tier}</span></div>}
+              {company.sectors&&company.sectors.length>0&&<div className="kv"><span className="kv-k">Sectors</span><span className="kv-v">{company.sectors.join(', ')}</span></div>}
+              {company.notes&&<div style={{marginTop:10,fontSize:13,color:'var(--muted)'}}>{company.notes}</div>}
             </div>
-          </div>
-          <div style={{display:"flex",gap:8,flexShrink:0}}>
-            {selP.linkedin&&<Btn variant="teal" small onClick={()=>window.open(selP.linkedin,"_blank")}>LinkedIn ↗</Btn>}
-            <Btn variant="ghost" small onClick={onEdit}>Edit</Btn>
-            <Btn variant="danger" small onClick={onDelete}>Delete</Btn>
-          </div>
+          ):(
+            <div className="empty">No matching company record found.<br/><span style={{fontSize:12}}>Company: "{person.company}"</span></div>
+          )}
         </div>
-        <TabBar tabs={["Overview","BD & Follow-up","Notes","Company"]} active={tab} onChange={setTab}/>
-      </div>
-
-      {/* Tab content */}
-      <div style={{flex:1,overflowY:"auto",padding:"22px 28px",background:G50}}>
-
-        {tab==="Overview"&&(
-          <OverviewTab selP={selP} people={people} setPeople={setPeople} persist={persist}/>
-        )}
-
-        {tab==="BD & Follow-up"&&(
-          <div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:16}}>
-              <InfoCard label="Last Contacted"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selP.lastContacted||"—"}</div></InfoCard>
-              <InfoCard label="Next Action"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selP.nextAction||"—"}</div></InfoCard>
-              <InfoCard label="Due"><DueTag due={selP.nextDue}/></InfoCard>
-            </div>
-            {selP.nextAction&&(
-              <div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:NAVY}}>
-                <span style={{color:TEAL,fontWeight:700,marginRight:8}}>→</span>{selP.nextAction}
-              </div>
-            )}
-            <QuickLog item={selP} onUpdate={logUpdate}/>
-          </div>
-        )}
-
-        {tab==="Notes"&&(
-          <div style={{background:W,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200}}>
-            <div style={{fontSize:11,color:G600,marginBottom:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Full Notes</div>
-            <div style={{color:G800,fontSize:14,lineHeight:1.8,whiteSpace:"pre-wrap"}}>{selP.notes||"No notes yet. Use BD & Follow-up to log an interaction."}</div>
-          </div>
-        )}
-
-        {tab==="Company"&&(
-          <div>
-            {co?(
-              <div>
-                <div style={{background:W,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200,marginBottom:14}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-                    <div>
-                      <div style={{fontWeight:700,color:NAVY,fontSize:16}}>{co.name}</div>
-                      <div style={{color:G600,fontSize:13,marginTop:2}}>{co.type}{co.hq?" · "+co.hq:""}</div>
-                    </div>
-                    <div style={{display:"flex",gap:6}}>
-                      <Badge label={co.tier} color={TC_MAP[co.tier]||G600}/>
-                      <RelDot rel={co.relationship}/>
-                    </div>
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:co.notes?12:0}}>
-                    <InfoCard label="Key Contact"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{co.keyContact||"—"}</div></InfoCard>
-                    <InfoCard label="Open Mandates"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{co.openMandates||0}</div></InfoCard>
-                  </div>
-                  {co.notes&&<div style={{fontSize:13,color:G700,lineHeight:1.6,borderTop:"1px solid "+G200,paddingTop:12}}>{co.notes}</div>}
-                </div>
-                {companyPeople.length>0&&(
-                  <div style={{background:W,borderRadius:8,padding:"16px 20px",border:"1px solid "+G200}}>
-                    <div style={{fontSize:11,color:G600,marginBottom:12,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Others at {co.name}</div>
-                    {companyPeople.map(p=>(
-                      <div key={p.id} onClick={()=>setSel(p.id)} style={{display:"flex",gap:10,alignItems:"center",padding:"9px 0",borderBottom:"1px solid "+G100,cursor:"pointer"}}>
-                        <Av name={p.name} size={28} color={p.type==="contact"?"#6f42c1":TEAL}/>
-                        <div style={{flex:1}}><div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div><div style={{fontSize:11,color:G600}}>{p.title}</div></div>
-                        <RelDot rel={p.relationship}/>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ):(
-              <div style={{textAlign:"center",padding:"40px 0",color:G400}}>
-                <div style={{fontSize:28,marginBottom:8}}>🏢</div>
-                <div style={{fontSize:13}}>No company linked yet</div>
-                <div style={{fontSize:12,marginTop:6}}>Edit this person and set their company to auto-link</div>
-              </div>
-            )}
-          </div>
-        )}
-
-      </div>
+      )}
     </div>
   );
 }
 
-// ── Person form ───────────────────────────────────────────────
-const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:"",campaigns:[]};
-function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
-  const[f,setF]=useState({...BLANKP,...(init||{}),...(prefill||{})});
-  const[dupes,setDupes]=useState([]);
-  const[dismissed,setDismissed]=useState(false);
-  const set=k=>v=>setF(p=>({...p,[k]:v}));
-  const handleSave=()=>{
-    if(!f.name.trim())return;
-    if(!dismissed&&!isEdit){
-      const found=findDupePeople(f.name,f.company,people,init&&init.id);
-      if(found.length>0){setDupes(found);return;}
-    }
-    onSave(f);onClose();
-  };
-  return(
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
-      {dupes.length>0&&<div style={{gridColumn:"span 2"}}><DupeBanner dupes={dupes} onDismiss={()=>{setDupes([]);setDismissed(true);}}/></div>}
-      <Fld label="Type"><SelEl value={f.type} onChange={set("type")} options={[{v:"candidate",l:"Candidate"},{v:"contact",l:"Client Contact"}]}/></Fld>
-      <Fld label="Relationship"><SelEl value={f.relationship} onChange={set("relationship")} options={["Hot","Warm","Cold","New"]}/></Fld>
-      <Fld label="Full Name"><Inp value={f.name} onChange={set("name")} placeholder="Dr. Sarah Chen"/></Fld>
-      <Fld label="Title"><Inp value={f.title} onChange={set("title")} placeholder="VP Strategy"/></Fld>
-      <Fld label="Company"><Inp value={f.company} onChange={set("company")} placeholder="Charles River Associates"/></Fld>
-      <Fld label="Location"><Inp value={f.location} onChange={set("location")} placeholder="London, UK"/></Fld>
-      <Fld label="Seniority" span2><SelEl value={f.seniority} onChange={set("seniority")} options={["Analyst / Consultant","Manager / Principal","VP / Director","C-Suite / Partner"]}/></Fld>
-      <Fld label="Sectors" span2><SectorPicker selected={f.sectors} onChange={set("sectors")}/></Fld>
-      <Fld label="LinkedIn URL" span2><Inp value={f.linkedin} onChange={set("linkedin")} placeholder="https://linkedin.com/in/…"/></Fld>
-      <Fld label="Email"><Inp value={f.email} onChange={set("email")} placeholder="name@example.com"/></Fld>
-      <Fld label="Phone"><Inp value={f.phone} onChange={set("phone")} placeholder="+44 7700 900000"/></Fld>
-      <Fld label="Last Contacted"><Inp type="date" value={f.lastContacted} onChange={set("lastContacted")}/></Fld>
-      <Fld label="Next Due"><Inp type="date" value={f.nextDue} onChange={set("nextDue")}/></Fld>
-      <Fld label="Next Action" span2><Inp value={f.nextAction} onChange={set("nextAction")} placeholder="Send JD / Schedule call…"/></Fld>
-      <Fld label="Notes" span2><Tarea value={f.notes} onChange={set("notes")} rows={3}/></Fld>
-      <div style={{gridColumn:"span 2",display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={handleSave}>{isEdit?"Update":"Save Person"}</Btn>
-      </div>
-    </div>
-  );
-}
+// ── People View ────────────────────────────────────────────────────────
+function PeopleView({data}){
+  const {people,companies,campaigns,savePeople}=data;
+  const [search,setSearch]=useState('');
+  const [filterCamp,setFilterCamp]=useState('');
+  const [filterSector,setFilterSector]=useState('');
+  const [filterOwner,setFilterOwner]=useState('');
+  const [selected,setSelected]=useState(null);
+  const [showAdd,setShowAdd]=useState(false);
+  const [followUp,setFollowUp]=useState(null);
 
-// ── PEOPLE VIEW ───────────────────────────────────────────────
-function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}){
-  const[search,setSearch]=useState("");
-  const[typeF,setTypeF]=useState("all");
-  const[relF,setRelF]=useState("all");
-  const[sel,setSel]=useState(initialSel||null);
-  const[modal,setModal]=useState(null);
-  const[prefill,setPrefill]=useState(null);
-  useEffect(()=>{if(initialSel)setSel(initialSel);},[initialSel]);
+  // Quick add state
+  const [qa,setQa]=useState({name:'',title:'',company:'',email:''});
+  const [qaActive,setQaActive]=useState(false);
 
-  const list=useMemo(()=>people.filter(p=>
-    (typeF==="all"||p.type===typeF)&&(relF==="all"||p.relationship===relF)&&
-    (p.name+p.company+p.title+(p.sectors||[]).join(" ")).toLowerCase().includes(search.toLowerCase())
-  ),[people,search,typeF,relF]);
+  function filtered(){
+    return people.filter(function(p){
+      var q=search.toLowerCase();
+      var matchQ=!q||(p.name&&p.name.toLowerCase().indexOf(q)>=0)||(p.company&&p.company.toLowerCase().indexOf(q)>=0)||(p.title&&p.title.toLowerCase().indexOf(q)>=0);
+      var matchCamp=!filterCamp||(p.campaigns&&p.campaigns.indexOf(filterCamp)>=0);
+      var matchSec=!filterSector||(p.sectors&&p.sectors.indexOf(filterSector)>=0);
+      var matchOwner=!filterOwner||p.owner===filterOwner;
+      return matchQ&&matchCamp&&matchSec&&matchOwner;
+    });
+  }
 
-  const selP=people.find(p=>p.id===sel);
+  function handleSave(p){
+    var updated=people.slice();
+    var idx=updated.findIndex(function(x){return x.id===p.id;});
+    if(idx>=0) updated[idx]=p; else updated.unshift(p);
+    savePeople(updated);
+    setSelected(p);
+    setShowAdd(false);
+  }
 
-  const commitBoth=(np,nc)=>{setPeople(np);persist("people",np);setCompanies(nc);persist("companies",nc);};
-  const addPerson=f=>{const{companies:nc,companyId}=autoLinkCompany(f.company,companies);commitBoth([{...f,id:Date.now(),companyId},...people],nc);};
-  const updPerson=f=>{const{companies:nc,companyId}=autoLinkCompany(f.company,companies);commitBoth(people.map(p=>p.id===sel?{...p,...f,companyId}:p),nc);};
-  const delPerson=()=>{const u=people.filter(p=>p.id!==sel);setPeople(u);persist("people",u);setSel(null);};
+  function handleDelete(id){
+    savePeople(people.filter(function(p){return p.id!==id;}));
+    setSelected(null);
+  }
 
-  const filterBtn=(v,l,c,cur,set)=>(
-    <button key={v} onClick={()=>set(v)} style={{background:cur===v?c+"15":"transparent",color:cur===v?c:G600,border:"1px solid "+(cur===v?c+"40":G300),borderRadius:20,padding:"4px 13px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
-  );
+  function handleUpdate(p){
+    var updated=people.slice();
+    var idx=updated.findIndex(function(x){return x.id===p.id;});
+    if(idx>=0) updated[idx]=p;
+    savePeople(updated);
+    setSelected(p);
+  }
 
-  return(
-    <div style={{display:"flex",height:"100%",minHeight:0}}>
-      {/* List */}
-      <div style={{width:320,flexShrink:0,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",background:W}}>
-        <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+G200}}>
-          <div style={{display:"flex",gap:8,marginBottom:10}}>
-            <Inp value={search} onChange={setSearch} placeholder="Filter people…" style={{fontSize:12}}/>
-            <Btn small onClick={()=>{setPrefill(null);setModal("add");}}>+ Add</Btn>
+  function quickAdd(){
+    if(!qa.name.trim()) return;
+    var p=Object.assign({id:uid(),sectors:[],campaigns:[],notes:'',nextAction:'',nextActionDate:'',owner:getUser()},qa);
+    savePeople([p].concat(people));
+    setQa({name:'',title:'',company:'',email:''});
+  }
+
+  var list=filtered();
+  var selPerson=selected?people.find(function(p){return p.id===selected.id;})||selected:null;
+
+  return (
+    <div className="split" style={{height:'100%'}}>
+      {showAdd&&<PersonModal companies={companies} onSave={handleSave} onClose={()=>setShowAdd(false)}/>}
+      {followUp&&<FollowUpModal person={followUp} onSave={function(p){handleUpdate(p);setFollowUp(null);}} onClose={()=>setFollowUp(null)}/>}
+
+      <div className="split-list">
+        <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)',background:'#fff'}}>
+          <div className="flex-between" style={{marginBottom:8}}>
+            <span style={{fontWeight:700,fontSize:14}}>People <span style={{color:'var(--muted)',fontWeight:400,fontSize:12}}>({people.length})</span></span>
+            <button className="btn btn-primary btn-sm" onClick={()=>setShowAdd(true)}>+ Add</button>
           </div>
-          <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
-            {filterBtn("all","All",TEAL,typeF,setTypeF)}
-            {filterBtn("candidate","Candidates",TEAL,typeF,setTypeF)}
-            {filterBtn("contact","Contacts","#6f42c1",typeF,setTypeF)}
-          </div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {["all","Hot","Warm","Cold","New"].map(r=>filterBtn(r,r==="all"?"All":r,REL[r]||TEAL,relF,setRelF))}
-          </div>
-        </div>
-        <div style={{overflowY:"auto",flex:1,padding:"8px 8px"}}>
-          {list.map(p=>{
-            const isSel=sel===p.id,ac=p.type==="contact"?"#6f42c1":TEAL;
-            return(
-              <div key={p.id} onClick={()=>setSel(p.id)} style={{padding:"11px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",background:isSel?TL:"transparent",border:"1px solid "+(isSel?TM:"transparent"),transition:"all 0.1s"}}>
-                <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <Av name={p.name} size={34} color={ac}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
-                      <div style={{fontWeight:700,color:NAVY,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>{p.name}</div>
-                      <RelDot rel={p.relationship}/>
-                    </div>
-                    <div style={{fontSize:11.5,color:G600,marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.title}{p.company?" · "+p.company:""}</div>
-                    {p.nextDue&&<div style={{marginTop:4}}><DueTag due={p.nextDue}/></div>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {list.length===0&&<div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13}}>No results</div>}
-        </div>
-        <div style={{padding:"12px 16px",borderTop:"1px solid "+G200,display:"flex",gap:8,flexWrap:"wrap"}}>
-          
-          <Btn variant="ghost" small onClick={()=>setModal("csv")}>⬆ Import CSV</Btn>
-        </div>
-      </div>
-
-      {/* Detail */}
-      <PersonDetail selP={selP} people={people} companies={companies} setPeople={setPeople} persist={persist} onDelete={delPerson} onEdit={()=>setModal("edit")} setSel={setSel}/>
-
-      {modal==="add"&&<ModalEl title="Add Person" onClose={()=>setModal(null)} wide><PersonForm init={BLANKP} prefill={prefill} onSave={addPerson} onClose={()=>setModal(null)} people={people} isEdit={false}/></ModalEl>}
-      {modal==="edit"&&selP&&<ModalEl title={"Edit — "+selP.name} onClose={()=>setModal(null)} wide><PersonForm init={selP} onSave={updPerson} onClose={()=>setModal(null)} people={people} isEdit={true}/></ModalEl>}
-      {modal==="csv"&&<ModalEl title="Bulk Import from CSV" onClose={()=>setModal(null)} wide><CSVImporter people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist} onClose={()=>setModal(null)}/></ModalEl>}
-    </div>
-  );
-}
-
-// ── Company form ──────────────────────────────────────────────
-const BLANKCO={name:"",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:"0",lastContacted:today,nextAction:"",nextDue:"",relationship:"Cold",notes:""};
-function CompanyForm({init,onSave,onClose,companies,isEdit}){
-  const[f,setF]=useState({...BLANKCO,...(init||{})});
-  const[dupes,setDupes]=useState([]);
-  const[dismissed,setDismissed]=useState(false);
-  const s=k=>v=>setF(p=>({...p,[k]:v}));
-  const handleSave=()=>{
-    if(!f.name.trim())return;
-    if(!dismissed&&!isEdit){
-      const found=findDupeCompanies(f.name,companies,init&&init.id);
-      if(found.length>0){setDupes(found);return;}
-    }
-    onSave(f);onClose();
-  };
-  return(
-    <>
-      {dupes.length>0&&<DupeBanner dupes={dupes} onDismiss={()=>{setDupes([]);setDismissed(true);}}/>}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
-        <Fld label="Company Name" span2><Inp value={f.name} onChange={s("name")} placeholder="Charles River Associates"/></Fld>
-        <Fld label="Type"><SelEl value={f.type} onChange={s("type")} options={["Consulting","Pharma","Biotech","MedTech","Other"]}/></Fld>
-        <Fld label="Tier"><SelEl value={f.tier} onChange={s("tier")} options={["Key Client","Warm","Prospect"]}/></Fld>
-        <Fld label="HQ"><Inp value={f.hq} onChange={s("hq")} placeholder="Boston, US"/></Fld>
-        <Fld label="Key Contact"><Inp value={f.keyContact} onChange={s("keyContact")} placeholder="Maria Lopez"/></Fld>
-        <Fld label="Open Mandates"><Inp value={f.openMandates} onChange={s("openMandates")} type="number"/></Fld>
-        <Fld label="Relationship"><SelEl value={f.relationship} onChange={s("relationship")} options={["Hot","Warm","Cold","New"]}/></Fld>
-        <Fld label="Last Contacted"><Inp type="date" value={f.lastContacted} onChange={s("lastContacted")}/></Fld>
-        <Fld label="Next Due"><Inp type="date" value={f.nextDue} onChange={s("nextDue")}/></Fld>
-        <Fld label="Next Action" span2><Inp value={f.nextAction} onChange={s("nextAction")} placeholder="Schedule intro call…"/></Fld>
-        <Fld label="Notes" span2><Tarea value={f.notes} onChange={s("notes")} rows={3}/></Fld>
-      </div>
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16}}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={handleSave}>{isEdit?"Update":"Save Company"}</Btn>
-      </div>
-    </>
-  );
-}
-
-// ── COMPANIES VIEW ────────────────────────────────────────────
-function CompaniesView({companies,setCompanies,people,setPeople,persist,initialSel,onNavigatePerson}){
-  const[search,setSearch]=useState("");
-  const[tierF,setTierF]=useState("all");
-  const[sel,setSel]=useState(initialSel||null);
-  const[modal,setModal]=useState(null);
-  useEffect(()=>{if(initialSel)setSel(initialSel);},[initialSel]);
-
-  const list=useMemo(()=>companies.filter(c=>
-    (tierF==="all"||c.tier===tierF)&&
-    (c.name+c.type+c.hq).toLowerCase().includes(search.toLowerCase())
-  ),[companies,search,tierF]);
-
-  const selC=companies.find(c=>c.id===sel);
-  const linked=selC?people.filter(p=>p.companyId===selC.id):[];
-  const commit=u=>{setCompanies(u);persist("companies",u);};
-  const add=f=>commit([{...f,id:Date.now(),openMandates:Number(f.openMandates)},...companies]);
-  const upd=f=>commit(companies.map(c=>c.id===sel?{...c,...f,openMandates:Number(f.openMandates)}:c));
-  const del=()=>{commit(companies.filter(c=>c.id!==sel));setSel(null);};
-
-  return(
-    <div style={{display:"flex",height:"100%",minHeight:0}}>
-      <div style={{width:300,flexShrink:0,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",background:W}}>
-        <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+G200}}>
-          <div style={{display:"flex",gap:8,marginBottom:10}}>
-            <Inp value={search} onChange={setSearch} placeholder="Filter companies…" style={{fontSize:12}}/>
-            <Btn small onClick={()=>setModal("add")}>+ Add</Btn>
-          </div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {["all","Key Client","Warm","Prospect"].map(t=>(
-              <button key={t} onClick={()=>setTierF(t)} style={{background:tierF===t?(TC_MAP[t]||TEAL)+"15":"transparent",color:tierF===t?(TC_MAP[t]||TEAL):G600,border:"1px solid "+(tierF===t?(TC_MAP[t]||TEAL)+"40":G300),borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t==="all"?"All":t}</button>
+          <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:6}}/>
+          <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+            {['David','Lauren','Brinda'].map(u=>(
+              <button key={u} className="btn btn-sm" style={{padding:'2px 8px',fontSize:11,background:filterOwner===u?USER_COLORS[u]:'#f1f5f9',color:filterOwner===u?'#fff':'var(--muted)',border:'none'}} onClick={()=>setFilterOwner(filterOwner===u?'':u)}>{u}</button>
             ))}
           </div>
         </div>
-        <div style={{overflowY:"auto",flex:1,padding:"8px 8px"}}>
-          {list.map(c=>{
-            const isSel=sel===c.id,tc=TC_MAP[c.tier]||G600,pct=people.filter(p=>p.companyId===c.id).length;
-            return(
-              <div key={c.id} onClick={()=>setSel(c.id)} style={{padding:"11px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",background:isSel?TL:"transparent",border:"1px solid "+(isSel?TM:"transparent"),transition:"all 0.1s"}}>
-                <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <Av name={c.name} size={34} color={tc}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",justifyContent:"space-between"}}>
-                      <div style={{fontWeight:700,color:NAVY,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:120}}>{c.name}</div>
-                      <RelDot rel={c.relationship}/>
-                    </div>
-                    <div style={{fontSize:11.5,color:G600}}>{c.type}{c.hq?" · "+c.hq:""}</div>
-                    <div style={{marginTop:4,display:"flex",gap:8}}>
-                      {pct>0&&<span style={{fontSize:11,color:TEAL,fontWeight:600}}>{"👥 "+pct}</span>}
-                      {c.nextDue&&<DueTag due={c.nextDue}/>}
-                    </div>
-                  </div>
+
+        {/* Campaign filter */}
+        {campaigns.length>0&&(
+          <div style={{padding:'6px 12px',background:'#f8fafc',borderBottom:'1px solid var(--border)',display:'flex',gap:4,flexWrap:'wrap'}}>
+            {campaigns.map(c=>(
+              <span key={c.id} className={'tag btn-sm '+(filterCamp===c.id?'tag-active':'tag-inactive')} style={{fontSize:10}} onClick={()=>setFilterCamp(filterCamp===c.id?'':c.id)}>{c.name}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Quick add inline */}
+        {qaActive?(
+          <div style={{padding:'8px 12px',background:'var(--pale)',borderBottom:'1px solid var(--border)'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:4}}>
+              <input placeholder="Name *" value={qa.name} onChange={e=>setQa(Object.assign({},qa,{name:e.target.value}))} style={{padding:'4px 6px',fontSize:12}}/>
+              <input placeholder="Title" value={qa.title} onChange={e=>setQa(Object.assign({},qa,{title:e.target.value}))} style={{padding:'4px 6px',fontSize:12}}/>
+              <input placeholder="Company" value={qa.company} onChange={e=>setQa(Object.assign({},qa,{company:e.target.value}))} style={{padding:'4px 6px',fontSize:12}}/>
+              <input placeholder="Email" value={qa.email} onChange={e=>setQa(Object.assign({},qa,{email:e.target.value}))} style={{padding:'4px 6px',fontSize:12}}/>
+            </div>
+            <div className="flex" style={{gap:4}}>
+              <button className="btn btn-primary btn-sm" onClick={quickAdd}>Add</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setQaActive(false)}>Cancel</button>
+            </div>
+          </div>
+        ):(
+          <div style={{padding:'5px 12px',borderBottom:'1px solid var(--border)',background:'#fafafa'}}>
+            <button style={{fontSize:12,color:'var(--teal)',background:'none',border:'none',cursor:'pointer'}} onClick={()=>setQaActive(true)}>+ Quick add person</button>
+          </div>
+        )}
+
+        <div>
+          {list.length===0&&<div className="empty">No people found</div>}
+          {list.map(function(p){
+            var overdue=isOverdue(p.nextActionDate);
+            return (
+              <div key={p.id} className="person-row" style={{background:selPerson&&selPerson.id===p.id?'var(--pale)':'',borderLeft:selPerson&&selPerson.id===p.id?'3px solid var(--teal)':'3px solid transparent'}} onClick={()=>setSelected(p)}>
+                <div className="avatar" style={{background:avatarColor(p.name)}}>{initials(p.name)}</div>
+                <div className="person-info">
+                  <div className="person-name">{p.name}</div>
+                  <div className="person-sub">{p.title}{p.title&&p.company?' · ':''}{p.company}</div>
+                  {p.nextAction&&<div style={{fontSize:11,color:overdue?'var(--red)':'var(--teal)',marginTop:1}}>{overdue?'⚠ ':'✓ '}{p.nextAction}{p.nextActionDate?' · '+fmtDate(p.nextActionDate):''}</div>}
+                </div>
+                <div style={{display:'flex',gap:2,alignItems:'center'}}>
+                  {p.owner&&<span style={{width:7,height:7,borderRadius:'50%',background:USER_COLORS[p.owner]||'var(--muted)',display:'inline-block'}}></span>}
+                  <button className="follow-btn" title="Set follow-up" onClick={function(e){e.stopPropagation();setFollowUp(p);}}>✎</button>
                 </div>
               </div>
             );
           })}
-          {list.length===0&&<div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13}}>No results</div>}
         </div>
-
       </div>
 
-      {selC?(
-        <div style={{flex:1,overflowY:"auto",padding:"28px 32px",background:G50}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22}}>
-            <div>
-              <h2 style={{fontSize:22,fontWeight:700,color:NAVY,margin:0}}>{selC.name}</h2>
-              <div style={{color:G600,fontSize:14,marginTop:3}}>{selC.type}{selC.hq?" · "+selC.hq:""}</div>
-              <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
-                <RelDot rel={selC.relationship}/>
-                <Badge label={selC.tier} color={TC_MAP[selC.tier]||G600}/>
-                {selC.openMandates>0&&<Badge label={selC.openMandates+" open mandates"} color={TEAL}/>}
-                {linked.length>0&&<Badge label={linked.length+" people"} color={G600}/>}
-              </div>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <Btn variant="ghost" small onClick={()=>setModal("edit")}>Edit</Btn>
-              <Btn variant="danger" small onClick={del}>Delete</Btn>
-            </div>
+      <div className="split-detail">
+        {selPerson?(
+          <PersonDetail person={selPerson} companies={companies} campaigns={campaigns} onUpdate={handleUpdate} onDelete={handleDelete} onClose={()=>setSelected(null)}/>
+        ):(
+          <div className="empty" style={{paddingTop:80}}>
+            <div style={{fontSize:32,marginBottom:10}}>👥</div>
+            <div style={{fontWeight:600,marginBottom:4}}>Select a person</div>
+            <div style={{fontSize:13}}>Click any name in the list to view their profile.</div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:18}}>
-            <InfoCard label="Key Contact"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selC.keyContact||"—"}</div></InfoCard>
-            <InfoCard label="Last Contacted"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selC.lastContacted||"—"}</div></InfoCard>
-            <InfoCard label="Due"><DueTag due={selC.nextDue}/></InfoCard>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Companies View ─────────────────────────────────────────────────────
+function CompaniesView({data}){
+  const {companies,people,saveCompanies}=data;
+  const [search,setSearch]=useState('');
+  const [selected,setSelected]=useState(null);
+  const [showAdd,setShowAdd]=useState(false);
+  const [editing,setEditing]=useState(null);
+
+  function filtered(){
+    var q=search.toLowerCase();
+    return companies.filter(function(c){
+      return !q||(c.name&&c.name.toLowerCase().indexOf(q)>=0)||(c.hq&&c.hq.toLowerCase().indexOf(q)>=0);
+    });
+  }
+  function handleSave(c){
+    var updated=companies.slice();
+    var idx=updated.findIndex(function(x){return x.id===c.id;});
+    if(idx>=0) updated[idx]=c; else updated.unshift(c);
+    saveCompanies(updated);
+    setSelected(c);setShowAdd(false);setEditing(null);
+  }
+  function handleDelete(id){
+    saveCompanies(companies.filter(function(c){return c.id!==id;}));
+    setSelected(null);
+  }
+
+  var list=filtered();
+  var selCo=selected?companies.find(function(c){return c.id===selected.id;})||selected:null;
+  var coPeople=selCo?people.filter(function(p){return p.company===selCo.name;}):[];
+
+  return (
+    <div className="split" style={{height:'100%'}}>
+      {(showAdd||editing)&&<CompanyModal company={editing} onSave={handleSave} onClose={()=>{setShowAdd(false);setEditing(null);}}/>}
+      <div className="split-list">
+        <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)'}}>
+          <div className="flex-between" style={{marginBottom:8}}>
+            <span style={{fontWeight:700,fontSize:14}}>Companies <span style={{color:'var(--muted)',fontWeight:400,fontSize:12}}>({companies.length})</span></span>
+            <button className="btn btn-primary btn-sm" onClick={()=>setShowAdd(true)}>+ Add</button>
           </div>
-          {selC.nextAction&&<div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:NAVY}}><span style={{color:TEAL,fontWeight:700,marginRight:8}}>Next:</span>{selC.nextAction}</div>}
-          <div style={{background:W,borderRadius:8,padding:"16px 20px",border:"1px solid "+G200,marginBottom:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{"People at "+selC.name+" ("+linked.length+")"}</div>
-                <Btn variant="teal" small onClick={()=>setModal("addperson")}>+ Add Person</Btn>
-              </div>
-              {linked.length===0&&<div style={{color:G400,fontSize:13,padding:"4px 0",marginBottom:8}}>No people linked yet. Click Add Person to link someone here.</div>}
-              {linked.map(p=>(
-                <div key={p.id} onClick={()=>onNavigatePerson&&onNavigatePerson(p.id)}
-                  style={{display:"flex",gap:12,alignItems:"center",padding:"10px 0",borderBottom:"1px solid "+G100,cursor:"pointer",borderRadius:4,transition:"background 0.1s"}}
-                  onMouseEnter={e=>e.currentTarget.style.background=G50}
-                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                  <Av name={p.name} size={34} color={p.type==="contact"?"#6f42c1":TEAL}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,color:NAVY,fontSize:13}}>{p.name}</div>
-                    <div style={{fontSize:11,color:G600,marginTop:1}}>{p.title||""}</div>
-                    {p.email&&<div style={{fontSize:11,color:TEAL,marginTop:2}}>{p.email}</div>}
-                    {p.phone&&<div style={{fontSize:11,color:G600,marginTop:1}}>{p.phone}</div>}
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}}>
-                    <Badge label={p.type==="candidate"?"Candidate":"Contact"} color={p.type==="contact"?"#6f42c1":TEAL}/>
-                    <RelDot rel={p.relationship}/>
-                  </div>
-                  <span style={{fontSize:11,color:TEAL,fontWeight:600,marginLeft:4}}>→</span>
-                </div>
-              ))}
-            </div>
-          <div style={{background:W,borderRadius:8,padding:"16px 20px",border:"1px solid "+G200,marginBottom:0}}>
-            <div style={{fontSize:11,color:G600,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Notes</div>
-            <div style={{color:G800,fontSize:14,lineHeight:1.75,whiteSpace:"pre-wrap"}}>{selC.notes||"—"}</div>
-          </div>
-          <div style={{marginTop:16}}><QuickLog item={selC} onUpdate={f=>{commit(companies.map(c=>c.id===sel?{...c,...f}:c));}}/></div>
+          <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)}/>
         </div>
-      ):(
-        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:G400,background:G50}}>
-          <div style={{fontSize:32}}>🏢</div>
-          <div style={{fontSize:13}}>Select a company to view details</div>
+        <div>
+          {list.length===0&&<div className="empty">No companies</div>}
+          {list.map(function(c){
+            var cnt=people.filter(function(p){return p.company===c.name;}).length;
+            return (
+              <div key={c.id} className="person-row" style={{background:selCo&&selCo.id===c.id?'var(--pale)':'',borderLeft:selCo&&selCo.id===c.id?'3px solid var(--teal)':'3px solid transparent'}} onClick={()=>setSelected(c)}>
+                <div className="avatar" style={{background:avatarColor(c.name)}}>{initials(c.name)}</div>
+                <div className="person-info">
+                  <div className="person-name">{c.name}</div>
+                  <div className="person-sub">{c.hq||''}{c.tier?' · '+c.tier:''}</div>
+                </div>
+                <span className="badge badge-teal">{cnt}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="split-detail">
+        {selCo?(
+          <div>
+            <div className="flex-between" style={{marginBottom:16}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:20}}>{selCo.name}</div>
+                <div style={{fontSize:13,color:'var(--muted)'}}>{selCo.hq}{selCo.tier?' · '+selCo.tier:''}</div>
+              </div>
+              <div className="flex" style={{gap:6}}>
+                <button className="btn btn-ghost btn-sm" onClick={()=>setEditing(selCo)}>Edit</button>
+                <button className="btn btn-danger btn-sm" onClick={()=>{if(window.confirm('Delete?'))handleDelete(selCo.id);}}>Delete</button>
+              </div>
+            </div>
+            {selCo.website&&<div className="kv"><span className="kv-k">Website</span><a href={selCo.website} target="_blank" style={{color:'var(--teal)'}}>{selCo.website}</a></div>}
+            {selCo.size&&<div className="kv"><span className="kv-k">Size</span><span className="kv-v">{selCo.size}</span></div>}
+            {selCo.sectors&&selCo.sectors.length>0&&<div className="kv"><span className="kv-k">Sectors</span><span className="kv-v">{selCo.sectors.join(', ')}</span></div>}
+            {selCo.notes&&<div style={{marginTop:10,fontSize:13}}>{selCo.notes}</div>}
+            <hr className="divider"/>
+            <div className="section-title" style={{marginBottom:8}}>People at {selCo.name} ({coPeople.length})</div>
+            {coPeople.length===0?<div style={{fontSize:13,color:'var(--muted)'}}>No people linked</div>:coPeople.map(function(p){
+              return (
+                <div key={p.id} style={{display:'flex',gap:8,alignItems:'center',marginBottom:8,fontSize:13}}>
+                  <div className="avatar" style={{background:avatarColor(p.name),width:28,height:28,fontSize:11}}>{initials(p.name)}</div>
+                  <div>
+                    <div style={{fontWeight:600}}>{p.name}</div>
+                    <div style={{fontSize:11,color:'var(--muted)'}}>{p.title}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ):(
+          <div className="empty" style={{paddingTop:80}}>
+            <div style={{fontSize:32,marginBottom:10}}>🏢</div>
+            <div style={{fontWeight:600}}>Select a company</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── BD Tracker ────────────────────────────────────────────────────────
+function BDTrackerView({data}){
+  const {people,savePeople}=data;
+  const [filterOwner,setFilterOwner]=useState('');
+  const [followUp,setFollowUp]=useState(null);
+
+  var tracked=people.filter(function(p){return p.nextAction&&p.nextAction.trim();});
+  if(filterOwner) tracked=tracked.filter(function(p){return p.owner===filterOwner;});
+  tracked=tracked.slice().sort(function(a,b){
+    if(!a.nextActionDate) return 1;
+    if(!b.nextActionDate) return -1;
+    return a.nextActionDate<b.nextActionDate?-1:1;
+  });
+
+  function handleUpdate(p){
+    var updated=people.slice();
+    var idx=updated.findIndex(function(x){return x.id===p.id;});
+    if(idx>=0) updated[idx]=p;
+    savePeople(updated);
+    setFollowUp(null);
+  }
+
+  var todayStr=today();
+  var overdueCnt=tracked.filter(function(p){return p.nextActionDate&&p.nextActionDate<todayStr;}).length;
+  var dueTodayCnt=tracked.filter(function(p){return p.nextActionDate===todayStr;}).length;
+
+  return (
+    <div style={{padding:20}}>
+      {followUp&&<FollowUpModal person={followUp} onSave={handleUpdate} onClose={()=>setFollowUp(null)}/>}
+      <div className="flex-between" style={{marginBottom:16}}>
+        <div>
+          <div style={{fontWeight:800,fontSize:18}}>BD Tracker</div>
+          <div style={{fontSize:12,color:'var(--muted)'}}>Everyone with a Next Action and Due Date set.</div>
+        </div>
+        <div className="flex" style={{gap:6}}>
+          {overdueCnt>0&&<span className="badge badge-red">⚠ {overdueCnt} overdue</span>}
+          {dueTodayCnt>0&&<span className="badge badge-amber">{dueTodayCnt} due today</span>}
+        </div>
+      </div>
+
+      {tracked.length===0&&(
+        <div className="card" style={{textAlign:'center',padding:'30px 20px'}}>
+          <div style={{fontSize:28,marginBottom:8}}>📋</div>
+          <div style={{fontWeight:600,marginBottom:4}}>No follow-ups tracked yet</div>
+          <div style={{fontSize:13,color:'var(--muted)'}}>To populate this view, open any person profile and set a <strong>Next Action</strong> and <strong>Due Date</strong> on the BD Follow-up tab, or use the ✎ button on any person in the list.</div>
         </div>
       )}
-      {modal==="add"&&<ModalEl title="Add Company" onClose={()=>setModal(null)}><CompanyForm init={BLANKCO} onSave={add} onClose={()=>setModal(null)} companies={companies} isEdit={false}/></ModalEl>}
-      {modal==="edit"&&selC&&<ModalEl title={"Edit — "+selC.name} onClose={()=>setModal(null)}><CompanyForm init={{...selC,openMandates:String(selC.openMandates)}} onSave={upd} onClose={()=>setModal(null)} companies={companies} isEdit={true}/></ModalEl>}
-      {modal==="addperson"&&selC&&(
-        <ModalEl title={"Add Person at "+selC.name} onClose={()=>setModal(null)} wide>
-          <PersonForm
-            init={{...BLANKP,company:selC.name,companyId:selC.id}}
-            onSave={f=>{
-              const newP={...f,id:Date.now(),companyId:selC.id,company:selC.name};
-              const updated=[newP,...people];
-              setPeople(updated);persist("people",updated);
-            }}
-            onClose={()=>setModal(null)}
-            people={people}
-            isEdit={false}/>
-        </ModalEl>
+
+      {tracked.length>0&&(
+        <div>
+          <div style={{display:'flex',gap:6,marginBottom:12}}>
+            {['David','Lauren','Brinda'].map(u=>(
+              <button key={u} className="btn btn-sm" style={{background:filterOwner===u?USER_COLORS[u]:'#f1f5f9',color:filterOwner===u?'#fff':'var(--muted)',border:'none'}} onClick={()=>setFilterOwner(filterOwner===u?'':u)}>{u}</button>
+            ))}
+          </div>
+          <div className="card" style={{padding:0,overflow:'hidden'}}>
+            <div className="tracker-row tracker-header" style={{gridTemplateColumns:'2fr 2fr 1.5fr 1fr auto'}}>
+              <span>Person</span><span>Next Action</span><span>Company</span><span>Due</span><span></span>
+            </div>
+            {tracked.map(function(p){
+              var od=isOverdue(p.nextActionDate);
+              return (
+                <div key={p.id} className={'tracker-row'+(od?' overdue':'')} style={{gridTemplateColumns:'2fr 2fr 1.5fr 1fr auto',borderBottom:'1px solid var(--border)'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div className="avatar" style={{background:avatarColor(p.name),width:26,height:26,fontSize:11}}>{initials(p.name)}</div>
+                    <div>
+                      <div style={{fontWeight:600,fontSize:13}}>{p.name}</div>
+                      {p.owner&&<div style={{fontSize:10,color:USER_COLORS[p.owner]||'var(--muted)'}}>{p.owner}</div>}
+                    </div>
+                  </div>
+                  <span style={{fontSize:13}}>{p.nextAction}</span>
+                  <span style={{fontSize:13,color:'var(--muted)'}}>{p.company}</span>
+                  <span style={{fontSize:13,color:od?'var(--red)':p.nextActionDate===todayStr?'var(--teal)':'var(--text)',fontWeight:od?600:400}}>{fmtDate(p.nextActionDate)||'—'}</span>
+                  <button className="follow-btn" title="Update" onClick={()=>setFollowUp(p)}>✎</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-// ── BD TRACKER ────────────────────────────────────────────────
-function BDTracker({people,companies,setPeople,setCompanies,persist}){
-  const now=new Date();
-  const all=useMemo(()=>{
-    const ps=people.filter(p=>p.nextAction||p.nextDue).map(p=>({...p,_k:"person"}));
-    const cs=companies.filter(c=>c.nextAction||c.nextDue).map(c=>({...c,_k:"company"}));
-    return[...ps,...cs].sort((a,b)=>{
-      if(!a.nextDue&&!b.nextDue)return 0;if(!a.nextDue)return 1;if(!b.nextDue)return -1;
-      return new Date(a.nextDue)-new Date(b.nextDue);
+// ── Campaigns View ────────────────────────────────────────────────────
+function CampaignsView({data}){
+  const {people,campaigns,saveCampaigns,savePeople}=data;
+  const [showNew,setShowNew]=useState(false);
+  const [newName,setNewName]=useState('');
+  const [selected,setSelected]=useState(null);
+  const [addPerson,setAddPerson]=useState('');
+
+  function createCampaign(){
+    if(!newName.trim()) return;
+    var c={id:uid(),name:newName.trim(),createdAt:today()};
+    saveCampaigns([c].concat(campaigns));
+    setNewName('');setShowNew(false);
+    setSelected(c);
+  }
+  function deleteCampaign(id){
+    if(!window.confirm('Delete campaign?')) return;
+    saveCampaigns(campaigns.filter(function(c){return c.id!==id;}));
+    // remove from all people
+    var updated=people.map(function(p){
+      var camps=p.campaigns?p.campaigns.filter(function(cid){return cid!==id;}):[];
+      return Object.assign({},p,{campaigns:camps});
     });
-  },[people,companies]);
-  const ov=all.filter(i=>i.nextDue&&new Date(i.nextDue)<now);
-  const soon=all.filter(i=>i.nextDue&&new Date(i.nextDue)>=now&&new Date(i.nextDue)<=new Date(Date.now()+7*86400000));
-  const later=all.filter(i=>!i.nextDue||new Date(i.nextDue)>new Date(Date.now()+7*86400000));
-  const markDone=item=>{
-    if(item._k==="person"){const u=people.map(p=>p.id===item.id?{...p,nextAction:"",nextDue:"",lastContacted:today}:p);setPeople(u);persist("people",u);}
-    else{const u=companies.map(c=>c.id===item.id?{...c,nextAction:"",nextDue:"",lastContacted:today}:c);setCompanies(u);persist("companies",u);}
-  };
-  const Sec=({title,items,accent})=>{
-    if(!items.length)return null;
-    return(
-      <div style={{marginBottom:32}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,paddingBottom:10,borderBottom:"2px solid "+accent}}>
-          <span style={{fontWeight:700,color:accent,fontSize:13,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</span>
-          <span style={{background:accent+"15",color:accent,borderRadius:12,padding:"1px 10px",fontSize:12,fontWeight:700}}>{items.length}</span>
+    savePeople(updated);
+    if(selected&&selected.id===id) setSelected(null);
+  }
+
+  var selCamp=selected?campaigns.find(function(c){return c.id===selected.id;})||null:null;
+  var campPeople=selCamp?people.filter(function(p){return p.campaigns&&p.campaigns.indexOf(selCamp.id)>=0;}):[];
+  var notInCamp=selCamp?people.filter(function(p){return !p.campaigns||p.campaigns.indexOf(selCamp.id)<0;}):[];
+
+  function addPersonToCamp(pid){
+    var person=people.find(function(p){return p.id===pid;});
+    if(!person||!selCamp) return;
+    var camps=person.campaigns?person.campaigns.slice():[];
+    if(camps.indexOf(selCamp.id)<0) camps.push(selCamp.id);
+    var updated=people.map(function(p){return p.id===pid?Object.assign({},p,{campaigns:camps}):p;});
+    savePeople(updated);
+  }
+  function removePersonFromCamp(pid){
+    var updated=people.map(function(p){
+      if(p.id!==pid) return p;
+      var camps=p.campaigns?p.campaigns.filter(function(cid){return cid!==selCamp.id;}):[];
+      return Object.assign({},p,{campaigns:camps});
+    });
+    savePeople(updated);
+  }
+
+  return (
+    <div className="split" style={{height:'100%'}}>
+      <div className="split-list">
+        <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)'}}>
+          <div className="flex-between" style={{marginBottom:8}}>
+            <span style={{fontWeight:700,fontSize:14}}>Campaigns</span>
+            <button className="btn btn-primary btn-sm" onClick={()=>setShowNew(!showNew)}>+ New</button>
+          </div>
+          {showNew&&(
+            <div className="flex" style={{gap:6}}>
+              <input placeholder="Campaign name" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createCampaign()} style={{fontSize:12,padding:'5px 8px'}}/>
+              <button className="btn btn-primary btn-sm" onClick={createCampaign}>Add</button>
+            </div>
+          )}
         </div>
-        {items.map(item=>{
-          const ac=item._k==="company"?WARN:item.type==="contact"?"#6f42c1":TEAL;
-          return(
-            <div key={item._k+"-"+item.id} style={{background:W,border:"1px solid "+G200,borderLeft:"4px solid "+accent,borderRadius:8,padding:"14px 18px",marginBottom:10,display:"flex",gap:14,alignItems:"flex-start",boxShadow:"0 1px 3px #0001"}}>
-              <Av name={item.name} size={36} color={ac}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:3}}>
-                  <span style={{fontWeight:700,color:NAVY,fontSize:14}}>{item.name}</span>
-                  <div style={{display:"flex",gap:10,alignItems:"center"}}><DueTag due={item.nextDue}/><RelDot rel={item.relationship}/></div>
+        <div>
+          {campaigns.length===0&&<div className="empty">No campaigns yet</div>}
+          {campaigns.map(function(c){
+            var cnt=people.filter(function(p){return p.campaigns&&p.campaigns.indexOf(c.id)>=0;}).length;
+            return (
+              <div key={c.id} className="campaign-row" style={{background:selCamp&&selCamp.id===c.id?'var(--pale)':'',borderLeft:selCamp&&selCamp.id===c.id?'3px solid var(--teal)':'3px solid transparent',cursor:'pointer'}} onClick={()=>setSelected(c)}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
+                  <div style={{fontSize:11,color:'var(--muted)'}}>{cnt} people</div>
                 </div>
-                <div style={{fontSize:12,color:G600,marginBottom:8}}>{item._k==="company"?item.type:item.title}{(item.company||item.hq)?" · "+(item.company||item.hq):""}</div>
-                {item.nextAction&&<div style={{fontSize:13,color:NAVY,background:G50,borderRadius:6,padding:"6px 12px",display:"inline-flex",alignItems:"center",gap:6,border:"1px solid "+G200}}><span style={{color:TEAL,fontWeight:700}}>→</span>{item.nextAction}</div>}
+                <button className="btn btn-ghost btn-sm" onClick={function(e){e.stopPropagation();exportInstantlyCSV(people.filter(function(p){return p.campaigns&&p.campaigns.indexOf(c.id)>=0;}),c.name);}}>Export CSV</button>
+                <button className="btn btn-danger btn-sm" onClick={function(e){e.stopPropagation();deleteCampaign(c.id);}}>Delete</button>
               </div>
-              <button onClick={()=>markDone(item)} style={{background:TL,border:"1px solid "+TM,color:TEAL,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit",flexShrink:0}}>✓ Done</button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="split-detail">
+        {selCamp?(
+          <div>
+            <div className="flex-between" style={{marginBottom:16}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:18}}>{selCamp.name}</div>
+                <div style={{fontSize:13,color:'var(--muted)'}}>{campPeople.length} people</div>
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={()=>exportInstantlyCSV(campPeople,selCamp.name)}>Export Instantly CSV</button>
+            </div>
+
+            <div className="section-title" style={{marginBottom:8}}>Add people</div>
+            <select style={{marginBottom:16}} value="" onChange={function(e){if(e.target.value){addPersonToCamp(e.target.value);e.target.value='';}}} defaultValue="">
+              <option value="">Select person to add...</option>
+              {notInCamp.map(p=><option key={p.id} value={p.id}>{p.name}{p.company?' — '+p.company:''}</option>)}
+            </select>
+
+            <div className="section-title" style={{marginBottom:8}}>People in this campaign</div>
+            {campPeople.length===0?<div style={{fontSize:13,color:'var(--muted)'}}>No one added yet</div>:campPeople.map(function(p){
+              return (
+                <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+                  <div className="avatar" style={{background:avatarColor(p.name),width:28,height:28,fontSize:11}}>{initials(p.name)}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600}}>{p.name}</div>
+                    <div style={{fontSize:11,color:'var(--muted)'}}>{p.title}{p.company?' · '+p.company:''}</div>
+                  </div>
+                  <span style={{fontSize:11,color:'var(--muted)'}}>{p.email}</span>
+                  <button className="btn btn-danger btn-sm" onClick={()=>removePersonFromCamp(p.id)}>Remove</button>
+                </div>
+              );
+            })}
+          </div>
+        ):(
+          <div className="empty" style={{paddingTop:80}}>
+            <div style={{fontSize:32,marginBottom:10}}>📧</div>
+            <div style={{fontWeight:600}}>Select a campaign</div>
+            <div style={{fontSize:13}}>Export Instantly CSV with headers: First Name, Last Name, Email, Company, Job Title.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Market Map ─────────────────────────────────────────────────────────
+function MarketMapView({data}){
+  const {people}=data;
+  const [filterSector,setFilterSector]=useState('');
+  const [filterOwner,setFilterOwner]=useState('');
+  const [search,setSearch]=useState('');
+
+  var filtered=people.filter(function(p){
+    var matchS=!filterSector||(p.sectors&&p.sectors.indexOf(filterSector)>=0);
+    var matchO=!filterOwner||p.owner===filterOwner;
+    var q=search.toLowerCase();
+    var matchQ=!q||(p.name&&p.name.toLowerCase().indexOf(q)>=0)||(p.company&&p.company.toLowerCase().indexOf(q)>=0);
+    return matchS&&matchO&&matchQ;
+  });
+
+  return (
+    <div style={{padding:20}}>
+      <div style={{fontWeight:800,fontSize:18,marginBottom:4}}>Market Map</div>
+      <div style={{fontSize:12,color:'var(--muted)',marginBottom:16}}>Your network visualised by sector.</div>
+      <div className="flex" style={{flexWrap:'wrap',gap:6,marginBottom:14}}>
+        <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:160}}/>
+        {SECTORS.map(s=>(
+          <span key={s} className={'tag '+(filterSector===s?'tag-active':'tag-inactive')} style={{fontSize:11}} onClick={()=>setFilterSector(filterSector===s?'':s)}>{s}</span>
+        ))}
+        <span style={{width:1,background:'var(--border)',margin:'0 2px'}}></span>
+        {['David','Lauren','Brinda'].map(u=>(
+          <button key={u} className="btn btn-sm" style={{fontSize:11,background:filterOwner===u?USER_COLORS[u]:'#f1f5f9',color:filterOwner===u?'#fff':'var(--muted)',border:'none'}} onClick={()=>setFilterOwner(filterOwner===u?'':u)}>{u}</button>
+        ))}
+      </div>
+      {filtered.length===0&&<div className="empty">No people match filters</div>}
+      <div className="mm-grid">
+        {filtered.map(function(p){
+          var primarySector=p.sectors&&p.sectors.length>0?p.sectors[0]:'Other';
+          var bgColor=SECTOR_COLORS[primarySector]||SECTOR_COLORS['Other'];
+          var txColor=SECTOR_TEXT[primarySector]||SECTOR_TEXT['Other'];
+          return (
+            <div key={p.id} className="mm-card">
+              <div className="sector-bubble" style={{background:bgColor,color:txColor}}>{primarySector}</div>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                <div className="avatar" style={{background:avatarColor(p.name),width:24,height:24,fontSize:10}}>{initials(p.name)}</div>
+                <div style={{fontWeight:700,fontSize:13,lineHeight:1.2}}>{p.name}</div>
+              </div>
+              <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.3}}>{p.title}</div>
+              <div style={{fontSize:11,color:'var(--navy)',fontWeight:500}}>{p.company}</div>
+              {p.owner&&<div style={{marginTop:4,width:6,height:6,borderRadius:'50%',background:USER_COLORS[p.owner]||'var(--muted)'}}></div>}
             </div>
           );
         })}
       </div>
-    );
-  };
-  return(
-    <div style={{overflowY:"auto",padding:"32px 40px",maxWidth:860,height:"100%"}}>
-      <h1 style={{fontSize:26,fontWeight:700,color:NAVY,margin:"0 0 6px"}}>BD Tracker</h1>
-      <p style={{color:G600,fontSize:14,marginBottom:32}}>Your prioritised follow-up list across all people and companies</p>
-      {!all.length&&<div style={{textAlign:"center",padding:"60px 0",color:G400}}><div style={{fontSize:40,marginBottom:12}}>✓</div><div style={{fontSize:14}}>All caught up</div></div>}
-      <Sec title="Overdue" items={ov} accent={DANGER}/>
-      <Sec title="Due this week" items={soon} accent={WARN}/>
-      <Sec title="Later" items={later} accent={G400}/>
     </div>
   );
 }
 
-// ── MARKET MAP ────────────────────────────────────────────────
-function MarketMap({people,companies,onNavigate}){
-  const[sectorF,setSectorF]=useState("All");
-  const[seniorityF,setSeniorityF]=useState("All");
-  const[relF,setRelF]=useState("All");
-  const[typeF,setTypeF]=useState("All");
-  const[mapView,setMapView]=useState("people"); // people | companies
-
-  const allSectors=useMemo(()=>{
-    const s=new Set();people.forEach(p=>(p.sectors||[]).forEach(x=>s.add(x)));return["All",...Array.from(s).sort()];
-  },[people]);
-
-  const filteredPeople=useMemo(()=>people.filter(p=>{
-    if(sectorF!=="All"&&!(p.sectors||[]).includes(sectorF))return false;
-    if(seniorityF!=="All"&&p.seniority!==seniorityF)return false;
-    if(relF!=="All"&&p.relationship!==relF)return false;
-    if(typeF!=="All"&&p.type!==typeF)return false;
-    return true;
-  }),[people,sectorF,seniorityF,relF,typeF]);
-
-  const filteredCompanies=useMemo(()=>companies.filter(c=>{
-    if(relF!=="All"&&c.relationship!==relF)return false;
-    return true;
-  }),[companies,relF]);
-
-  const sectorGroups=useMemo(()=>{
-    const map={};
-    filteredPeople.forEach(p=>(p.sectors||[]).forEach(s=>{if(!map[s])map[s]=[];map[s].push(p);}));
-    return Object.entries(map).sort((a,b)=>b[1].length-a[1].length);
-  },[filteredPeople]);
-
-  const total=people.length+companies.length;
-  const hotCount=[...people,...companies].filter(x=>x.relationship==="Hot").length;
-
-  const FilterBtn=({options,value,onChange,colorMap})=>(
-    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-      {options.map(o=>{
-        const c=colorMap?colorMap[o]||G600:TEAL;
-        const active=value===o;
-        return <button key={o} onClick={()=>onChange(o)} style={{background:active?c+"15":"transparent",color:active?c:G600,border:"1px solid "+(active?c+"40":G300),borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>{o}</button>;
-      })}
-    </div>
-  );
-
-  return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
-      {/* Filter bar */}
-      <div style={{background:W,borderBottom:"1px solid "+G200,padding:"14px 28px",flexShrink:0}}>
-        <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"flex-start"}}>
-          <div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>View</div>
-            <div style={{display:"flex",gap:5}}>
-              {["people","companies"].map(v=><button key={v} onClick={()=>setMapView(v)} style={{background:mapView===v?TEAL:"transparent",color:mapView===v?W:G600,border:"1px solid "+(mapView===v?TEAL:G300),borderRadius:20,padding:"3px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize"}}>{v}</button>)}
-            </div>
-          </div>
-          <div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Relationship</div>
-            <FilterBtn options={["All","Hot","Warm","Cold","New"]} value={relF} onChange={setRelF} colorMap={REL}/>
-          </div>
-          {mapView==="people"&&<div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Type</div>
-            <FilterBtn options={["All","candidate","contact"]} value={typeF} onChange={setTypeF}/>
-          </div>}
-          {mapView==="people"&&<div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Seniority</div>
-            <FilterBtn options={["All","C-Suite / Partner","VP / Director","Manager / Principal","Analyst / Consultant"]} value={seniorityF} onChange={setSeniorityF}/>
-          </div>}
-          {mapView==="people"&&<div>
-            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Sector</div>
-            <FilterBtn options={allSectors.slice(0,8)} value={sectorF} onChange={setSectorF}/>
-          </div>}
-        </div>
+// ── Topbar stats ───────────────────────────────────────────────────────
+function TopBar({saving,syncErr,user,onLogout,people,onReload}){
+  var overdue=people.filter(function(p){return p.nextAction&&isOverdue(p.nextActionDate);}).length;
+  return (
+    <div className="topbar">
+      <div className="flex" style={{gap:16}}>
+        <span style={{fontSize:12,color:'var(--muted)'}}>
+          {saving?<span style={{color:'var(--teal)'}}>Saving...</span>:syncErr?<span style={{color:'var(--red)',fontSize:11}}>{syncErr}</span>:<span style={{color:'var(--green)'}}>✓ Synced</span>}
+        </span>
+        {overdue>0&&<span className="badge badge-red">⚠ {overdue} overdue</span>}
       </div>
-
-      <div style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>
-        {/* Stats row */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:28}}>
-          {[["Total People",people.length,TEAL],["Companies",companies.length,"#6f42c1"],["Hot relationships",hotCount,DANGER],["Sectors covered",[...new Set(people.flatMap(p=>p.sectors||[]))].length,WARN]].map(([l,v,c])=>(
-            <div key={l} style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"16px 18px",borderTop:"3px solid "+c}}>
-              <div style={{fontSize:28,fontWeight:800,color:c,lineHeight:1}}>{v}</div>
-              <div style={{fontSize:11,color:G600,marginTop:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</div>
-            </div>
-          ))}
-        </div>
-
-        {mapView==="people"&&(
-          <div>
-            {/* Sector bubble clusters */}
-            {sectorGroups.length>0&&(
-              <div style={{marginBottom:28}}>
-                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:14}}>
-                  {"Sector clusters — "+filteredPeople.length+" people shown"}
-                </div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-end",marginBottom:20}}>
-                  {sectorGroups.map(([sector,ps])=>{
-                    const color=SC[sector]||G600,size=Math.max(68,Math.min(140,58+ps.length*22));
-                    const active=sectorF===sector;
-                    return(
-                      <div key={sector} onClick={()=>setSectorF(active?"All":sector)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer"}}>
-                        <div style={{width:size,height:size,borderRadius:"50%",background:active?color+"30":color+"12",border:"2px solid "+(active?color:color+"40"),display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",transition:"all 0.15s",boxShadow:active?"0 2px 12px "+color+"40":"none"}}>
-                          <div style={{fontSize:size*.28,fontWeight:800,color,lineHeight:1}}>{ps.length}</div>
-                          <div style={{fontSize:8.5,color,textAlign:"center",padding:"0 6px",lineHeight:1.3,fontWeight:600,marginTop:2}}>{sector}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* People grid — clickable cards */}
-            <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>
-              {"All people — "+filteredPeople.length+" results"}
-            </div>
-            {filteredPeople.length===0&&<div style={{color:G400,fontSize:13,padding:"20px 0"}}>No people match the current filters</div>}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
-              {filteredPeople.map(p=>{
-                const ac=p.type==="contact"?"#6f42c1":TEAL;
-                return(
-                  <div key={p.id} onClick={()=>onNavigate&&onNavigate("people",p.id)}
-                    style={{background:W,border:"1px solid "+G200,borderRadius:9,padding:"14px 16px",cursor:"pointer",transition:"all 0.12s",boxShadow:"0 1px 3px #0001"}}
-                    onMouseEnter={e=>{e.currentTarget.style.borderColor=TEAL;e.currentTarget.style.boxShadow="0 2px 10px "+TEAL+"20";}}
-                    onMouseLeave={e=>{e.currentTarget.style.borderColor=G200;e.currentTarget.style.boxShadow="0 1px 3px #0001";}}>
-                    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
-                      <Av name={p.name} size={34} color={ac}/>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,color:NAVY,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
-                        <div style={{fontSize:11,color:G600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.title||""}</div>
-                      </div>
-                    </div>
-                    <div style={{fontSize:11,color:G600,marginBottom:8,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{"🏢 "+(p.company||"—")}</div>
-                    <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-                      <RelDot rel={p.relationship}/>
-                      <Badge label={p.seniority?p.seniority.split(" / ")[0]:""} color={G600}/>
-                    </div>
-                    {(p.sectors||[]).length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:7}}>{(p.sectors||[]).slice(0,2).map(s=><Badge key={s} label={s} color={SC[s]||G600}/>)}</div>}
-                    {p.nextDue&&<div style={{marginTop:7}}><DueTag due={p.nextDue}/></div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {mapView==="companies"&&(
-          <div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24}}>
-              <div style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"18px"}}>
-                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>By Tier</div>
-                {["Key Client","Warm","Prospect"].map(tier=>{
-                  const count=companies.filter(c=>c.tier===tier).length,pct=companies.length?Math.round(count/companies.length*100):0,c=TC_MAP[tier]||G600;
-                  return(
-                    <div key={tier} style={{marginBottom:12}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,fontSize:12,color:G700}}><span>{tier}</span><span style={{fontWeight:700,color:c}}>{count}</span></div>
-                      <div style={{height:6,background:G200,borderRadius:3}}><div style={{height:"100%",width:pct+"%",background:c,borderRadius:3,transition:"width 0.4s"}}/></div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"18px"}}>
-                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>Relationship Heat</div>
-                {["Hot","Warm","Cold","New"].map(rel=>{
-                  const count=companies.filter(c=>c.relationship===rel).length,pct=companies.length?Math.round(count/companies.length*100):0;
-                  return(
-                    <div key={rel} style={{marginBottom:12}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><RelDot rel={rel}/><span style={{fontSize:12,fontWeight:700,color:G700}}>{count}</span></div>
-                      <div style={{height:6,background:G200,borderRadius:3}}><div style={{height:"100%",width:pct+"%",background:REL[rel],borderRadius:3,transition:"width 0.4s"}}/></div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>
-              {"All companies — "+filteredCompanies.length+" results"}
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
-              {filteredCompanies.map(c=>{
-                const tc=TC_MAP[c.tier]||G400,pCount=people.filter(p=>p.companyId===c.id).length;
-                return(
-                  <div key={c.id} onClick={()=>onNavigate&&onNavigate("companies",c.id)}
-                    style={{background:W,border:"1px solid "+G200,borderLeft:"3px solid "+tc,borderRadius:9,padding:"14px 16px",cursor:"pointer",transition:"all 0.12s",boxShadow:"0 1px 3px #0001"}}
-                    onMouseEnter={e=>{e.currentTarget.style.borderColor=tc;e.currentTarget.style.boxShadow="0 2px 10px "+tc+"30";}}
-                    onMouseLeave={e=>{e.currentTarget.style.borderColor=G200;e.currentTarget.style.boxShadow="0 1px 3px #0001";}}>
-                    <div style={{fontWeight:700,color:NAVY,fontSize:14,marginBottom:3}}>{c.name}</div>
-                    <div style={{fontSize:12,color:G600,marginBottom:8}}>{c.type}{c.hq?" · "+c.hq:""}</div>
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                      <Badge label={c.tier} color={tc}/>
-                      <RelDot rel={c.relationship}/>
-                      {pCount>0&&<span style={{fontSize:11,color:TEAL,fontWeight:600}}>{"👥 "+pCount+" people"}</span>}
-                      {c.openMandates>0&&<span style={{fontSize:11,color:OK,fontWeight:600}}>{"📋 "+c.openMandates+" mandates"}</span>}
-                    </div>
-                    {c.nextDue&&<div style={{marginTop:7}}><DueTag due={c.nextDue}/></div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+      <div className="flex" style={{gap:10}}>
+        <button className="btn btn-ghost btn-sm" onClick={onReload}>↻ Refresh</button>
+        <span style={{fontSize:13,fontWeight:600,color:USER_COLORS[user]||'var(--muted)'}}>{user}</span>
+        <button className="btn btn-ghost btn-sm" onClick={onLogout}>Logout</button>
       </div>
     </div>
   );
 }
 
-// ── Global search ─────────────────────────────────────────────
-function GlobalSearch({people,companies,onNavigate}){
-  const[q,setQ]=useState("");
-  const[open,setOpen]=useState(false);
-  const ref=useRef(null);
-  useEffect(()=>{
-    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
-  },[]);
-  const results=useMemo(()=>{
-    if(!q.trim()||q.length<2)return[];
-    const ql=q.toLowerCase();
-    const pr=people.filter(p=>(p.name+p.company+p.title+(p.sectors||[]).join(" ")).toLowerCase().includes(ql)).slice(0,6).map(p=>({...p,_kind:"person"}));
-    const cr=companies.filter(c=>(c.name+c.type+c.hq).toLowerCase().includes(ql)).slice(0,4).map(c=>({...c,_kind:"company"}));
-    return[...pr,...cr];
-  },[q,people,companies]);
-  return(
-    <div ref={ref} style={{position:"relative",flex:1,maxWidth:420}}>
-      <div style={{position:"relative"}}>
-        <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:14,color:G400,pointerEvents:"none"}}>🔍</span>
-        <input value={q} onChange={e=>{setQ(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)}
-          placeholder="Search everything — people, companies, notes…"
-          style={{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"8px 32px 8px 34px",color:G900,fontSize:13,outline:"none",width:"100%",fontFamily:"inherit"}}/>
-        {q&&<button onClick={()=>{setQ("");setOpen(false);}} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:G400,cursor:"pointer",fontSize:18,lineHeight:1}}>×</button>}
-      </div>
-      {open&&results.length>0&&(
-        <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:W,border:"1px solid "+G200,borderRadius:10,boxShadow:"0 8px 32px #0002",zIndex:200,overflow:"hidden"}}>
-          {results.map(item=>{
-            const ip=item._kind==="person",color=ip?(item.type==="contact"?"#6f42c1":TEAL):(TC_MAP[item.tier]||G600);
-            return(
-              <div key={item._kind+"-"+item.id} onClick={()=>{onNavigate(ip?"people":"companies",item.id);setQ("");setOpen(false);}}
-                style={{display:"flex",gap:12,alignItems:"center",padding:"10px 16px",cursor:"pointer",borderBottom:"1px solid "+G100}}
-                onMouseEnter={e=>e.currentTarget.style.background=G50}
-                onMouseLeave={e=>e.currentTarget.style.background=W}>
-                <Av name={item.name} size={30} color={color}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{item.name}</div>
-                  <div style={{fontSize:11,color:G600}}>{ip?((item.title||"")+(item.company?" · "+item.company:"")):(item.type||"")+(item.hq?" · "+item.hq:"")}</div>
-                </div>
-                <span style={{fontSize:10,color:G400,background:G100,borderRadius:4,padding:"2px 7px",fontWeight:600,textTransform:"uppercase"}}>{ip?item.type:"company"}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {open&&q.length>=2&&!results.length&&(
-        <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:W,border:"1px solid "+G200,borderRadius:10,boxShadow:"0 8px 32px #0002",zIndex:200,padding:"16px",textAlign:"center",color:G400,fontSize:13}}>No results for "{q}"</div>
-      )}
-    </div>
-  );
-}
-
-// ── LinkedIn parsers ─────────────────────────────────────────
-function parseLinkedInProfile(text){
-  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
-  const skipExact=["message","connect","follow","more","highlights","about","experience","education","activity","featured","contact","connections","followers","posts","comments","premium","following"];
-  const skipStart=["open to","add profile","visit my","500+","1st","2nd","3rd","see all","you and","mutual","robert","christian"];
-  let name="";
-  for(const line of lines){
-    const ll=line.toLowerCase();
-    const w=line.split(/\s+/);
-    if(w.length>=2&&w.length<=5
-      &&!line.includes("|")&&!line.includes("@")&&!line.includes("http")&&!line.includes("•")
-      &&!skipExact.includes(ll)
-      &&!skipStart.some(s=>ll.startsWith(s))
-      &&/^[A-Za-zÀ-ÿ\s.\-\']+$/.test(line)){
-      name=line.replace(/,\s*(Assoc|PhD|MD|MBA|MSc|BSc|BA|MA|Dr\.?|CPD).*/i,"").trim();
-      break;
-    }
-  }
-  let title="",company="";
-  for(const line of lines){
-    if(line.includes("|")&&!line.includes("http")){
-      const parts=line.split("|").map(p=>p.trim()).filter(Boolean);
-      if(parts.length>=2){title=parts[0].trim();company=parts[1].replace(/\·.*/,"").trim();break;}
-    }
-  }
-  if(!title){for(const line of lines){if(/(founder|director|manager|partner|consultant|analyst|head of|vp |vice president|officer)/i.test(line)&&line.length<100){title=line;break;}}}
-  let location="";
-  for(const line of lines){
-    if(/(metropolitan area|united kingdom|ireland|germany|france|switzerland|netherlands|united states)/i.test(line)&&line.length<60){location=line.replace(/Contact info.*/i,"").trim();break;}
-    if(/^[A-Z][a-z]+,\s*[A-Z]/.test(line)&&line.length<50){location=line;break;}
-  }
-  const emailM=text.match(/[\w.\-]+@[\w.\-]+\.[a-z]{2,}/i);
-  const email=emailM?emailM[0]:"";
-  const phoneM=text.match(/(\+?[\d\s\-()]{10,18})/);
-  let phone="";
-  if(phoneM){const p=phoneM[1].trim();if(p.replace(/\D/g,"").length>=10)phone=p;}
-  const liM=text.match(/linkedin\.com\/in\/[\w\-]+/i);
-  const linkedin=liM?"https://www."+liM[0]:"";
-  let seniority="Manager / Principal";
-  const tl=(title||"").toLowerCase();
-  if(/(founder|ceo|coo|cfo|chief|partner|president|managing director)/i.test(tl))seniority="C-Suite / Partner";
-  else if(/(vp |vice president|director)/i.test(tl))seniority="VP / Director";
-  else if(/(analyst|graduate|junior)/i.test(tl))seniority="Analyst / Consultant";
-  const ft=text.toLowerCase();
-  const sectors=[];
-  const km={"Life Sciences":["life science","pharma","biopharma"],"Strategy":["strategy","management consulting","consulting"],"Commercial":["commercial","sales"],"Oncology":["oncology","cancer"],"RWE":["real world evidence","rwe"],"Market Access":["market access","hta"],"Operations":["operations"],"MedTech":["medtech","medical device"],"Digital Health":["digital health"],"Biotech":["biotech","biotechnology"],"Regulatory":["regulatory"],"Pricing":["pricing","heor","health economics"]};
-  for(const[s,kws]of Object.entries(km)){if(kws.some(k=>ft.includes(k)))sectors.push(s);}
-  return{name,title,company,location,seniority,sectors,linkedin,email,phone};
-}
-function parseLinkedInCompany(text){
-  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
-  const skip=["home","about","posts","jobs","people","videos","linkedin","follow","message","website","industry","company size","headquarters","founded","followers"];
-  let name="";
-  for(const line of lines){if(line.length>2&&line.length<80&&!line.includes("http")&&!line.includes("#")&&!skip.some(w=>line.toLowerCase().startsWith(w))){name=line;break;}}
-  let hq="";
-  for(const line of lines){
-    if(/(headquarters|hq):/i.test(line)){hq=line.replace(/(headquarters|hq):\s*/i,"").trim();break;}
-    if(/(metropolitan area|united kingdom|ireland|germany|france|london|boston|new york)/i.test(line)&&line.length<60){hq=line;break;}
-  }
-  let type="Consulting";
-  const ft=text.toLowerCase();
-  if(/(pharma|pharmaceutical)/i.test(ft))type="Pharma";
-  else if(/biotech/i.test(ft))type="Biotech";
-  else if(/medtech|medical device/i.test(ft))type="MedTech";
-  let notes="";
-  const ai=text.search(/\bAbout\b/i);
-  if(ai>-1)notes=text.slice(ai+5).trim().slice(0,200).replace(/\n+/g," ");
-  return{name,hq,type,tier:"Prospect",relationship:"Cold",notes};
-}
-
-// ── Airtable ─────────────────────────────────────────────────
-let AT_TOKEN=localStorage.getItem("volt_at_token")||"";
-let AT_BASE=localStorage.getItem("volt_at_base")||"";
-let AT_TABLE=localStorage.getItem("volt_at_table")||"";
-async function atFetch(path,opts={}){
-  const r=await fetch("https://api.airtable.com/v0/"+AT_BASE+"/"+AT_TABLE+path,{...opts,headers:{"Authorization":"Bearer "+AT_TOKEN,"Content-Type":"application/json",...(opts.headers||{})}});
-  if(!r.ok)throw new Error("AT "+r.status);return r.json();
-}
-async function getOrCreate(name){
-  const d=await atFetch("?filterByFormula=Name%3D%22"+encodeURIComponent(name)+"%22");
-  if(d.records&&d.records.length>0){localStorage.setItem("atid_"+name,d.records[0].id);return d.records[0];}
-  const c=await atFetch("",{method:"POST",body:JSON.stringify({records:[{fields:{Name:name,Notes:"[]"}}]})});
-  localStorage.setItem("atid_"+name,c.records[0].id);return c.records[0];
-}
-async function loadFromAirtable(){
-  const[p,c]=await Promise.all([getOrCreate("PEOPLE"),getOrCreate("COMPANIES")]);
-  let people=[],companies=[];
-  try{people=JSON.parse(p.fields.Notes||"[]");}catch{}
-  try{companies=JSON.parse(c.fields.Notes||"[]");}catch{}
-  if(people.length)localStorage.setItem("voltcrm5-people",JSON.stringify(people));
-  if(companies.length)localStorage.setItem("voltcrm5-companies",JSON.stringify(companies));
-  return{people,companies};
-}
-async function saveToAirtable(name,data){
-  const rec=await getOrCreate(name);
-  await atFetch("/"+rec.id,{method:"PATCH",body:JSON.stringify({fields:{Notes:JSON.stringify(data)}})});
-}
-function SetupScreen({onComplete}){
-  const[token,setToken]=useState("");
-  const[base,setBase]=useState("appD0JD8AUdtR6thY");
-  const[testing,setTesting]=useState(false);
-  const[error,setError]=useState("");
-  const save=async()=>{
-    if(!token.trim()){setError("Please enter your token");return;}
-    setTesting(true);setError("");
-    try{
-      const r=await fetch("https://api.airtable.com/v0/"+base+"/tblUL48Km1j2m8sRU?maxRecords=1",{headers:{"Authorization":"Bearer "+token.trim()}});
-      if(!r.ok)throw new Error("Failed ("+r.status+") — check your token");
-      localStorage.setItem("volt_at_token",token.trim());
-      localStorage.setItem("volt_at_base",base.trim());
-      localStorage.setItem("volt_at_table","tblUL48Km1j2m8sRU");
-      AT_TOKEN=token.trim();AT_BASE=base.trim();AT_TABLE="tblUL48Km1j2m8sRU";
-      onComplete();
-    }catch(e){setTesting(false);setError(e.message);}
-  };
-  return(
-    <div style={{fontFamily:"Aptos,Calibri,\'Segoe UI\',sans-serif",background:"#f8f9fa",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#fff",borderRadius:14,padding:"40px 48px",width:520,maxWidth:"100%",boxShadow:"0 4px 24px #0002",border:"1px solid #e9ecef"}}>
-        <img src={LOGO_SRC} alt="VoltConsulting" style={{height:32,marginBottom:24,objectFit:"contain"}} onError={e=>e.target.style.display="none"}/>
-        <h2 style={{fontSize:18,fontWeight:700,color:"#0D1B2A",marginBottom:8}}>Connect to Airtable</h2>
-        <p style={{fontSize:13,color:"#6c757d",marginBottom:24,lineHeight:1.6}}>Enter your credentials once. Stored in this browser only.</p>
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,color:"#6c757d",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Personal Access Token</div>
-          <input value={token} onChange={e=>setToken(e.target.value)} placeholder="patXXXXXX…" style={{width:"100%",border:"1px solid #dee2e6",borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-        </div>
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,color:"#6c757d",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Base ID</div>
-          <input value={base} onChange={e=>setBase(e.target.value)} placeholder="appXXXXXX…" style={{width:"100%",border:"1px solid #dee2e6",borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-        </div>
-        {error&&<div style={{color:"#dc3545",fontSize:13,marginBottom:12}}>{error}</div>}
-        <button onClick={save} disabled={testing} style={{background:"#00C2C7",color:"#fff",border:"none",borderRadius:7,padding:"11px 24px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",fontFamily:"inherit",opacity:testing?0.7:1}}>
-          {testing?"Testing…":"Connect & Open CRM"}
-        </button>
-        <div style={{marginTop:12,fontSize:12,color:"#adb5bd",textAlign:"center"}}>Each team member enters this once on first visit.</div>
-      </div>
-    </div>
-  );
-}
-function CompanyLinkedInPaste({onParsed}){
-  const[open,setOpen]=useState(false);
-  const[text,setText]=useState("");
-  const[error,setError]=useState("");
-  const parse=()=>{
-    if(!text.trim())return;
-    try{
-      const result=parseLinkedInCompany(text);
-      if(!result.name){setError("Could not find company name — paste more of the page.");return;}
-      onParsed(result);setOpen(false);setText("");
-    }catch(e){setError("Error: "+e.message);}
-  };
-  return(
-    <>
-      <Btn variant="teal" onClick={()=>setOpen(true)} style={{fontSize:13,padding:"7px 14px"}}>⚡ Paste from LinkedIn</Btn>
-      {open&&(
-        <ModalEl title="Import Company from LinkedIn" onClose={()=>{setOpen(false);setText("");setError("");}}>
-          <p style={{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}}>Open the LinkedIn company page → Ctrl+A → Ctrl+C → paste below.</p>
-          <Tarea value={text} onChange={setText} placeholder="Paste LinkedIn company page text here…" rows={10}/>
-          {error&&<div style={{color:DANGER,fontSize:12,marginTop:8}}>{error}</div>}
-          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <Btn variant="ghost" onClick={()=>{setOpen(false);setText("");}}>Cancel</Btn>
-            <Btn onClick={parse}>Import Company</Btn>
-          </div>
-        </ModalEl>
-      )}
-    </>
-  );
-}
-
-
-// ── Campaigns view ────────────────────────────────────────────
-function exportToInstantly(people, campaignName) {
-  const members = people.filter(p => (p.campaigns||[]).includes(campaignName) && p.email);
-  const all = people.filter(p => (p.campaigns||[]).includes(campaignName));
-  if(!all.length){alert("No people in this campaign yet.");return;}
-  if(!members.length){alert("No one in this campaign has an email address yet. Add emails in the People view first.");return;}
-
-  const rows = [["First Name","Last Name","Email","Company","Job Title"]];
-  members.forEach(p => {
-    const parts=(p.name||"").trim().split(" ");
-    rows.push([parts[0]||"", parts.slice(1).join(" ")||"", p.email||"", p.company||"", p.title||""]);
-  });
-  const csv=rows.map(r=>r.map(v=>`"${(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob=new Blob([csv],{type:"text/csv"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;a.download=campaignName.replace(/[^a-z0-9]/gi,"_")+"_instantly.csv";
-  a.click();URL.revokeObjectURL(url);
-}
-
-function CampaignsView({people,setPeople,persist}){
-  // Store campaign names in localStorage so they persist
-  const loadCampaigns=()=>{
-    try{return JSON.parse(localStorage.getItem("volt-campaigns")||"[]");}catch{return[];}
-  };
-  const saveCampaignsList=list=>{
-    localStorage.setItem("volt-campaigns",JSON.stringify(list));
-  };
-
-  const[campaignNames,setCampaignNames]=useState(loadCampaigns);
-  const[selCampaign,setSelCampaign]=useState(null);
-  const[newName,setNewName]=useState("");
-
-  // Merge campaign names from people too (in case imported)
-  const allNames=useMemo(()=>{
-    const fromPeople=new Set();
-    people.forEach(p=>(p.campaigns||[]).forEach(c=>fromPeople.add(c)));
-    const merged=[...new Set([...campaignNames,...fromPeople])];
-    return merged;
-  },[people,campaignNames]);
-
-  const addCampaign=()=>{
-    const name=newName.trim();
-    if(!name)return;
-    if(!allNames.includes(name)){
-      const updated=[...campaignNames,name];
-      setCampaignNames(updated);
-      saveCampaignsList(updated);
-    }
-    setSelCampaign(name);
-    setNewName("");
-  };
-
-  const deleteCampaign=()=>{
-    if(!selCampaign)return;
-    if(!confirm(`Delete campaign "${selCampaign}"? People won't be deleted.`))return;
-    const updatedNames=campaignNames.filter(c=>c!==selCampaign);
-    setCampaignNames(updatedNames);
-    saveCampaignsList(updatedNames);
-    const updatedPeople=people.map(p=>({...p,campaigns:(p.campaigns||[]).filter(c=>c!==selCampaign)}));
-    setPeople(updatedPeople);persist("people",updatedPeople);
-    setSelCampaign(null);
-  };
-
-  const addPerson=personId=>{
-    const updated=people.map(p=>p.id===personId?{...p,campaigns:[...new Set([...(p.campaigns||[]),selCampaign])]}:p);
-    setPeople(updated);persist("people",updated);
-  };
-  const removePerson=personId=>{
-    const updated=people.map(p=>p.id===personId?{...p,campaigns:(p.campaigns||[]).filter(c=>c!==selCampaign)}:p);
-    setPeople(updated);persist("people",updated);
-  };
-
-  const members=selCampaign?people.filter(p=>(p.campaigns||[]).includes(selCampaign)):[];
-  const nonMembers=selCampaign?people.filter(p=>!(p.campaigns||[]).includes(selCampaign)):[];
-  const withEmail=members.filter(p=>p.email);
-  const noEmail=members.filter(p=>!p.email);
-
-  return(
-    <div style={{display:"flex",height:"100%",minHeight:0}}>
-      {/* Sidebar */}
-      <div style={{width:280,flexShrink:0,borderRight:`1px solid ${G200}`,display:"flex",flexDirection:"column",background:W}}>
-        <div style={{padding:"16px 16px 14px",borderBottom:`1px solid ${G200}`}}>
-          <div style={{fontWeight:700,color:NAVY,fontSize:15,marginBottom:12}}>Campaigns</div>
-          <div style={{display:"flex",gap:8}}>
-            <input
-              value={newName}
-              onChange={e=>setNewName(e.target.value)}
-              onKeyDown={e=>{if(e.key==="Enter")addCampaign();}}
-              placeholder="Campaign name…"
-              style={{flex:1,border:"1px solid "+G300,borderRadius:6,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"inherit"}}
-            />
-            <button
-              onClick={e=>{e.preventDefault();e.stopPropagation();addCampaign();}}
-              style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"7px 14px",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-              + Add
-            </button>
-          </div>
-        </div>
-        <div style={{overflowY:"auto",flex:1,padding:"8px 8px"}}>
-          {allNames.length===0&&(
-            <div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13,padding:"0 16px",lineHeight:1.7}}>
-              No campaigns yet.<br/>Type a name above and click + Add.
-            </div>
-          )}
-          {allNames.map(name=>{
-            const mems=people.filter(p=>(p.campaigns||[]).includes(name));
-            const hasEmail=mems.filter(p=>p.email).length;
-            const isSel=selCampaign===name;
-            return(
-              <div key={name} onClick={()=>setSelCampaign(name)}
-                style={{padding:"12px 14px",borderRadius:8,marginBottom:4,cursor:"pointer",background:isSel?TL:"transparent",border:`1px solid ${isSel?TM:"transparent"}`}}>
-                <div style={{fontWeight:700,color:NAVY,fontSize:13.5}}>{name}</div>
-                <div style={{fontSize:12,color:G600,marginTop:3}}>{mems.length} people · {hasEmail} with email</div>
-                {mems.length>0&&hasEmail<mems.length&&<div style={{fontSize:11,color:WARN,marginTop:2}}>⚠ {mems.length-hasEmail} missing email</div>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Detail */}
-      {selCampaign?(
-        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-          {/* Header */}
-          <div style={{background:W,borderBottom:`1px solid ${G200}`,padding:"18px 28px",flexShrink:0}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:noEmail.length>0?12:0}}>
-              <div>
-                <h2 style={{fontSize:20,fontWeight:700,color:NAVY,margin:0}}>{selCampaign}</h2>
-                <div style={{fontSize:13,color:G600,marginTop:4}}>{members.length} contacts · {withEmail.length} ready to export</div>
-              </div>
-              <div style={{display:"flex",gap:10}}>
-                <Btn variant="ghost" small onClick={deleteCampaign}>Delete</Btn>
-                <Btn onClick={()=>exportToInstantly(people,selCampaign)} style={{background:OK,fontSize:13}}>⬇ Export to Instantly</Btn>
-              </div>
-            </div>
-            {noEmail.length>0&&(
-              <div style={{background:"#fff8e1",border:`1px solid ${WARN}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:G800}}>
-                <strong style={{color:WARN}}>⚠ {noEmail.length} people missing email</strong> — add their emails in People view before exporting.
-              </div>
-            )}
-          </div>
-
-          <div style={{flex:1,overflowY:"auto",padding:"20px 28px",background:G50}}>
-            {/* Members */}
-            <div style={{background:W,borderRadius:8,border:`1px solid ${G200}`,marginBottom:20}}>
-              <div style={{padding:"12px 18px",borderBottom:`1px solid ${G200}`,fontWeight:700,color:NAVY,fontSize:13}}>
-                In this campaign ({members.length})
-              </div>
-              {members.length===0?(
-                <div style={{padding:"20px 18px",color:G400,fontSize:13}}>No one added yet. Add people from the list below.</div>
-              ):members.map(p=>(
-                <div key={p.id} style={{display:"flex",gap:12,alignItems:"center",padding:"11px 18px",borderBottom:`1px solid ${G100}`}}>
-                  <div style={{width:32,height:32,borderRadius:"50%",background:TEAL+"15",border:`1.5px solid ${TEAL}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:TEAL,flexShrink:0}}>
-                    {(p.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div>
-                    <div style={{fontSize:11,color:G600}}>{[p.title,p.company].filter(Boolean).join(" · ")}</div>
-                    {p.email?<div style={{fontSize:11,color:TEAL,marginTop:1}}>{p.email}</div>:<div style={{fontSize:11,color:DANGER,marginTop:1}}>⚠ No email — won't export</div>}
-                  </div>
-                  <button onClick={()=>removePerson(p.id)} style={{background:"transparent",border:`1px solid ${G300}`,borderRadius:6,padding:"4px 10px",fontSize:11,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
-                </div>
-              ))}
-            </div>
-
-            {/* Add people */}
-            <div style={{background:W,borderRadius:8,border:`1px solid ${G200}`}}>
-              <div style={{padding:"12px 18px",borderBottom:`1px solid ${G200}`,fontWeight:700,color:NAVY,fontSize:13}}>
-                Add to campaign ({nonMembers.length} people)
-              </div>
-              {nonMembers.length===0?(
-                <div style={{padding:"20px 18px",color:G400,fontSize:13}}>Everyone is already in this campaign.</div>
-              ):nonMembers.map(p=>(
-                <div key={p.id} style={{display:"flex",gap:12,alignItems:"center",padding:"10px 18px",borderBottom:`1px solid ${G100}`}}>
-                  <div style={{width:32,height:32,borderRadius:"50%",background:G200,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:G600,flexShrink:0}}>
-                    {(p.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div>
-                    <div style={{fontSize:11,color:G600}}>{[p.title,p.company].filter(Boolean).join(" · ")}</div>
-                    {!p.email&&<div style={{fontSize:11,color:WARN,marginTop:1}}>No email yet</div>}
-                  </div>
-                  <button onClick={()=>addPerson(p.id)} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ):(
-        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:G400,background:G50}}>
-          <div style={{fontSize:32}}>📧</div>
-          <div style={{fontSize:13}}>Select a campaign or create a new one</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── ROOT APP ──────────────────────────────────────────────────
-const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"campaigns",label:"Campaigns",icon:"◇"},{id:"map",label:"Market Map",icon:"◌"}];
-
+// ── App Shell ──────────────────────────────────────────────────────────
 function App(){
-  const[view,setView]=useState("bd");
-  const[navSel,setNavSel]=useState(null);
-  const[people,setPeople]=useState(SEED_PEOPLE);
-  const[companies,setCompanies]=useState(SEED_COMPANIES);
-  const[ready,setReady]=useState(false);
-  const[saveState,setSaveState]=useState(null);
+  const [hasToken,setHasToken]=useState(!!getToken());
+  const [user,setUser]=useState(getUser());
+  const [view,setView]=useState('people');
+  const data=useVoltData();
 
-  const[showSetup,setShowSetup]=useState(!localStorage.getItem("volt_at_token"));
-  const[syncStatus,setSyncStatus]=useState("loading");
+  function handleLogin(u){localStorage.setItem('volt_user',u);setUser(u);}
+  function handleLogout(){localStorage.removeItem('volt_user');setUser('');}
 
-  useEffect(()=>{
-    if(showSetup){setReady(true);return;}
-    (async()=>{
-      try{
-        const data=await loadFromAirtable();
-        if(data.people&&data.people.length>0)setPeople(data.people);
-        else{const sp=await sGet("voltcrm5-people");if(sp)setPeople(sp);}
-        if(data.companies&&data.companies.length>0)setCompanies(data.companies);
-        else{const sc=await sGet("voltcrm5-companies");if(sc)setCompanies(sc);}
-        setSyncStatus("ok");
-      }catch(e){
-        const sp=await sGet("voltcrm5-people");const sc=await sGet("voltcrm5-companies");
-        if(sp)setPeople(sp);if(sc)setCompanies(sc);
-        setSyncStatus("offline");
-      }
-      setReady(true);
-    })();
-  },[showSetup]);
+  if(!hasToken) return <SetupScreen onDone={()=>setHasToken(true)}/>;
+  if(!user) return <LoginScreen onLogin={handleLogin}/>;
 
-  const persist=useCallback(async(key,data)=>{
-    setSaveState("saving");
-    await sSet("voltcrm5-"+key,data);
-    try{
-      if(key==="people")await saveToAirtable("PEOPLE",data);
-      else if(key==="companies")await saveToAirtable("COMPANIES",data);
-    }catch(e){console.warn("AT save:",e.message);}
-    setSaveState("saved");
-    setTimeout(()=>setSaveState(null),2500);
-  },[]);
+  var navItems=[
+    {id:'people',label:'People',icon:'👥'},
+    {id:'companies',label:'Companies',icon:'🏢'},
+    {id:'tracker',label:'BD Tracker',icon:'📋'},
+    {id:'campaigns',label:'Campaigns',icon:'📧'},
+    {id:'map',label:'Market Map',icon:'🗺'},
+  ];
 
-  const handleNavigate=(targetView,id)=>{setView(targetView);setNavSel(id);setTimeout(()=>setNavSel(null),500);};
-  const overdueCount=[...people,...companies].filter(x=>x.nextDue&&new Date(x.nextDue)<new Date()).length;
-
-  if(!ready)return(
-    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:W,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <img src={LOGO_SRC} alt="VoltConsulting" style={{height:36,opacity:0.5}}/>
-    </div>
-  );
-
-  return(
-    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:G50,height:"100vh",display:"flex",overflow:"hidden",color:G900}}>
-      <style>{"*{box-sizing:border-box;margin:0;padding:0}input,textarea,select,button{font-family:Aptos,Calibri,'Segoe UI',sans-serif}input::placeholder,textarea::placeholder{color:"+G400+"}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:"+G300+";border-radius:3px}"}</style>
-
-      <div style={{width:220,background:W,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",flexShrink:0,boxShadow:"1px 0 4px #0001"}}>
-        <div style={{padding:"20px 20px 18px",borderBottom:"1px solid "+G200}}>
-          <img src={LOGO_SRC} alt="VoltConsulting" style={{height:28,maxWidth:"100%",objectFit:"contain",objectPosition:"left"}}/>
-          <div style={{fontSize:10.5,color:TEAL,letterSpacing:"0.12em",textTransform:"uppercase",marginTop:8,fontWeight:700}}>Internal CRM</div>
+  return (
+    <div className="app">
+      <div className="sidebar">
+        <div className="sidebar-logo">
+          <img src="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" alt="VoltConsulting"/>
         </div>
-        <nav style={{flex:1,padding:"12px 10px"}}>
-          {NAV.map(n=>{
-            const active=view===n.id;
-            return(
-              <button key={n.id} onClick={()=>setView(n.id)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:active?TL:"transparent",border:"1px solid "+(active?TM:"transparent"),borderRadius:7,padding:"10px 12px",marginBottom:3,color:active?TEAL:G600,fontWeight:active?700:400,fontSize:13.5,cursor:"pointer",textAlign:"left",transition:"all 0.12s",fontFamily:"inherit"}}>
-                <span style={{fontSize:14}}>{n.icon}</span>
-                {n.label}
-                {n.id==="bd"&&overdueCount>0&&<span style={{marginLeft:"auto",background:DANGER,color:W,borderRadius:10,padding:"1px 8px",fontSize:10.5,fontWeight:800}}>{overdueCount}</span>}
+        <div className="sidebar-nav">
+          {navItems.map(function(n){
+            return (
+              <button key={n.id} className={'nav-item'+(view===n.id?' active':'')} onClick={()=>setView(n.id)}>
+                <span className="nav-icon">{n.icon}</span>
+                <span>{n.label}</span>
               </button>
             );
           })}
-        </nav>
-        <div style={{padding:"14px 20px 20px",borderTop:"1px solid "+G200}}>
-          <div style={{fontSize:10.5,color:G400,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>Team</div>
-          {[["David",TEAL],["Lauren","#6f42c1"],["Brinda",WARN]].map(([name,c])=>(
-            <div key={name} style={{display:"flex",alignItems:"center",gap:9,marginBottom:8}}>
-              <Av name={name} size={24} color={c}/>
-              <span style={{fontSize:13,color:G700}}>{name}</span>
+        </div>
+        <div className="sidebar-footer">
+          <div className="user-chip">
+            <span className="user-dot" style={{background:USER_COLORS[user]||'var(--teal)'}}></span>
+            <span style={{fontSize:12,opacity:0.8}}>{user}</span>
+          </div>
+          <div style={{fontSize:10,opacity:0.4,marginTop:4}}>VoltCRM v1.0</div>
+        </div>
+      </div>
+      <div className="main">
+        <TopBar saving={data.saving} syncErr={data.syncErr} user={user} onLogout={handleLogout} people={data.people} onReload={data.reload}/>
+        <div className="content" style={{padding:0,overflow:'hidden',height:'100%'}}>
+          {data.loading?(
+            <div className="empty" style={{paddingTop:80}}>Loading VoltCRM...</div>
+          ):(
+            <div style={{height:'100%'}}>
+              {view==='people'&&<PeopleView data={data}/>}
+              {view==='companies'&&<CompaniesView data={data}/>}
+              {view==='tracker'&&<BDTrackerView data={data}/>}
+              {view==='campaigns'&&<CampaignsView data={data}/>}
+              {view==='map'&&<MarketMapView data={data}/>}
             </div>
-          ))}
+          )}
         </div>
       </div>
-
-      <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        <div style={{background:W,borderBottom:"1px solid "+G200,padding:"12px 24px",display:"flex",alignItems:"center",gap:16,flexShrink:0}}>
-          <GlobalSearch people={people} companies={companies} onNavigate={handleNavigate}/>
-          <div style={{fontSize:12,color:G400,whiteSpace:"nowrap"}}>{people.length+" people · "+companies.length+" companies"}</div>
-        </div>
-        <div style={{flex:1,overflow:"hidden"}}>
-          {view==="bd"&&<BDTracker people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist}/>}
-          {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel}/>}
-          {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}}/>}
-          {view==="campaigns"&&<CampaignsView people={people} setPeople={setPeople} persist={persist}/>}
-        {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate}/>}
-        </div>
-      </div>
-
-      {saveState&&(
-        <div style={{position:"fixed",bottom:18,right:20,background:saveState==="saved"?OK+"15":G100,border:"1px solid "+(saveState==="saved"?OK:G300),borderRadius:20,padding:"5px 16px",fontSize:12,color:saveState==="saved"?OK:G600,zIndex:500,pointerEvents:"none",fontWeight:600}}>
-          {saveState==="saved"?"✓ Saved":"Saving…"}
-        </div>
-      )}
     </div>
   );
 }
 
-const root=ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App/>);
+ReactDOM.render(React.createElement(App), document.getElementById('root'));
 </script>
 </body>
 </html>
