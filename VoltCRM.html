@@ -811,7 +811,7 @@ function CSVImportModal({people,onImport,onClose}){
               <div style={{display:'flex',gap:10,marginBottom:14,flexWrap:'wrap'}}>
                 <span className="badge badge-teal">{parsed.length} rows parsed</span>
                 {dupeCount>0&&<span className="badge badge-amber">⚠ {dupeCount} possible duplicates</span>}
-                <span className="badge badge-teal" style={{background:'#f0fdf4',color:'#166534'}}>{importCount} will import</span>
+                <span className="badge badge-teal">{importCount} will import</span>
                 {skipCount>0&&<span className="badge badge-gray">{skipCount} skipped</span>}
               </div>
               <div style={{maxHeight:380,overflowY:'auto',border:'1px solid var(--border)',borderRadius:6}}>
@@ -1206,12 +1206,12 @@ var CAMP_STATUS_COLORS={
 };
 var OUTCOMES=['','Replied','Interested','Converted','No reply','Bounced'];
 var OUTCOME_COLORS={
-  'Replied':{bg:'#d1fae5',color:'#065f46'},
-  'Interested':{bg:'#fef3c7',color:'#92400e'},
-  'Converted':{bg:'#e0f2fe',color:'#0369a1'},
-  'No reply':{bg:'#f1f5f9',color:'#64748b'},
-  'Bounced':{bg:'#fff0f0',color:'#e53e3e'},
-  '':{bg:'#f1f5f9',color:'#94a3b8'}
+  'Replied':{bg:'#e6fafa',color:'var(--teal)'},
+  'Interested':{bg:'#fffbeb',color:'#b45309'},
+  'Converted':{bg:'#e6fafa',color:'var(--navy)'},
+  'No reply':{bg:'#f1f5f9',color:'var(--muted)'},
+  'Bounced':{bg:'#fff0f0',color:'var(--red)'},
+  '':{bg:'#f8fafc',color:'var(--muted)'}
 };
 
 function campOutcomeKey(campId,personId){return 'co_'+campId+'_'+personId;}
@@ -1336,14 +1336,14 @@ function CampaignsView({data}){
               return o==='Replied'||o==='Interested'||o==='Converted';
             }).length;
             return (
-              <div key={c.id} className="campaign-row" style={{flexDirection:'column',alignItems:'stretch',background:selCamp&&selCamp.id===c.id?'var(--pale)':'',borderLeft:selCamp&&selCamp.id===c.id?'3px solid var(--teal)':'3px solid transparent',cursor:'pointer',gap:4}} onClick={()=>setSelected(c)}>
-                <div className="flex-between">
+              <div key={c.id} className="campaign-row" style={{background:selCamp&&selCamp.id===c.id?'var(--pale)':'',borderLeft:selCamp&&selCamp.id===c.id?'3px solid var(--teal)':'3px solid transparent',cursor:'pointer',flexDirection:'column',alignItems:'stretch',gap:3}} onClick={()=>setSelected(c)}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div style={{fontWeight:600,fontSize:13,flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
-                  <span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:sc.bg,color:sc.color,fontWeight:700,flexShrink:0,marginLeft:6}}>{c.status||'Draft'}</span>
+                  <span className={'badge '+(c.status==='Live'?'badge-teal':c.status==='Paused'?'badge-amber':c.status==='Done'?'badge-gray':'badge-gray')} style={{flexShrink:0,marginLeft:6}}>{c.status||'Draft'}</span>
                 </div>
-                <div className="flex" style={{gap:8}}>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
                   <span style={{fontSize:11,color:'var(--muted)'}}>{cnt} contacts</span>
-                  {repCnt>0&&<span style={{fontSize:11,color:'#065f46',fontWeight:600}}>{repCnt} replied</span>}
+                  {repCnt>0&&<span style={{fontSize:11,color:'var(--teal)',fontWeight:600}}>{repCnt} replied</span>}
                   {c.launchedAt&&<span style={{fontSize:11,color:'var(--muted)'}}>· {fmtDate(c.launchedAt)}</span>}
                 </div>
               </div>
@@ -1359,7 +1359,7 @@ function CampaignsView({data}){
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontWeight:800,fontSize:18,marginBottom:4}}>{selCamp.name}</div>
                 <div className="flex" style={{gap:8,flexWrap:'wrap'}}>
-                  <select value={selCamp.status||'Draft'} onChange={function(e){updateCampaign(Object.assign({},selCamp,{status:e.target.value,launchedAt:e.target.value==='Live'&&!selCamp.launchedAt?today():selCamp.launchedAt}));}} style={{fontSize:12,padding:'3px 8px',borderRadius:6,fontWeight:600,background:CAMP_STATUS_COLORS[selCamp.status||'Draft'].bg,color:CAMP_STATUS_COLORS[selCamp.status||'Draft'].color,border:'none'}}>
+                  <select value={selCamp.status||'Draft'} onChange={function(e){updateCampaign(Object.assign({},selCamp,{status:e.target.value,launchedAt:e.target.value==='Live'&&!selCamp.launchedAt?today():selCamp.launchedAt}));}} style={{width:'auto',fontSize:12,padding:'3px 8px'}}>
                     {CAMP_STATUSES.map(function(s){return <option key={s} value={s}>{s}</option>;})}
                   </select>
                   <span style={{fontSize:12,color:'var(--muted)'}}>{campPeople.length} contacts</span>
@@ -1381,14 +1381,14 @@ function CampaignsView({data}){
               <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}}>
                 {[
                   {label:'Contacts',val:campPeople.length,color:'var(--navy)'},
-                  {label:'Replied',val:replied,color:'#065f46'},
-                  {label:'Interested',val:interested,color:'#92400e'},
-                  {label:'Converted',val:converted,color:'#0369a1'}
+                  {label:'Replied',val:replied,color:'var(--teal)'},
+                  {label:'Interested',val:interested,color:'#b45309'},
+                  {label:'Converted',val:converted,color:'var(--navy)'}
                 ].map(function(s){
                   return (
-                    <div key={s.label} style={{background:'#f8fafc',border:'1px solid var(--border)',borderRadius:8,padding:'10px',textAlign:'center'}}>
+                    <div key={s.label} className="card-sm" style={{textAlign:'center',marginBottom:0}}>
                       <div style={{fontSize:22,fontWeight:800,color:s.color}}>{s.val}</div>
-                      <div style={{fontSize:11,color:'var(--muted)'}}>{s.label}</div>
+                      <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{s.label}</div>
                     </div>
                   );
                 })}
@@ -1415,13 +1415,13 @@ function CampaignsView({data}){
                   var oc=OUTCOME_COLORS[outcome]||OUTCOME_COLORS[''];
                   var isHot=outcome==='Replied'||outcome==='Interested'||outcome==='Converted';
                   return (
-                    <div key={p.id} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto auto',gap:0,padding:'8px 12px',borderBottom:'1px solid var(--border)',alignItems:'center',background:isHot?'#f0fdf4':'#fff'}}>
+                    <div key={p.id} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto auto',gap:0,padding:'8px 12px',borderBottom:'1px solid var(--border)',alignItems:'center',background:isHot?'var(--pale)':'#fff'}}>
                       <div>
                         <div style={{fontWeight:600,fontSize:13}}>{p.name}</div>
                         <div style={{fontSize:11,color:'var(--muted)'}}>{p.title}</div>
                       </div>
                       <div style={{fontSize:12,color:'var(--muted)'}}>{p.company}</div>
-                      <select value={outcome} onChange={function(e){setOutcome(p.id,e.target.value);}} style={{fontSize:11,padding:'3px 6px',borderRadius:6,background:oc.bg,color:oc.color,border:'none',fontWeight:600,minWidth:110}}>
+                      <select value={outcome} onChange={function(e){setOutcome(p.id,e.target.value);}} style={{width:'auto',fontSize:11,padding:'3px 6px',borderLeftWidth:3,borderLeftColor:oc.bg==='var(--pale)'?'var(--teal)':outcome==='Interested'?'#b45309':outcome==='Bounced'?'var(--red)':'var(--border)'}}>
                         {OUTCOMES.map(function(o){return <option key={o} value={o}>{o||'No status'}</option>;})}
                       </select>
                       <button className="btn btn-danger btn-sm" style={{marginLeft:6}} onClick={()=>removePersonFromCamp(p.id)}>×</button>
