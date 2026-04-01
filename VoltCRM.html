@@ -1387,7 +1387,227 @@ function GlobalSearch({people,companies,onNavigate}){
 }
 
 // ── ROOT APP ──────────────────────────────────────────────────
-const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"map",label:"Market Map",icon:"◌"}];
+const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"campaigns",label:"Campaigns",icon:"◇"},{id:"map",label:"Market Map",icon:"◌"}];
+
+
+// ── Campaigns ─────────────────────────────────────────────────
+const CAMP_STATUSES=["Draft","Live","Paused","Done"];
+const CAMP_OUTCOMES=["","Replied","Interested","Converted","No reply","Bounced"];
+
+function CampaignsView({people,setPeople,campaigns,setCampaigns,persist}){
+  const[sel,setSel]=useState(null);
+  const[showNew,setShowNew]=useState(false);
+  const[newName,setNewName]=useState("");
+  const[filterStatus,setFilterStatus]=useState("All");
+
+  function coKey(cid,pid){return"co_"+cid+"_"+pid;}
+  function getOutcome(p){if(!sel)return"";return(p.campOutcomes&&p.campOutcomes[coKey(sel.id,p.id)])||"";}
+
+  function createCampaign(){
+    if(!newName.trim())return;
+    const c={id:Date.now(),name:newName.trim(),status:"Draft",sequenceName:"",launchedAt:"",createdAt:today};
+    const updated=[c,...(campaigns||[])];
+    setCampaigns(updated);persist("campaigns",updated);
+    setNewName("");setShowNew(false);setSel(c);
+  }
+  function updateCampaign(upd){
+    const list=(campaigns||[]).map(c=>c.id===upd.id?upd:c);
+    setCampaigns(list);persist("campaigns",list);setSel(upd);
+  }
+  function deleteCampaign(id){
+    if(!window.confirm("Delete this campaign?"))return;
+    const list=(campaigns||[]).filter(c=>c.id!==id);
+    setCampaigns(list);persist("campaigns",list);
+    const updPeople=people.map(p=>{
+      const camps=(p.campaigns||[]).filter(cid=>cid!==id);
+      const outcomes=Object.assign({},p.campOutcomes||{});
+      Object.keys(outcomes).forEach(k=>{if(k.startsWith("co_"+id+"_"))delete outcomes[k];});
+      return Object.assign({},p,{campaigns:camps,campOutcomes:outcomes});
+    });
+    setPeople(updPeople);persist("people",updPeople);
+    if(sel&&sel.id===id)setSel(null);
+  }
+  function addPerson(pid){
+    const numId=parseFloat(pid);
+    const person=people.find(p=>p.id===numId);
+    if(!person||!sel)return;
+    const camps=(person.campaigns||[]).slice();
+    if(!camps.includes(sel.id))camps.push(sel.id);
+    const updPeople=people.map(p=>p.id===numId?Object.assign({},p,{campaigns:camps}):p);
+    setPeople(updPeople);persist("people",updPeople);
+  }
+  function removePerson(pid){
+    const updPeople=people.map(p=>{
+      if(p.id!==pid)return p;
+      const camps=(p.campaigns||[]).filter(cid=>cid!==sel.id);
+      const outcomes=Object.assign({},p.campOutcomes||{});
+      delete outcomes[coKey(sel.id,pid)];
+      return Object.assign({},p,{campaigns:camps,campOutcomes:outcomes});
+    });
+    setPeople(updPeople);persist("people",updPeople);
+  }
+  function setOutcome(pid,outcome){
+    const extra={};
+    if(outcome==="Replied"||outcome==="Interested")extra={nextAction:"Follow up — "+sel.name,nextDue:today};
+    if(outcome==="Converted")extra={nextAction:"Converted — "+sel.name,nextDue:today};
+    const updPeople=people.map(p=>{
+      if(p.id!==pid)return p;
+      const outcomes=Object.assign({},p.campOutcomes||{});
+      outcomes[coKey(sel.id,pid)]=outcome;
+      return Object.assign({},p,{campOutcomes:outcomes},...(Object.keys(extra).length?[extra]:[]));
+    });
+    setPeople(updPeople);persist("people",updPeople);
+  }
+  function exportCSV(){
+    if(!selCamp||!campPeople.length)return;
+    const rows=[["First Name","Last Name","Email","Company","Job Title"]];
+    campPeople.forEach(p=>{
+      const parts=(p.name||"").trim().split(" ");
+      rows.push([parts[0]||"",parts.slice(1).join(" ")||"",p.email||"",p.company||"",p.title||""]);
+    });
+    const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'\"\')+'"').join(",")).join("\n");
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    a.download=(selCamp.name||"campaign")+"_instantly.csv";a.click();
+  }
+
+  const allCamps=campaigns||[];
+  const selCamp=sel?allCamps.find(c=>c.id===sel.id)||null:null;
+  const campPeople=selCamp?people.filter(p=>(p.campaigns||[]).includes(selCamp.id)):[];
+  const notInCamp=selCamp?people.filter(p=>!(p.campaigns||[]).includes(selCamp.id)):[];
+  const visCamps=filterStatus==="All"?allCamps:allCamps.filter(c=>c.status===filterStatus);
+  const replied=campPeople.filter(p=>{const o=getOutcome(p);return o==="Replied"||o==="Interested"||o==="Converted";}).length;
+  const interested=campPeople.filter(p=>getOutcome(p)==="Interested").length;
+  const converted=campPeople.filter(p=>getOutcome(p)==="Converted").length;
+  const statusColor={Draft:G600,Live:TEAL,Paused:WARN,Done:OK};
+
+  return(
+    <div style={{display:"flex",height:"100%",overflow:"hidden"}}>
+      <div style={{width:280,borderRight:"1px solid "+G200,background:W,display:"flex",flexDirection:"column",flexShrink:0}}>
+        <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+G200}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <span style={{fontWeight:700,color:NAVY,fontSize:14}}>Campaigns</span>
+            <Btn small onClick={()=>setShowNew(!showNew)}>+ New</Btn>
+          </div>
+          {showNew&&(
+            <div style={{display:"flex",gap:6,marginBottom:8}}>
+              <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createCampaign()}
+                placeholder="Match Instantly sequence name"
+                style={{flex:1,border:"1px solid "+G300,borderRadius:6,padding:"6px 9px",fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+              <Btn small onClick={createCampaign}>Add</Btn>
+            </div>
+          )}
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            {["All",...CAMP_STATUSES].map(s=>{
+              const active=filterStatus===s;const c=statusColor[s]||G600;
+              return <button key={s} onClick={()=>setFilterStatus(s)} style={{background:active?c+"15":"transparent",color:active?c:G400,border:"1px solid "+(active?c+"40":G300),borderRadius:12,padding:"2px 9px",fontSize:10.5,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>;
+            })}
+          </div>
+        </div>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {visCamps.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:G400,fontSize:13}}>No campaigns yet</div>}
+          {visCamps.map(c=>{
+            const cnt=people.filter(p=>(p.campaigns||[]).includes(c.id)).length;
+            const repCnt=people.filter(p=>{
+              if(!(p.campaigns||[]).includes(c.id))return false;
+              const o=(p.campOutcomes&&p.campOutcomes[coKey(c.id,p.id)])||"";
+              return o==="Replied"||o==="Interested"||o==="Converted";
+            }).length;
+            const sc=statusColor[c.status||"Draft"]||G600;
+            const active=selCamp&&selCamp.id===c.id;
+            return(
+              <div key={c.id} onClick={()=>setSel(c)}
+                style={{padding:"12px 16px",borderBottom:"1px solid "+G100,cursor:"pointer",background:active?TL:W,borderLeft:"3px solid "+(active?TEAL:"transparent")}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                  <div style={{fontWeight:600,color:NAVY,fontSize:13,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:8}}>{c.name}</div>
+                  <span style={{fontSize:10,fontWeight:700,color:sc,background:sc+"15",border:"1px solid "+sc+"35",borderRadius:4,padding:"1px 6px",flexShrink:0}}>{c.status||"Draft"}</span>
+                </div>
+                <div style={{display:"flex",gap:10,fontSize:11,color:G600}}>
+                  <span>{cnt} contacts</span>
+                  {repCnt>0&&<span style={{color:TEAL,fontWeight:700}}>{repCnt} replied</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",background:G50}}>
+        {!selCamp?(
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",color:G400,gap:10,padding:40}}>
+            <div style={{fontSize:32}}>◇</div>
+            <div style={{fontSize:14,fontWeight:600,color:G600}}>Select a campaign</div>
+            <div style={{fontSize:13,textAlign:"center",maxWidth:320,lineHeight:1.6,color:G600}}>Name campaigns to match your Instantly sequence exactly. Build list, export CSV, upload to Instantly, then log outcomes as replies come in.</div>
+          </div>
+        ):(
+          <div style={{padding:"28px 32px",maxWidth:820}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:800,fontSize:22,color:NAVY,marginBottom:8}}>{selCamp.name}</div>
+                <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                  <SelEl value={selCamp.status||"Draft"} onChange={v=>updateCampaign(Object.assign({},selCamp,{status:v,launchedAt:v==="Live"&&!selCamp.launchedAt?today:selCamp.launchedAt}))} options={CAMP_STATUSES} style={{width:"auto",fontSize:12,padding:"4px 8px"}}/>
+                  <span style={{fontSize:12,color:G600}}>{campPeople.length} contacts</span>
+                  {selCamp.launchedAt&&<span style={{fontSize:12,color:G600}}>Launched {selCamp.launchedAt}</span>}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8,flexShrink:0}}>
+                <Btn variant="teal" small onClick={exportCSV}>Export Instantly CSV</Btn>
+                <Btn variant="danger" small onClick={()=>deleteCampaign(selCamp.id)}>Delete</Btn>
+              </div>
+            </div>
+
+            <div style={{background:W,border:"1px solid "+G200,borderRadius:9,padding:"14px 18px",marginBottom:14}}>
+              <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Instantly Sequence Name</div>
+              <Inp value={selCamp.sequenceName||""} onChange={v=>updateCampaign(Object.assign({},selCamp,{sequenceName:v}))} placeholder="Must match exactly in Instantly"/>
+            </div>
+
+            {campPeople.length>0&&(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+                {[["Contacts",campPeople.length,TEAL],["Replied",replied,OK],["Interested",interested,WARN],["Converted",converted,"#6f42c1"]].map(([l,v,color])=>(
+                  <div key={l} style={{background:W,border:"1px solid "+G200,borderRadius:9,padding:"14px 16px",textAlign:"center",borderTop:"3px solid "+color}}>
+                    <div style={{fontSize:26,fontWeight:800,color,lineHeight:1}}>{v}</div>
+                    <div style={{fontSize:11,color:G600,marginTop:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{background:W,border:"1px solid "+G200,borderRadius:9,overflow:"hidden"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:"1px solid "+G200}}>
+                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Contacts</div>
+                <SelEl value="" onChange={v=>{if(v)addPerson(v);}} options={[{v:"",l:"+ Add contact"},...notInCamp.map(p=>({v:String(p.id),l:p.name+(p.company?" — "+p.company:"")}))] } style={{width:"auto",fontSize:12,padding:"4px 8px"}}/>
+              </div>
+              {campPeople.length===0?(
+                <div style={{padding:"28px",textAlign:"center",color:G400,fontSize:13}}>No contacts yet. Add people then export CSV to Instantly.</div>
+              ):(
+                <div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 150px 28px",padding:"7px 16px",background:G50,borderBottom:"1px solid "+G200,fontSize:10.5,fontWeight:700,color:G600,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                    <span>Name</span><span>Company</span><span>Outcome</span><span></span>
+                  </div>
+                  {campPeople.map(p=>{
+                    const outcome=getOutcome(p);
+                    const isHot=outcome==="Replied"||outcome==="Interested"||outcome==="Converted";
+                    return(
+                      <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 150px 28px",padding:"9px 16px",borderBottom:"1px solid "+G100,alignItems:"center",background:isHot?TL:W}}>
+                        <div>
+                          <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div>
+                          <div style={{fontSize:11,color:G600}}>{p.title}</div>
+                        </div>
+                        <div style={{fontSize:12,color:G600}}>{p.company}</div>
+                        <SelEl value={outcome} onChange={v=>setOutcome(p.id,v)} options={CAMP_OUTCOMES.map(o=>({v:o,l:o||"No status"}))} style={{fontSize:11,padding:"3px 6px"}}/>
+                        <button onClick={()=>removePerson(p.id)} style={{background:"none",border:"none",color:G400,cursor:"pointer",fontSize:18,lineHeight:1,padding:"0 4px"}}>×</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 
 // ── First-run setup screen ────────────────────────────────────
@@ -1465,6 +1685,7 @@ function App(){
   const[navSel,setNavSel]=useState(null);
   const[people,setPeople]=useState(SEED_PEOPLE);
   const[companies,setCompanies]=useState(SEED_COMPANIES);
+  const[campaigns,setCampaigns]=useState([]);
   const[ready,setReady]=useState(false);
   const[saveState,setSaveState]=useState(null);
   const[syncStatus,setSyncStatus]=useState("loading");
@@ -1490,6 +1711,8 @@ function App(){
           if(sc && sc.length>0) setCompanies(JSON.parse(typeof sc==="string"?sc:JSON.stringify(sc)));
           // else keep SEED_COMPANIES
         }
+        const scamp=await sGet("voltcrm5-campaigns");
+        if(scamp && scamp.length>0) setCampaigns(JSON.parse(typeof scamp==="string"?scamp:JSON.stringify(scamp)));
         setSyncStatus("ok");
         // If Airtable was empty, push seed data up so all users see it
         if((!data.people||data.people.length===0)&&(!data.companies||data.companies.length===0)){
@@ -1520,6 +1743,7 @@ function App(){
     try {
       if(key==="people") await saveToAirtable("PEOPLE", data);
       else if(key==="companies") await saveToAirtable("COMPANIES", data);
+      else if(key==="campaigns") await saveToAirtable("CAMPAIGNS", data);
       setSyncStatus("ok");
     } catch(e) {
       console.warn("Airtable save failed:", e.message);
@@ -1588,6 +1812,7 @@ function App(){
           {view==="bd"&&<BDTracker people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist}/>}
           {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel}/>}
           {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}}/>}
+          {view==="campaigns"&&<CampaignsView people={people} setPeople={setPeople} campaigns={campaigns} setCampaigns={setCampaigns} persist={persist}/>}
           {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate}/>}
         </div>
       </div>
