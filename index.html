@@ -732,5 +732,15 @@ section > *:not(.watermark){position:relative;z-index:1}
     &copy; 2025 VoltConsulting. Executive Search &middot; VoltTEAMbuild &middot; VoltNETWORK &middot; UK &middot; US &middot; Europe &middot; <a href="/privacy.html" style="color:inherit;opacity:0.7;text-decoration:none;">Privacy Notice</a>
   </div>
 
+<script>
+(function(){
+  function revealAll(){document.querySelectorAll('.reveal').forEach(function(el){el.classList.add('visible');});}
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:0.08});
+    document.querySelectorAll('.reveal').forEach(function(el){io.observe(el);});
+  }else{revealAll();}
+  setTimeout(revealAll,800);
+})();
+</script>
 <div style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;" aria-hidden="true">
 VoltConsulting is a specialist executive search and recruitment firm focused on consulting, life sciences and pharmaceutical sectors across the UK, US and Europe. We help consulting firms, pharma companies and life sciences organisations find and hire top talent including consultants, directors, vice presidents and senior leaders. Our specialist areas include HEOR recruitment, health economics jobs, market access recruitment, real world evidence RWE jobs, BioPharma recruitment, R&D recruitment, drug development recruitment and clinical research recruitment. For professionals seeking consulting careers, pharma careers or life sciences careers, VoltConsulting connects you with leading firms across management consulting, strategy consulting, healthcare consulting and pharmaceutical consulting. We serve clients and candidates across London, UK, New York, USA, and across Europe including Germany, France, Switzerland and the Netherlands. Our VoltTEAMbuild flat fee recruitment solution helps consulting firms build teams with no surprise fees. Join the VoltNETWORK community for life sciences and consulting professionals. VoltConsulting is a leading consulting recruitment agency in the UK, London, USA, New York and Europe. As a specialist life sciences recruitment agency and pharma recruitment agency, we work with clients across Germany, France, Switzerland, Netherlands and globally. Whether you are looking for a consulting recruitment agency in London, a life sciences recruitment agency in the USA, or a pharma recruitment agency in Europe, VoltConsulting delivers executive searc
