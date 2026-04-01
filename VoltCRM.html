@@ -1143,6 +1143,7 @@ function MarketMap({people,companies,onNavigate}){
   },[people]);
 
   const filteredPeople=useMemo(()=>people.filter(p=>{
+    if(ownerFilter&&p.owner!==ownerFilter)return false;
     if(sectorF!=="All"&&!(p.sectors||[]).includes(sectorF))return false;
     if(seniorityF!=="All"&&p.seniority!==seniorityF)return false;
     if(relF!=="All"&&p.relationship!==relF)return false;
@@ -1394,7 +1395,7 @@ const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",i
 const CAMP_STATUSES=["Draft","Live","Paused","Done"];
 const CAMP_OUTCOMES=["","Replied","Interested","Converted","No reply","Bounced"];
 
-function CampaignsView({people,setPeople,campaigns,setCampaigns,persist}){
+function CampaignsView({people,setPeople,campaigns,setCampaigns,persist,ownerFilter}){
   const[sel,setSel]=useState(null);
   const[showNew,setShowNew]=useState(false);
   const[newName,setNewName]=useState("");
@@ -1475,7 +1476,10 @@ function CampaignsView({people,setPeople,campaigns,setCampaigns,persist}){
   const selCamp=sel?allCamps.find(c=>c.id===sel.id)||null:null;
   const campPeople=selCamp?people.filter(p=>(p.campaigns||[]).includes(selCamp.id)):[];
   const notInCamp=selCamp?people.filter(p=>!(p.campaigns||[]).includes(selCamp.id)):[];
-  const visCamps=filterStatus==="All"?allCamps:allCamps.filter(c=>c.status===filterStatus);
+  const visCamps=(filterStatus==="All"?allCamps:allCamps.filter(c=>c.status===filterStatus)).filter(c=>{
+    if(!ownerFilter)return true;
+    return people.some(p=>(p.campaigns||[]).includes(c.id)&&p.owner===ownerFilter);
+  });
   const replied=campPeople.filter(p=>{const o=getOutcome(p);return o==="Replied"||o==="Interested"||o==="Converted";}).length;
   const interested=campPeople.filter(p=>getOutcome(p)==="Interested").length;
   const converted=campPeople.filter(p=>getOutcome(p)==="Converted").length;
@@ -1682,6 +1686,7 @@ function App(){
   const[showSetup,setShowSetup]=useState(!localStorage.getItem("volt_at_token"));
   const isLocalFile=window.location.protocol==="file:";
   const[view,setView]=useState("bd");
+  const[ownerFilter,setOwnerFilter]=useState(null);
   const[navSel,setNavSel]=useState(null);
   const[people,setPeople]=useState(SEED_PEOPLE);
   const[companies,setCompanies]=useState(SEED_COMPANIES);
@@ -1788,12 +1793,17 @@ function App(){
         </nav>
         <div style={{padding:"14px 20px 20px",borderTop:"1px solid "+G200}}>
           <div style={{fontSize:10.5,color:G400,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>Team</div>
-          {[["David",TEAL],["Lauren","#6f42c1"],["Brinda",WARN]].map(([name,c])=>(
-            <div key={name} style={{display:"flex",alignItems:"center",gap:9,marginBottom:8}}>
-              <Av name={name} size={24} color={c}/>
-              <span style={{fontSize:13,color:G700}}>{name}</span>
-            </div>
-          ))}
+          {[["David",TEAL],["Lauren","#6f42c1"],["Brinda",WARN]].map(([name,col])=>{
+            const active=ownerFilter===name;
+            return(
+              <div key={name} onClick={()=>setOwnerFilter(active?null:name)}
+                style={{display:"flex",alignItems:"center",gap:9,marginBottom:6,cursor:"pointer",padding:"5px 8px",borderRadius:6,background:active?col+"15":"transparent",border:"1px solid "+(active?col+"40":"transparent"),transition:"all 0.12s"}}>
+                <Av name={name} size={24} color={col}/>
+                <span style={{fontSize:13,color:active?col:G700,fontWeight:active?700:400}}>{name}</span>
+                {active&&<span style={{marginLeft:"auto",fontSize:10,color:col,fontWeight:700}}>● my view</span>}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -1806,14 +1816,18 @@ function App(){
         )}
         <div style={{background:W,borderBottom:"1px solid "+G200,padding:"12px 24px",display:"flex",alignItems:"center",gap:16,flexShrink:0}}>
           <GlobalSearch people={people} companies={companies} onNavigate={handleNavigate}/>
+          {ownerFilter&&<div style={{display:"flex",alignItems:"center",gap:8,background:TEAL+"15",border:"1px solid "+TEAL+"40",borderRadius:20,padding:"4px 12px",fontSize:12,color:TEAL,fontWeight:600,whiteSpace:"nowrap"}}>
+            {ownerFilter}&apos;s view
+            <button onClick={()=>setOwnerFilter(null)} style={{background:"none",border:"none",color:TEAL,cursor:"pointer",fontSize:14,lineHeight:1,fontWeight:700,padding:"0 0 0 4px"}}>×</button>
+          </div>}
           <div style={{fontSize:12,color:G400,whiteSpace:"nowrap"}}>{people.length+" people · "+companies.length+" companies"}</div>
         </div>
         <div style={{flex:1,overflow:"hidden"}}>
-          {view==="bd"&&<BDTracker people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist}/>}
-          {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel}/>}
-          {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}}/>}
-          {view==="campaigns"&&<CampaignsView people={people} setPeople={setPeople} campaigns={campaigns} setCampaigns={setCampaigns} persist={persist}/>}
-          {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate}/>}
+          {view==="bd"&&<BDTracker people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist} ownerFilter={ownerFilter}/>}
+          {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel} ownerFilter={ownerFilter}/>}
+          {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}} ownerFilter={ownerFilter}/>}
+          {view==="campaigns"&&<CampaignsView people={people} setPeople={setPeople} campaigns={campaigns} setCampaigns={setCampaigns} persist={persist} ownerFilter={ownerFilter}/>}
+          {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate} ownerFilter={ownerFilter}/>}
         </div>
       </div>
 
