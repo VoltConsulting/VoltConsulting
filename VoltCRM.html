@@ -97,7 +97,6 @@ function autoLinkCompany(personCompany,companies){
 }
 </script>
 <script type="text/babel">
-var useState=React.useState,useMemo=React.use<script type="text/babel">
 var useState=React.useState,useMemo=React.useMemo,useEffect=React.useEffect,useCallback=React.useCallback,useRef=React.useRef;
 const Av=({name="?",size=36,color=TEAL})=>{
   const i=name.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
@@ -294,7 +293,6 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
     </div>
   );
 }
-
 ){
   const now=new Date();
   const all=useMemo(()=>{
@@ -354,7 +352,6 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
     </div>
   );
 }
-
 ){
   var[sectorF,setSectorF]=useState("All");
   var[typeF,setTypeF]=useState("All");
@@ -961,3 +958,6 @@ function App(){
 }
 var root=ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(App));
+</script>
+</body>
+</html>
