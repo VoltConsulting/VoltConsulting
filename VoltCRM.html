@@ -1465,7 +1465,7 @@ function CampaignsView({people,setPeople,campaigns,setCampaigns,persist}){
       const parts=(p.name||"").trim().split(" ");
       rows.push([parts[0]||"",parts.slice(1).join(" ")||"",p.email||"",p.company||"",p.title||""]);
     });
-    const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'\"\')+'"').join(",")).join("\n");
+    const csv=rows.map(function(r){return r.map(function(v){return String.fromCharCode(34)+String(v).replace(/"/g,"")+String.fromCharCode(34);}).join(",");}).join("\n");
     const a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
     a.download=(selCamp.name||"campaign")+"_instantly.csv";a.click();
