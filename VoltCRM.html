@@ -108,6 +108,7 @@ const REL={Hot:"#dc3545",Warm:"#e8a020",Cold:"#ced4da",New:"#00C2C7"};
 const SC={"Life Sciences":"#00C2C7","Strategy":"#6f42c1","Commercial":"#e8a020","Oncology":"#dc3545","RWE":"#0dcaf0","Market Access":"#6610f2","Operations":"#198754","MedTech":"#fd7e14","Digital Health":"#d63384","Biotech":"#20c997","Regulatory":"#ffc107","Pricing":"#0d6efd","Other":"#6c757d"};
 const SECTORS=Object.keys(SC);
 const TC_MAP={"Key Client":TEAL,"Warm":WARN,"Prospect":G600};
+const OWNER_COLORS={"David":TEAL,"Lauren":"#6f42c1","Brinda":WARN};
 
 async function sGet(k){try{const r=await window.storage.get(k);return r?JSON.parse(r.value):null;}catch{return null;}}
 async function sSet(k,v){try{await window.storage.set(k,JSON.stringify(v));}catch(e){}}
@@ -752,7 +753,7 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
 }
 
 // ── Person form ───────────────────────────────────────────────
-const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
+const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:"",owner:""};
 function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
   const[f,setF]=useState({...BLANKP,...(init||{}),...(prefill||{})});
   const[dupes,setDupes]=useState([]);
@@ -783,6 +784,7 @@ function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
       <Fld label="Last Contacted"><Inp type="date" value={f.lastContacted} onChange={set("lastContacted")}/></Fld>
       <Fld label="Next Due"><Inp type="date" value={f.nextDue} onChange={set("nextDue")}/></Fld>
       <Fld label="Next Action" span2><Inp value={f.nextAction} onChange={set("nextAction")} placeholder="Send JD / Schedule call…"/></Fld>
+      <Fld label="Owner"><SelEl value={f.owner||""} onChange={set("owner")} options={[{v:"",l:"— Unassigned —"},{v:"David",l:"David"},{v:"Lauren",l:"Lauren"},{v:"Brinda",l:"Brinda"}]}/></Fld>
       <Fld label="Notes" span2><Tarea value={f.notes} onChange={set("notes")} rows={3}/></Fld>
       <div style={{gridColumn:"span 2",display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -847,6 +849,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
                       <div style={{fontWeight:700,color:NAVY,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>{p.name}</div>
                       <RelDot rel={p.relationship}/>
+                      {p.owner&&<span style={{fontSize:9,fontWeight:700,color:OWNER_COLORS[p.owner]||G400,background:(OWNER_COLORS[p.owner]||G400)+"18",borderRadius:3,padding:"1px 5px"}}>{p.owner}</span>}
                     </div>
                     <div style={{fontSize:11.5,color:G600,marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.title}{p.company?" · "+p.company:""}</div>
                     {p.nextDue&&<div style={{marginTop:4}}><DueTag due={p.nextDue}/></div>}
