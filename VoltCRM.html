@@ -1629,6 +1629,62 @@ function CampaignsView({people,setPeople,campaigns,setCampaigns,persist,ownerFil
 }
 
 
+// ── Password Gate ─────────────────────────────────────────────
+// Hash function - simple but effective for this use case
+function hashCode(str){
+  let hash=0;
+  for(let i=0;i<str.length;i++){
+    const char=str.charCodeAt(i);
+    hash=((hash<<5)-hash)+char;
+    hash=hash&hash;
+  }
+  return hash.toString(36);
+}
+// Password hash - change the password by updating this value
+// Current password: Volt1881!
+const PASS_HASH=hashCode("Volt1881!");
+
+function PasswordScreen({onUnlock}){
+  const[pw,setPw]=useState("");
+  const[error,setError]=useState("");
+  const[show,setShow]=useState(false);
+  const check=()=>{
+    if(hashCode(pw)===PASS_HASH){
+      sessionStorage.setItem("volt_auth","1");
+      onUnlock();
+    }else{
+      setError("Incorrect password");
+      setPw("");
+    }
+  };
+  return(
+    <div style={{background:NAVY,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif"}}>
+      <div style={{background:W,borderRadius:14,padding:"40px 48px",width:440,maxWidth:"100%",boxShadow:"0 4px 24px #0003",border:"1px solid "+G200,textAlign:"center"}}>
+        <img src="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" alt="VoltConsulting" style={{height:32,marginBottom:24}}/>
+        <div style={{fontWeight:800,fontSize:20,color:NAVY,marginBottom:4}}>VoltCRM</div>
+        <div style={{fontSize:13,color:G600,marginBottom:28}}>Internal use only. Enter your team password to continue.</div>
+        <div style={{position:"relative",marginBottom:12}}>
+          <input
+            type={show?"text":"password"}
+            value={pw}
+            onChange={e=>{setPw(e.target.value);setError("");}}
+            onKeyDown={e=>e.key==="Enter"&&check()}
+            placeholder="Team password"
+            style={{width:"100%",border:"1px solid "+(error?DANGER:G300),borderRadius:7,padding:"10px 44px 10px 14px",fontSize:14,outline:"none",fontFamily:"inherit",color:G900}}
+          />
+          <button onClick={()=>setShow(!show)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:G400,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>{show?"Hide":"Show"}</button>
+        </div>
+        {error&&<div style={{color:DANGER,fontSize:13,marginBottom:12}}>{error}</div>}
+        <button onClick={check} style={{width:"100%",background:TEAL,color:W,border:"none",borderRadius:7,padding:"11px 24px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+          Enter CRM
+        </button>
+        <div style={{marginTop:16,fontSize:11,color:G400}}>This system contains personal data. Authorised VoltConsulting team members only.</div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── First-run setup screen ────────────────────────────────────
 function SetupScreen({onComplete}){
   const[token,setToken]=useState("");
@@ -1699,6 +1755,7 @@ function SetupScreen({onComplete}){
 
 function App(){
   const[showSetup,setShowSetup]=useState(!localStorage.getItem("volt_at_token"));
+  const[unlocked,setUnlocked]=useState(!!sessionStorage.getItem("volt_auth"));
   const isLocalFile=window.location.protocol==="file:";
   const[view,setView]=useState("bd");
   const[ownerFilter,setOwnerFilter]=useState(null);
@@ -1776,6 +1833,7 @@ function App(){
   const handleNavigate=(targetView,id)=>{setView(targetView);setNavSel(id);setTimeout(()=>setNavSel(null),500);};
   const overdueCount=[...people,...companies].filter(x=>x.nextDue&&new Date(x.nextDue)<new Date()).length;
 
+  if(!unlocked)return <PasswordScreen onUnlock={()=>setUnlocked(true)}/>;
   if(showSetup)return <SetupScreen onComplete={()=>{setShowSetup(false);window.location.reload();}}/>;
 
   if(!ready)return(
