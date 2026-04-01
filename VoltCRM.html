@@ -605,6 +605,17 @@ function OverviewTab({selP,people,setPeople,persist}){
           <InlineField label="Title" value={selP.title} onChange={v=>save("title",v)}/>
           <InlineField label="Company" value={selP.company} onChange={v=>save("company",v)}/>
         </div>
+        <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+G100,display:"flex",alignItems:"center",gap:10}}>
+          <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",minWidth:80}}>Owner</div>
+          <div style={{display:"flex",gap:6}}>
+            {["David","Lauren","Brinda"].map(function(name){
+              const col=OWNER_COLORS[name]||G400;
+              const active=selP.owner===name;
+              return <button key={name} onClick={function(){save("owner",active?"":name);}} style={{background:active?col+"20":"transparent",color:active?col:G600,border:"1px solid "+(active?col+"60":G300),borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>{name}</button>;
+            })}
+            {!selP.owner&&<span style={{fontSize:11,color:G400,alignSelf:"center"}}>Unassigned</span>}
+          </div>
+        </div>
       </div>
 
       {/* Seniority + last contacted */}
@@ -882,7 +893,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}
 }
 
 // ── Company form ──────────────────────────────────────────────
-const BLANKCO={name:"",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:"0",lastContacted:today,nextAction:"",nextDue:"",relationship:"Cold",notes:""};
+const BLANKCO={name:"",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:"0",lastContacted:today,nextAction:"",nextDue:"",relationship:"Cold",notes:"",owner:""};
 function CompanyForm({init,onSave,onClose,companies,isEdit}){
   const[f,setF]=useState({...BLANKCO,...(init||{})});
   const[dupes,setDupes]=useState([]);
@@ -910,7 +921,8 @@ function CompanyForm({init,onSave,onClose,companies,isEdit}){
         <Fld label="Last Contacted"><Inp type="date" value={f.lastContacted} onChange={s("lastContacted")}/></Fld>
         <Fld label="Next Due"><Inp type="date" value={f.nextDue} onChange={s("nextDue")}/></Fld>
         <Fld label="Next Action" span2><Inp value={f.nextAction} onChange={s("nextAction")} placeholder="Schedule intro call…"/></Fld>
-        <Fld label="Notes" span2><Tarea value={f.notes} onChange={s("notes")} rows={3}/></Fld>
+        <Fld label="Owner"><SelEl value={f.owner||""} onChange={s("owner")} options={[{v:"",l:"— Unassigned —"},{v:"David",l:"David"},{v:"Lauren",l:"Lauren"},{v:"Brinda",l:"Brinda"}]}/></Fld>
+      <Fld label="Notes" span2><Tarea value={f.notes} onChange={s("notes")} rows={3}/></Fld>
       </div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -1134,7 +1146,7 @@ function BDTracker({people,companies,setPeople,setCompanies,persist}){
 }
 
 // ── MARKET MAP ────────────────────────────────────────────────
-function MarketMap({people,companies,onNavigate}){
+function MarketMap({people,companies,onNavigate,ownerFilter}){
   const[sectorF,setSectorF]=useState("All");
   const[seniorityF,setSeniorityF]=useState("All");
   const[relF,setRelF]=useState("All");
