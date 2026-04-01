@@ -1,1065 +1,964 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VoltCRM | VoltConsulting</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VoltConsulting CRM</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --teal:#00C2C7;--navy:#0D1B2A;--pale:#e6fafa;
-  --bg:#f5f7fa;--card:#fff;--border:#e2e8f0;
-  --text:#0D1B2A;--muted:#64748b;--red:#e53e3e;--green:#38a169;
-  --font:'Segoe UI',Calibri,system-ui,sans-serif;
-}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
-#root{display:flex;flex-direction:column;min-height:100vh}
-.app{display:flex;height:100vh;overflow:hidden}
-.sidebar{width:220px;background:var(--navy);color:#fff;display:flex;flex-direction:column;flex-shrink:0}
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.content{flex:1;overflow:hidden}
-.sidebar-logo{padding:16px;border-bottom:1px solid rgba(255,255,255,0.1)}
-.sidebar-logo img{height:28px;filter:brightness(0) invert(1)}
-.sidebar-nav{flex:1;padding:8px 0;overflow-y:auto}
-.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;color:rgba(255,255,255,0.7);cursor:pointer;font-size:14px;transition:all 0.15s;border:none;background:none;width:100%;text-align:left}
-.nav-item:hover{background:rgba(255,255,255,0.08);color:#fff}
-.nav-item.active{background:rgba(0,194,199,0.2);color:var(--teal);border-right:3px solid var(--teal)}
-.nav-icon{font-size:15px;width:20px;text-align:center}
-.sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.1)}
-.user-chip{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:6px 8px;border-radius:6px;transition:background 0.15s}
-.user-chip:hover{background:rgba(255,255,255,0.08)}
-.user-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px}
-.card-sm{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:12px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all 0.15s;font-family:var(--font)}
-.btn-primary{background:var(--teal);color:#fff}
-.btn-primary:hover{background:#00a8ac}
-.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
-.btn-ghost:hover{background:var(--bg)}
-.btn-danger{background:#fff0f0;color:var(--red);border:1px solid #fecaca}
-.btn-sm{padding:4px 10px;font-size:12px}
-input,select,textarea{font-family:var(--font);font-size:13px;border:1px solid var(--border);border-radius:6px;padding:7px 10px;width:100%;color:var(--text);background:#fff;transition:border 0.15s}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal)}
-textarea{resize:vertical;min-height:70px}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-.form-group{margin-bottom:12px}
-.form-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:0.04em}
-.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all 0.15s}
-.tag-active{background:var(--teal);color:#fff;border-color:var(--teal)}
-.tag-inactive{background:#f1f5f9;color:var(--muted);border-color:var(--border)}
-.tag-inactive:hover{border-color:var(--teal);color:var(--teal)}
-.person-row{display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;transition:background 0.1s;border-bottom:1px solid var(--border)}
-.person-row:hover{background:var(--pale)}
-.person-row:last-child{border-bottom:none}
-.avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;color:#fff}
-.person-info{flex:1;min-width:0}
-.person-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.person-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.follow-btn{background:none;border:none;cursor:pointer;font-size:16px;padding:4px 6px;border-radius:4px;color:var(--muted)}
-.follow-btn:hover{background:var(--pale);color:var(--teal)}
-.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:16px}
-.tab{padding:8px 16px;font-size:13px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-weight:500;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font);transition:all 0.15s}
-.tab.active{color:var(--teal);border-bottom-color:var(--teal)}
-.tab:hover{color:var(--text)}
-.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
-.badge-teal{background:var(--pale);color:var(--teal)}
-.badge-red{background:#fff0f0;color:var(--red)}
-.badge-amber{background:#fffbeb;color:#b45309}
-.badge-gray{background:#f1f5f9;color:var(--muted)}
-.overlay{position:fixed;inset:0;background:rgba(13,27,42,0.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal{background:#fff;border-radius:10px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
-.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.modal-title{font-weight:700;font-size:16px}
-.modal-body{padding:20px}
-.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
-.close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0 4px;line-height:1}
-.split{display:flex;height:100%;overflow:hidden}
-.split-list{width:300px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:#fff}
-.split-detail{flex:1;overflow-y:auto;padding:20px}
-.setup{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy)}
-.setup-card{background:#fff;border-radius:12px;padding:40px;max-width:440px;width:100%;text-align:center}
-.login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy)}
-.login-card{background:#fff;border-radius:12px;padding:40px;max-width:360px;width:100%;text-align:center}
-.user-btn{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:8px;border:2px solid var(--border);cursor:pointer;background:#fff;width:100%;margin-bottom:10px;font-family:var(--font);font-size:14px;font-weight:600;transition:all 0.15s}
-.user-btn:hover{border-color:var(--teal);background:var(--pale)}
-.tracker-row{display:grid;grid-template-columns:2fr 2fr 1.5fr 1fr auto;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px}
-.tracker-header{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;padding:8px 12px;border-bottom:2px solid var(--border);background:#f8fafc}
-.overdue{background:#fff5f5}
-.mm-grid{display:flex;flex-wrap:wrap;gap:10px;padding:16px}
-.mm-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;transition:all 0.15s;min-width:160px}
-.mm-card:hover{border-color:var(--teal);box-shadow:0 2px 8px rgba(0,194,199,0.15)}
-.sector-bubble{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px}
-.empty{text-align:center;padding:40px;color:var(--muted);font-size:14px}
-.section-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px}
-.kv{display:flex;gap:8px;margin-bottom:8px;font-size:13px}
-.kv-k{color:var(--muted);min-width:90px;flex-shrink:0}
-.kv-v{font-weight:500}
-.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
-.flex{display:flex;align-items:center;gap:8px}
-.flex-between{display:flex;align-items:center;justify-content:space-between}
-.camp-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;transition:background 0.1s}
-.camp-row:hover{background:var(--pale)}
-textarea.notes-area{min-height:100px;font-size:13px}
-.nav-divider{margin:8px 0;border-top:1px solid rgba(255,255,255,0.08)}
-.nav-section{padding:4px 16px;font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.06em}
+html,body,#root{height:100%;width:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,Aptos,Calibri,'Segoe UI',sans-serif;background:#f8f9fa}
+input,textarea,select,button{font-family:-apple-system,BlinkMacSystemFont,Aptos,Calibri,'Segoe UI',sans-serif}
+input::placeholder,textarea::placeholder{color:#ced4da}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#dee2e6;border-radius:3px}
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#6c757d;font-size:14px">Loading VoltConsulting CRM…</div></div>
 <script>
-var AIRTABLE_BASE='appD0JD8AUdtR6thY';
-var AIRTABLE_TABLE='tblUL48Km1j2m8sRU';
-function getToken(){return localStorage.getItem('volt_at_token')||'';}
-function getUser(){return localStorage.getItem('volt_user')||'';}
-function airtableHeaders(){return{'Authorization':'Bearer '+getToken(),'Content-Type':'application/json'};}
-function airtableUrl(x){return'https://api.airtable.com/v0/'+AIRTABLE_BASE+'/'+AIRTABLE_TABLE+(x||'');}
-async function atGet(n){
-  var res=await fetch(airtableUrl('?filterByFormula=({Name}="'+n+'")&maxRecords=1'),{headers:airtableHeaders()});
-  var d=await res.json();
-  if(d.records&&d.records.length>0){var notes=d.records[0].fields.Notes||'[]';try{return{id:d.records[0].id,data:JSON.parse(notes)};}catch(e){return{id:d.records[0].id,data:[]};}}
-  return null;
+window.onerror=function(msg,src,line){
+  document.getElementById('root').innerHTML='<div style="padding:40px;font-family:sans-serif;color:#dc3545;background:#fff5f5;min-height:100vh"><h3>CRM Error — please screenshot and share</h3><pre style="margin-top:12px;font-size:12px;background:#fff;padding:16px;border-radius:8px;border:1px solid #dee2e6;white-space:pre-wrap">'+String(msg)+'\nLine: '+line+'</pre></div>';
+};
+window.storage={
+  get:function(k){try{var v=localStorage.getItem(k);return Promise.resolve(v?{key:k,value:v}:null);}catch(e){return Promise.resolve(null);}},
+  set:function(k,v){try{localStorage.setItem(k,v);return Promise.resolve({key:k,value:v});}catch(e){return Promise.resolve(null);}},
+  delete:function(k){try{localStorage.removeItem(k);return Promise.resolve({key:k,deleted:true});}catch(e){return Promise.resolve(null);}},
+  list:function(prefix){try{var keys=Object.keys(localStorage).filter(function(k){return !prefix||k.startsWith(prefix);});return Promise.resolve({keys:keys});}catch(e){return Promise.resolve({keys:[]});}}
+};
+</script>
+<script>
+const LOGO_SRC = "https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png";
+
+const TEAL="#00C2C7",NAVY="#0D1B2A",TL="#e6fafa",TM="#b3f0f1";
+const W="#fff",G50="#f8f9fa",G100="#f1f3f5",G200="#e9ecef",G300="#dee2e6";
+const G400="#ced4da",G600="#6c757d",G700="#495057",G800="#343a40",G900="#212529";
+const DANGER="#dc3545",WARN="#e8a020",OK="#198754";
+
+const SC={"Life Sciences":"#00C2C7","Strategy":"#6f42c1","Commercial":"#e8a020","Oncology":"#dc3545","RWE":"#0dcaf0","Market Access":"#6610f2","Operations":"#198754","MedTech":"#fd7e14","Digital Health":"#d63384","Biotech":"#20c997","Regulatory":"#ffc107","Pricing":"#0d6efd","Other":"#6c757d"};
+const SECTORS=Object.keys(SC);
+const TC_MAP={"Key Client":TEAL,"Warm":WARN,"Prospect":G600};
+
+async function sGet(k){try{const r=await window.storage.get(k);return r?JSON.parse(r.value):null;}catch{return null;}}
+async function sSet(k,v){try{await window.storage.set(k,JSON.stringify(v));}catch{}}
+
+const today=new Date().toISOString().slice(0,10);
+const dF=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
+
+const SEED_PEOPLE=[
+  {id:1,type:"candidate",name:"Dr. Sarah Chen",title:"VP Strategy",company:"Huron Consulting",companyId:5,location:"London",seniority:"VP / Director",sectors:["Life Sciences","Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-5),campaigns:[],nextAction:"Follow up re: CRA opportunity",nextDue:dF(2),notes:"Strong BCG background. Open to right move."},
+  {id:2,type:"candidate",name:"James Okafor",title:"Principal",company:"ZS Associates",companyId:6,location:"Boston",seniority:"Manager / Principal",sectors:["Commercial","Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-30),campaigns:[],nextAction:"Check in — placement anniversary",nextDue:dF(7),notes:"Placed at CRA Jan 2025. Great referral source."},
+  {id:3,type:"candidate",name:"Priya Mehta",title:"Associate Director",company:"IQVIA",companyId:7,location:"New York",seniority:"Manager / Principal",sectors:["RWE","Market Access"],linkedin:"",email:"",phone:"",lastContacted:dF(-14),campaigns:[],nextAction:"Send Roche JD",nextDue:dF(1),notes:"6-12 month horizon. Wants boutique."},
+  {id:4,type:"contact",name:"Maria Lopez",title:"Chief People Officer",company:"Charles River Associates",companyId:1,location:"Boston",seniority:"C-Suite / Partner",sectors:["Strategy","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-3),campaigns:[],nextAction:"Send shortlist for Energy role",nextDue:dF(1),notes:"Key decision maker. Prefers WhatsApp."},
+  {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),campaigns:[],nextAction:"Schedule longlist review call",nextDue:dF(3),notes:"Very responsive. Wants weekly updates."},
+];
+const SEED_COMPANIES=[
+  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openMandates:2,lastContacted:dF(-3),campaigns:[],nextAction:"Debrief after shortlist",nextDue:dF(1),notes:"Retained engagement ongoing."},
+  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openMandates:1,lastContacted:dF(-7),campaigns:[],nextAction:"Longlist review call",nextDue:dF(3),notes:"Global Oncology search."},
+  {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openMandates:0,lastContacted:dF(-45),campaigns:[],nextAction:"Introductory call",nextDue:dF(10),notes:"Intro via network."},
+  {id:4,name:"Vertex Pharmaceuticals",type:"Pharma",tier:"Warm",hq:"Boston",keyContact:"James Carney",openMandates:0,lastContacted:dF(-20),campaigns:[],nextAction:"Follow up on pipeline",nextDue:dF(5),notes:"Warm intro via Brinda."},
+  {id:5,name:"Huron Consulting",type:"Consulting",tier:"Prospect",hq:"Chicago",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",notes:"Auto."},
+  {id:6,name:"ZS Associates",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",notes:"Auto."},
+  {id:7,name:"IQVIA",type:"Pharma",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",notes:"Auto."},
+];
+
+function normalize(s){return(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");}
+function similarity(a,b){
+  const na=normalize(a),nb=normalize(b);
+  if(!na||!nb)return 0;
+  if(na===nb)return 1;
+  if(na.includes(nb)||nb.includes(na))return 0.85;
+  const bigrams=s=>{const b=new Set();for(let i=0;i<s.length-1;i++)b.add(s.slice(i,i+2));return b;};
+  const ba=bigrams(na),bb=bigrams(nb);
+  let inter=0;ba.forEach(g=>{if(bb.has(g))inter++;});
+  return(2*inter)/(ba.size+bb.size||1);
 }
-async function atUpsert(n,data){
-  var ex=await atGet(n);var body={fields:{Name:n,Notes:JSON.stringify(data)}};
-  if(ex&&ex.id){await fetch(airtableUrl('/'+ex.id),{method:'PATCH',headers:airtableHeaders(),body:JSON.stringify(body)});}
-  else{await fetch(airtableUrl(),{method:'POST',headers:airtableHeaders(),body:JSON.stringify(body)});}
-}
-function uid(){return'v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
-function initials(n){if(!n)return'?';var p=n.trim().split(' ');if(p.length>=2)return(p[0][0]+p[p.length-1][0]).toUpperCase();return n.slice(0,2).toUpperCase();}
-function avatarColor(n){var c=['#00a8ac','#6f42c1','#e8a020','#0284c7','#059669','#dc2626','#7c3aed','#0891b2'];var h=0;for(var i=0;i<(n||'').length;i++)h=(h+(n||'').charCodeAt(i))%c.length;return c[h];}
-var SECTORS=['Strategy','Market Access','HEOR','Reg Affairs','Med Affairs','Comms','Commercial','Data/Analytics','Portfolio','Other'];
-var SECTOR_COLORS={'Strategy':'#dbeafe','Market Access':'#d1fae5','HEOR':'#fef3c7','Reg Affairs':'#ede9fe','Med Affairs':'#fce7f3','Comms':'#ffedd5','Commercial':'#e0f2fe','Data/Analytics':'#f0fdf4','Portfolio':'#fdf4ff','Other':'#f1f5f9'};
-var SECTOR_TEXT={'Strategy':'#1d4ed8','Market Access':'#065f46','HEOR':'#92400e','Reg Affairs':'#5b21b6','Med Affairs':'#9d174d','Comms':'#c2410c','Commercial':'#0369a1','Data/Analytics':'#14532d','Portfolio':'#7e22ce','Other':'#475569'};
-var USER_COLORS={David:'#00C2C7',Lauren:'#6f42c1',Brinda:'#e8a020'};
-var CAMP_STATUSES=['Draft','Live','Paused','Done'];
-var OUTCOMES=['','Replied','Interested','Converted','No reply','Bounced'];
-function today(){return new Date().toISOString().slice(0,10);}
-function isOverdue(d){if(!d)return false;return d<today();}
-function fmtDate(d){if(!d)return'';try{return new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return d;}}
-function hexToRgb(h){h=(h||'#000').replace('#','');return parseInt(h.slice(0,2),16)+','+parseInt(h.slice(2,4),16)+','+parseInt(h.slice(4,6),16);}
-function exportInstantlyCSV(people,campName){
-  var rows=[['First Name','Last Name','Email','Company','Job Title']];
-  people.forEach(function(p){var parts=(p.name||'').trim().split(' ');rows.push([parts[0]||'',parts.slice(1).join(' ')||'',p.email||'',p.company||'',p.title||'']);});
-  var csv=rows.map(function(r){return r.map(function(c){return'"'+(c||'').replace(/"/g,'""')+'"';}).join(',');}).join('\n');
-  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=(campName||'campaign')+'_instantly.csv';a.click();
-}
-function cacheGet(k){try{var v=localStorage.getItem('voltcrm_'+k);return v?JSON.parse(v):null;}catch(e){return null;}}
-function cacheSet(k,v){try{localStorage.setItem('voltcrm_'+k,JSON.stringify(v));}catch(e){}}
-function parseCSV(text){
-  var lines=text.split('\n').filter(function(l){return l.trim();});
-  if(lines.length<2)return[];
-  var headers=lines[0].split(',').map(function(h){return h.replace(/^"|"$/g,'').trim().toLowerCase();});
-  var rows=[];
-  for(var i=1;i<lines.length;i++){
-    var cols=[];var cur='';var inQ=false;
-    for(var j=0;j<lines[i].length;j++){var ch=lines[i][j];if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){cols.push(cur.trim());cur='';}else{cur+=ch;}}
-    cols.push(cur.trim());var row={};headers.forEach(function(h,idx){row[h]=cols[idx]||'';});rows.push(row);
-  }
-  return rows;
-}
-function nName(s){return(s||'').toLowerCase().replace(/\s+/g,' ').trim();}
-function nEmail(s){return(s||'').toLowerCase().trim();}
-function findDupes(incoming,existing){
-  return incoming.map(function(p){
-    return{person:p,dupes:existing.filter(function(e){return(nName(e.name)===nName(p.name)&&nName(p.name)!=='')||(nEmail(e.email)===nEmail(p.email)&&nEmail(p.email)!=='');})};
+function findDupePeople(name,company,people,excludeId){
+  return people.filter(p=>{
+    if(p.id===excludeId)return false;
+    const ns=similarity(name,p.name);
+    if(ns<0.8)return false;
+    if(company&&p.company)return similarity(company,p.company)>0.7||ns>0.92;
+    return ns>0.92;
   });
 }
-function mapRow(row,owner){
-  var name='';
-  if(row['full name'])name=row['full name'];
-  else if(row['name'])name=row['name'];
-  else{name=((row['first name']||row['firstname']||'')+' '+(row['last name']||row['lastname']||row['surname']||'')).trim();}
-  return{id:uid(),name:name,title:row['job title']||row['title']||row['position']||'',company:row['company']||row['company name']||row['organization']||'',email:row['email']||row['email address']||'',linkedin:row['linkedin']||row['linkedin url']||'',phone:row['phone']||row['phone number']||'',sectors:[],campaigns:[],campOutcomes:{},notes:'',nextAction:'',nextActionDate:'',owner:owner||''};
+function findDupeCompanies(name,companies,excludeId){
+  return companies.filter(c=>c.id!==excludeId&&similarity(name,c.name)>=0.82);
 }
-function coKey(cid,pid){return'co_'+cid+'_'+pid;}
+function autoLinkCompany(personCompany,companies){
+  if(!personCompany||!personCompany.trim())return{companies,companyId:null};
+  const match=companies.find(c=>similarity(personCompany,c.name)>=0.82);
+  if(match)return{companies,companyId:match.id};
+  const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",notes:"Auto-created from people record."};
+  return{companies:[...companies,newCo],companyId:newCo.id};
+}
 </script>
 <script type="text/babel">
-const {useState,useEffect,useRef}=React;
+var useState=React.useState,useMemo=React.useMemo,useEffect=React.useEffect,useCallback=React.useCallback,useRef=React.useRef;
+const Av=({name="?",size=36,color=TEAL})=>{
+  const i=name.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  return <div style={{width:size,height:size,borderRadius:"50%",background:color+"15",border:"1.5px solid "+color+"40",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.33,fontWeight:700,color,flexShrink:0}}>{i}</div>;
+};
+const Badge=({label,color=TEAL})=>(
+  <span style={{background:color+"12",color,border:"1px solid "+color+"35",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{label}</span>
+);
 
-function SetupScreen({onDone}){
-  const [tok,setTok]=useState('');const [err,setErr]=useState('');const [busy,setBusy]=useState(false);
-  async function go(){
-    if(!tok.trim()){setErr('Enter your Airtable token');return;}
-    setBusy(true);setErr('');
-    try{
-      localStorage.setItem('volt_at_token',tok.trim());
-      var res=await fetch('https://api.airtable.com/v0/'+AIRTABLE_BASE+'/'+AIRTABLE_TABLE+'?maxRecords=1',{headers:{'Authorization':'Bearer '+tok.trim()}});
-      if(res.ok){onDone();}else{setErr('Token invalid or no access.');localStorage.removeItem('volt_at_token');}
-    }catch(e){setErr('Connection failed.');}
-    setBusy(false);
-  }
+const DueTag=({due})=>{
+  if(!due)return null;
+  const d=Math.ceil((new Date(due)-new Date())/86400000);
+  if(d>3)return <span style={{fontSize:11,color:G600}}>{due}</span>;
+  if(d>=0)return <span style={{fontSize:11,fontWeight:700,color:WARN}}>{d===0?"Due today":"Due in "+d+"d"}</span>;
+  return <span style={{fontSize:11,fontWeight:700,color:DANGER}}>{"Overdue "+Math.abs(d)+"d"}</span>;
+};
+const Inp=({value,onChange,placeholder,type="text",style={}})=>(
+  <input type={type} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+    style={{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",color:G900,fontSize:13,outline:"none",width:"100%",fontFamily:"inherit",...style}}/>
+);
+const Tarea=({value,onChange,placeholder,rows=3})=>(
+  <textarea value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows}
+    style={{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",color:G900,fontSize:13,outline:"none",width:"100%",fontFamily:"inherit",resize:"vertical"}}/>
+);
+const SelEl=({value,onChange,options,style={}})=>(
+  <select value={value} onChange={e=>onChange(e.target.value)}
+    style={{background:W,border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",color:G900,fontSize:13,outline:"none",fontFamily:"inherit",width:"100%",cursor:"pointer",...style}}>
+    {options.map(o=>typeof o==="string"?<option key={o} value={o}>{o}</option>:<option key={o.v} value={o.v}>{o.l}</option>)}
+  </select>
+);
+const Btn=({children,onClick,variant="primary",small,style={}})=>{
+  const vs={primary:{bg:TEAL,color:W,border:"none"},ghost:{bg:"transparent",color:G600,border:"1px solid "+G300},danger:{bg:"transparent",color:DANGER,border:"1px solid "+DANGER+"44"},teal:{bg:TL,color:TEAL,border:"1px solid "+TM}};
+  const v=vs[variant]||vs.primary;
+  return <button onClick={onClick} style={{background:v.bg,color:v.color,border:v.border,borderRadius:6,padding:small?"5px 12px":"8px 18px",fontWeight:600,fontSize:small?12:13,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",...style}}>{children}</button>;
+};
+const Fld=({label,children,span2})=>(
+  <div style={{marginBottom:14,gridColumn:span2?"span 2":"span 1"}}>
+    <div style={{fontSize:11,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div>
+    {children}
+  </div>
+);
+const ModalEl=({title,onClose,children,wide})=>(
+  <div style={{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}} onClick={onClose}>
+    <div onClick={e=>e.stopPropagation()} style={{background:W,borderRadius:12,padding:"28px 32px",width:wide?700:560,maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px #0003",border:"1px solid "+G200}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22,paddingBottom:16,borderBottom:"1px solid "+G200}}>
+        <span style={{fontWeight:700,fontSize:18,color:NAVY}}>{title}</span>
+        <button onClick={onClose} style={{background:"none",border:"none",color:G400,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+const InfoCard=({label,children})=>(
+  <div style={{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"12px 16px"}}>
+    <div style={{fontSize:10.5,color:G600,marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div>
+    {children}
+  </div>
+);
+const TabBar=({tabs,active,onChange})=>(
+  <div style={{display:"flex",borderBottom:"1px solid "+G200}}>
+    {tabs.map(t=>(
+      <button key={t} onClick={()=>onChange(t)} style={{background:"none",border:"none",borderBottom:"2px solid "+(active===t?TEAL:"transparent"),marginBottom:-1,padding:"10px 18px",fontSize:13,fontWeight:active===t?700:400,color:active===t?TEAL:G600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.12s"}}>{t}</button>
+    ))}
+  </div>
+);
+const DupeBanner=({dupes,onDismiss})=>{
+  if(!dupes||dupes.length===0)return null;
   return(
-    <div className="setup">
-      <div className="setup-card">
-        <img style={{height:36,marginBottom:24}} src="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" alt="VoltConsulting"/>
-        <div style={{fontWeight:800,fontSize:22,color:'var(--navy)',marginBottom:6}}>VoltCRM Setup</div>
-        <div style={{fontSize:14,color:'var(--muted)',marginBottom:28}}>Enter your Airtable Personal Access Token to connect.</div>
-        <div className="form-group" style={{textAlign:'left'}}><label className="form-label">Airtable Token</label><input type="password" placeholder="pat..." value={tok} onChange={e=>setTok(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}/></div>
-        {err&&<div style={{color:'var(--red)',fontSize:13,marginBottom:12}}>{err}</div>}
-        <button className="btn btn-primary" style={{width:'100%'}} onClick={go} disabled={busy}>{busy?'Testing...':'Connect & Save'}</button>
-        <div style={{fontSize:11,color:'var(--muted)',marginTop:12}}>Token stored in your browser only.</div>
+    <div style={{background:"#fff8e1",border:"1px solid "+WARN,borderRadius:8,padding:"12px 16px",marginBottom:16}}>
+      <div style={{fontWeight:700,color:WARN,fontSize:13,marginBottom:6}}>⚠ Possible duplicate{dupes.length>1?"s":""} found</div>
+      {dupes.map(d=><div key={d.id} style={{fontSize:13,color:G800,marginBottom:3}}><strong>{d.name}</strong> — {d.title||d.type} at {d.company||d.hq||""}</div>)}
+      <div style={{display:"flex",gap:10,marginTop:10}}>
+        <Btn variant="ghost" small onClick={onDismiss}>Save anyway</Btn>
+        <span style={{fontSize:12,color:G600,alignSelf:"center"}}>or close to cancel</span>
       </div>
     </div>
   );
-}
+};
+const SectorPicker=({selected,onChange})=>(
+  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+    {SECTORS.map(s=>{
+      const on=selected.includes(s),c=SC[s];
+      return <button key={s} onClick={()=>onChange(on?selected.filter(x=>x!==s):[...selected,s])} style={{background:on?c+"15":W,color:on?c:G600,border:"1px solid "+(on?c+"50":G300),borderRadius:4,padding:"4px 10px",fontSize:11,fontWeight:on?700:400,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>;
+    })}
+  </div>
+);
 
-function LoginScreen({onLogin}){
+function QuickLog({item,onUpdate}){
+  const[note,setNote]=useState("");
+  const[na,setNa]=useState(item.nextAction||"");
+  const[nd,setNd]=useState(item.nextDue||"");
+  const log=()=>{
+    const ts=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+    const newNote=note.trim()?"["+ts+"] "+note.trim()+"\n\n"+(item.notes||""):item.notes;
+    onUpdate({notes:newNote,lastContacted:today,nextAction:na,nextDue:nd});
+    setNote("");
+  };
   return(
-    <div className="login">
-      <div className="login-card">
-        <img style={{height:32,marginBottom:24}} src="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" alt="VoltConsulting"/>
-        <div style={{fontWeight:800,fontSize:20,color:'var(--navy)',marginBottom:6}}>VoltCRM</div>
-        <div style={{fontSize:13,color:'var(--muted)',marginBottom:28}}>Who's logged in today?</div>
-        {['David','Lauren','Brinda'].map(u=>(
-          <button key={u} className="user-btn" onClick={()=>onLogin(u)}>
-            <span style={{width:32,height:32,borderRadius:'50%',background:USER_COLORS[u],display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:700,fontSize:14,flexShrink:0}}>{u[0]}</span>
-            <span>{u}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function useVoltData(){
-  const [people,setPeople]=useState([]);
-  const [companies,setCompanies]=useState([]);
-  const [campaigns,setCampaigns]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [saving,setSaving]=useState(false);
-  const [syncErr,setSyncErr]=useState('');
-  async function loadData(){
-    setSyncErr('');
-    var cp=cacheGet('people');var cc=cacheGet('companies');var ccamp=cacheGet('campaigns');
-    if(cp)setPeople(cp);if(cc)setCompanies(cc);if(ccamp)setCampaigns(ccamp);
-    setLoading(false);
-    try{
-      var[pr,cr,campr]=await Promise.all([atGet('PEOPLE'),atGet('COMPANIES'),atGet('CAMPAIGNS')]);
-      var pp=(pr&&pr.data)||[];var ccc=(cr&&cr.data)||[];var camps=(campr&&campr.data)||[];
-      setPeople(pp);setCompanies(ccc);setCampaigns(camps);
-      cacheSet('people',pp);cacheSet('companies',ccc);cacheSet('campaigns',camps);
-    }catch(e){setSyncErr('Airtable sync failed — working from cache.');}
-  }
-  useEffect(()=>{loadData();},[]);
-  async function savePeople(u){setSaving(true);setPeople(u);cacheSet('people',u);try{await atUpsert('PEOPLE',u);}catch(e){setSyncErr('Save failed.');}setSaving(false);}
-  async function saveCompanies(u){setSaving(true);setCompanies(u);cacheSet('companies',u);try{await atUpsert('COMPANIES',u);}catch(e){setSyncErr('Save failed.');}setSaving(false);}
-  async function saveCampaigns(u){setSaving(true);setCampaigns(u);cacheSet('campaigns',u);try{await atUpsert('CAMPAIGNS',u);}catch(e){setSyncErr('Save failed.');}setSaving(false);}
-  return{people,companies,campaigns,loading,saving,syncErr,savePeople,saveCompanies,saveCampaigns,reload:loadData};
-}
-
-function PersonModal({person,companies,onSave,onClose}){
-  const blank={id:'',name:'',title:'',company:'',email:'',linkedin:'',phone:'',sectors:[],notes:'',nextAction:'',nextActionDate:'',campaigns:[],campOutcomes:{},owner:getUser()};
-  const [f,setF]=useState(person?Object.assign({},blank,person):blank);
-  function set(k,v){setF(function(p){var n=Object.assign({},p);n[k]=v;return n;});}
-  function toggleSector(s){setF(function(p){var n=Object.assign({},p);var secs=n.sectors?n.sectors.slice():[];var i=secs.indexOf(s);if(i>=0)secs.splice(i,1);else secs.push(s);n.sectors=secs;return n;});}
-  function save(){if(!f.name.trim()){alert('Name required');return;}onSave(Object.assign({},f,{id:f.id||uid()}));}
-  return(
-    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal">
-        <div className="modal-header"><span className="modal-title">{person?'Edit Person':'Add Person'}</span><button className="close-btn" onClick={onClose}>&times;</button></div>
-        <div className="modal-body">
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Full Name *</label><input value={f.name} onChange={e=>set('name',e.target.value)}/></div>
-            <div className="form-group"><label className="form-label">Job Title</label><input value={f.title||''} onChange={e=>set('title',e.target.value)}/></div>
-          </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Company</label><input value={f.company||''} onChange={e=>set('company',e.target.value)} list="co-list"/><datalist id="co-list">{companies.map(c=><option key={c.id} value={c.name}/>)}</datalist></div>
-            <div className="form-group"><label className="form-label">Email</label><input type="email" value={f.email||''} onChange={e=>set('email',e.target.value)}/></div>
-          </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">LinkedIn</label><input value={f.linkedin||''} onChange={e=>set('linkedin',e.target.value)}/></div>
-            <div className="form-group"><label className="form-label">Phone</label><input value={f.phone||''} onChange={e=>set('phone',e.target.value)}/></div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Sectors</label>
-            <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-              {SECTORS.map(s=><span key={s} className={'tag '+(f.sectors&&f.sectors.indexOf(s)>=0?'tag-active':'tag-inactive')} onClick={()=>toggleSector(s)}>{s}</span>)}
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Next Action</label><input value={f.nextAction||''} onChange={e=>set('nextAction',e.target.value)}/></div>
-            <div className="form-group"><label className="form-label">Due Date</label><input type="date" value={f.nextActionDate||''} onChange={e=>set('nextActionDate',e.target.value)}/></div>
-          </div>
-          <div className="form-group"><label className="form-label">Owner</label><select value={f.owner||''} onChange={e=>set('owner',e.target.value)} style={{width:'auto'}}><option value="">None</option>{['David','Lauren','Brinda'].map(u=><option key={u}>{u}</option>)}</select></div>
-          <div className="form-group"><label className="form-label">Notes</label><textarea className="notes-area" value={f.notes||''} onChange={e=>set('notes',e.target.value)}/></div>
-        </div>
-        <div className="modal-footer"><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={save}>Save Person</button></div>
-      </div>
-    </div>
-  );
-}
-
-function CompanyModal({company,onSave,onClose}){
-  const blank={id:'',name:'',website:'',hq:'',size:'',tier:'',sectors:[],notes:''};
-  const [f,setF]=useState(company?Object.assign({},blank,company):blank);
-  function set(k,v){setF(function(p){var n=Object.assign({},p);n[k]=v;return n;});}
-  function toggleSector(s){setF(function(p){var n=Object.assign({},p);var secs=n.sectors?n.sectors.slice():[];var i=secs.indexOf(s);if(i>=0)secs.splice(i,1);else secs.push(s);n.sectors=secs;return n;});}
-  function save(){if(!f.name.trim()){alert('Company name required');return;}onSave(Object.assign({},f,{id:f.id||uid()}));}
-  return(
-    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal">
-        <div className="modal-header"><span className="modal-title">{company?'Edit Company':'Add Company'}</span><button className="close-btn" onClick={onClose}>&times;</button></div>
-        <div className="modal-body">
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Company Name *</label><input value={f.name} onChange={e=>set('name',e.target.value)}/></div>
-            <div className="form-group"><label className="form-label">Website</label><input value={f.website||''} onChange={e=>set('website',e.target.value)}/></div>
-          </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">HQ</label><input value={f.hq||''} onChange={e=>set('hq',e.target.value)}/></div>
-            <div className="form-group"><label className="form-label">Size</label><input value={f.size||''} onChange={e=>set('size',e.target.value)}/></div>
-          </div>
-          <div className="form-group"><label className="form-label">Tier</label><select value={f.tier||''} onChange={e=>set('tier',e.target.value)} style={{width:'auto'}}><option value="">Select</option><option>Tier 1</option><option>Tier 2</option><option>Tier 3</option><option>Tier 4</option></select></div>
-          <div className="form-group"><label className="form-label">Sectors</label><div style={{display:'flex',flexWrap:'wrap',gap:5}}>{SECTORS.map(s=><span key={s} className={'tag '+(f.sectors&&f.sectors.indexOf(s)>=0?'tag-active':'tag-inactive')} onClick={()=>toggleSector(s)}>{s}</span>)}</div></div>
-          <div className="form-group"><label className="form-label">Notes</label><textarea value={f.notes||''} onChange={e=>set('notes',e.target.value)}/></div>
-        </div>
-        <div className="modal-footer"><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={save}>Save Company</button></div>
-      </div>
-    </div>
-  );
-}
-
-function FollowUpModal({person,onSave,onClose}){
-  const [action,setAction]=useState(person.nextAction||'');
-  const [date,setDate]=useState(person.nextActionDate||today());
-  return(
-    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal" style={{maxWidth:380}}>
-        <div className="modal-header"><span className="modal-title">Follow-up — {person.name}</span><button className="close-btn" onClick={onClose}>&times;</button></div>
-        <div className="modal-body">
-          <div className="form-group"><label className="form-label">Next Action</label><input value={action} onChange={e=>setAction(e.target.value)} placeholder="e.g. Send intro email"/></div>
-          <div className="form-group"><label className="form-label">Due Date</label><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-        </div>
-        <div className="modal-footer"><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={()=>onSave(Object.assign({},person,{nextAction:action,nextActionDate:date}))}>Save</button></div>
-      </div>
-    </div>
-  );
-}
-
-function CSVImportModal({people,onImport,onClose}){
-  const [step,setStep]=useState('upload');
-  const [rawText,setRawText]=useState('');
-  const [analysis,setAnalysis]=useState([]);
-  const [selections,setSelections]=useState({});
-  const fileRef=useRef(null);
-  function handleFile(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(ev){setRawText(ev.target.result);};r.readAsText(f);}
-  function doParse(){
-    if(!rawText.trim()){alert('Upload a CSV or paste text.');return;}
-    var rows=parseCSV(rawText);if(!rows.length){alert('Could not parse CSV.');return;}
-    var mapped=rows.map(function(r){return mapRow(r,getUser());}).filter(function(p){return p.name.trim();});
-    if(!mapped.length){alert('No rows with names found.');return;}
-    var da=findDupes(mapped,people);var sels={};
-    da.forEach(function(item,i){sels[i]=item.dupes.length>0?'skip':'import';});
-    setAnalysis(da);setSelections(sels);setStep('review');
-  }
-  function doImport(){
-    var toImport=analysis.filter(function(item,i){return selections[i]==='import';}).map(function(item){return item.person;});
-    if(!toImport.length){alert('Nothing selected.');return;}onImport(toImport);
-  }
-  var importCount=Object.keys(selections).filter(function(k){return selections[k]==='import';}).length;
-  var dupeCount=analysis.filter(function(a){return a.dupes.length>0;}).length;
-  return(
-    <div className="overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal" style={{maxWidth:680}}>
-        <div className="modal-header"><span className="modal-title">Import CSV</span><button className="close-btn" onClick={onClose}>&times;</button></div>
-        <div className="modal-body">
-          {step==='upload'&&(
-            <div>
-              <div style={{fontSize:13,color:'var(--muted)',marginBottom:12}}>Accepts Apollo, LinkedIn, or any CSV. Auto-detects: Name / First Name / Last Name / Job Title / Company / Email / LinkedIn.</div>
-              <div style={{border:'2px dashed var(--border)',borderRadius:8,padding:20,textAlign:'center',marginBottom:12,cursor:'pointer',background:'var(--pale)'}} onClick={()=>fileRef.current&&fileRef.current.click()}>
-                <div style={{fontSize:24,marginBottom:6}}>📂</div>
-                <div style={{fontSize:13,fontWeight:600}}>Click to upload CSV</div>
-                <div style={{fontSize:11,color:'var(--muted)'}}>or paste below</div>
-                <input ref={fileRef} type="file" accept=".csv" style={{display:'none'}} onChange={handleFile}/>
-              </div>
-              {rawText&&<div style={{fontSize:12,color:'var(--green)',marginBottom:8}}>✓ File loaded</div>}
-              <div className="form-group"><label className="form-label">Or paste CSV text</label><textarea style={{minHeight:80,fontSize:11,fontFamily:'monospace'}} value={rawText} onChange={e=>setRawText(e.target.value)} placeholder="Paste CSV here..."/></div>
-            </div>
-          )}
-          {step==='review'&&(
-            <div>
-              <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
-                <span className="badge badge-teal">{analysis.length} rows</span>
-                {dupeCount>0&&<span className="badge badge-amber">⚠ {dupeCount} possible duplicates</span>}
-                <span className="badge badge-teal" style={{background:'#f0fdf4',color:'#166534'}}>{importCount} will import</span>
-              </div>
-              <div style={{maxHeight:360,overflowY:'auto',border:'1px solid var(--border)',borderRadius:6}}>
-                <div style={{display:'grid',gridTemplateColumns:'2fr 1.5fr 1.5fr 1fr',padding:'6px 10px',background:'#f8fafc',borderBottom:'1px solid var(--border)',fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'0.04em'}}>
-                  <span>Name</span><span>Company</span><span>Email</span><span>Action</span>
-                </div>
-                {analysis.map(function(item,i){
-                  var p=item.person;var hasDupe=item.dupes.length>0;
-                  return(
-                    <div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1.5fr 1.5fr 1fr',padding:'7px 10px',borderBottom:'1px solid var(--border)',fontSize:12,background:hasDupe?'#fffbeb':'#fff',alignItems:'center'}}>
-                      <div>
-                        <div style={{fontWeight:600}}>{p.name||'—'}</div>
-                        {p.title&&<div style={{fontSize:11,color:'var(--muted)'}}>{p.title}</div>}
-                        {hasDupe&&<div style={{fontSize:10,color:'#b45309'}}>⚠ matches: {item.dupes.map(function(d){return d.name;}).join(', ')}</div>}
-                      </div>
-                      <span style={{color:'var(--muted)'}}>{p.company||'—'}</span>
-                      <span style={{color:'var(--muted)',fontSize:11}}>{p.email||'—'}</span>
-                      <select value={selections[i]||'import'} onChange={function(e){var s=Object.assign({},selections);s[i]=e.target.value;setSelections(s);}} style={{fontSize:11,padding:'3px 5px',width:'auto'}}>
-                        <option value="import">Import</option><option value="skip">Skip</option>
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{marginTop:8,fontSize:12,color:'var(--muted)'}}>Duplicates pre-set to Skip — change to Import to override.</div>
-            </div>
-          )}
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          {step==='upload'&&<button className="btn btn-primary" onClick={doParse}>Parse CSV →</button>}
-          {step==='review'&&<><button className="btn btn-ghost" onClick={()=>setStep('upload')}>← Back</button><button className="btn btn-primary" onClick={doImport}>Import {importCount} contacts</button></>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PersonDetail({person,companies,campaigns,onUpdate,onDelete}){
-  const [tab,setTab]=useState('Overview');
-  const [editing,setEditing]=useState(false);
-  const [notesDraft,setNotesDraft]=useState(person.notes||'');
-  const [notesChanged,setNotesChanged]=useState(false);
-  function saveNotes(){onUpdate(Object.assign({},person,{notes:notesDraft}));setNotesChanged(false);}
-  function toggleSector(s){var secs=person.sectors?person.sectors.slice():[];var i=secs.indexOf(s);if(i>=0)secs.splice(i,1);else secs.push(s);onUpdate(Object.assign({},person,{sectors:secs}));}
-  function removeCampaign(cid){onUpdate(Object.assign({},person,{campaigns:(person.campaigns||[]).filter(function(x){return x!==cid;})}));}
-  function addToCampaign(cid){var camps=(person.campaigns||[]).slice();if(camps.indexOf(cid)<0)camps.push(cid);onUpdate(Object.assign({},person,{campaigns:camps}));}
-  var company=companies.find(function(c){return c.name===person.company;})||null;
-  var ownerColor=USER_COLORS[person.owner]||'var(--muted)';
-  return(
-    <div className="split-detail">
-      {editing&&<PersonModal person={person} companies={companies} onSave={function(p){onUpdate(p);setEditing(false);}} onClose={()=>setEditing(false)}/>}
-      <div className="flex-between" style={{marginBottom:16}}>
-        <div className="flex" style={{gap:12}}>
-          <div className="avatar" style={{background:avatarColor(person.name),width:44,height:44,fontSize:16}}>{initials(person.name)}</div>
-          <div>
-            <div style={{fontWeight:800,fontSize:18}}>{person.name}</div>
-            <div style={{fontSize:13,color:'var(--muted)'}}>{person.title}{person.title&&person.company?' · ':''}{person.company}</div>
-          </div>
-        </div>
-        <div className="flex" style={{gap:6}}>
-          {person.owner&&<span style={{fontSize:11,padding:'3px 8px',borderRadius:10,background:ownerColor+'22',color:ownerColor,fontWeight:700}}>{person.owner}</span>}
-          <button className="btn btn-ghost btn-sm" onClick={()=>setEditing(true)}>Edit</button>
-          <button className="btn btn-danger btn-sm" onClick={()=>{if(window.confirm('Delete '+person.name+'?'))onDelete(person.id);}}>Delete</button>
-        </div>
-      </div>
-      <div className="tabs">
-        {['Overview','BD Follow-up','Notes','Company'].map(t=><button key={t} className={'tab'+(tab===t?' active':'')} onClick={()=>setTab(t)}>{t}</button>)}
-      </div>
-      {tab==='Overview'&&(
+    <div style={{background:G50,borderRadius:8,padding:"18px 20px",border:"1px solid "+G200}}>
+      <div style={{fontSize:11,color:TEAL,marginBottom:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Log Interaction</div>
+      <Tarea value={note} onChange={setNote} placeholder="Notes from this call, email or meeting…" rows={2}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
         <div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:12,marginBottom:14}}>
-            {person.email&&<a href={'mailto:'+person.email} style={{fontSize:13,color:'var(--teal)'}}>{person.email}</a>}
-            {person.phone&&<span style={{fontSize:13}}>{person.phone}</span>}
-            {person.linkedin&&<a href={person.linkedin} target="_blank" style={{fontSize:13,color:'var(--teal)'}}>LinkedIn</a>}
-          </div>
-          <div className="section-title">Sectors</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:14}}>
-            {SECTORS.map(s=><span key={s} className={'tag '+(person.sectors&&person.sectors.indexOf(s)>=0?'tag-active':'tag-inactive')} onClick={()=>toggleSector(s)}>{s}</span>)}
-          </div>
-          <div className="section-title">Campaigns</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-            {person.campaigns&&person.campaigns.length>0
-              ?person.campaigns.map(function(cid){var camp=campaigns.find(function(c){return c.id===cid;});return camp?<span key={cid} className="tag tag-active">{camp.name}<span onClick={()=>removeCampaign(cid)} style={{cursor:'pointer',marginLeft:4,opacity:0.7}}>&times;</span></span>:null;})
-              :<span style={{fontSize:12,color:'var(--muted)'}}>No campaigns</span>}
-            <select style={{fontSize:12,padding:'2px 6px',border:'1px solid var(--border)',borderRadius:6,width:'auto'}} onChange={function(e){if(e.target.value){addToCampaign(e.target.value);e.target.value=''}}} defaultValue="">
-              <option value="">+ Add to campaign</option>
-              {campaigns.filter(function(c){return !person.campaigns||person.campaigns.indexOf(c.id)<0;}).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
+          <div style={{fontSize:11,color:G600,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Next Action</div>
+          <Inp value={na} onChange={setNa} placeholder="Follow up / Send JD…"/>
         </div>
-      )}
-      {tab==='BD Follow-up'&&(
         <div>
-          <div className="card-sm" style={{marginBottom:12}}>
-            <div className="kv"><span className="kv-k">Next Action</span><span className="kv-v">{person.nextAction||<span style={{color:'var(--muted)'}}>None set</span>}</span></div>
-            <div className="kv"><span className="kv-k">Due</span><span className="kv-v" style={{color:isOverdue(person.nextActionDate)?'var(--red)':'inherit'}}>{fmtDate(person.nextActionDate)||'—'}</span></div>
-          </div>
-          <div className="form-group"><label className="form-label">Next Action</label><input defaultValue={person.nextAction||''} onBlur={function(e){onUpdate(Object.assign({},person,{nextAction:e.target.value}));}}/></div>
-          <div className="form-group"><label className="form-label">Due Date</label><input type="date" defaultValue={person.nextActionDate||''} onBlur={function(e){onUpdate(Object.assign({},person,{nextActionDate:e.target.value}));}}/></div>
+          <div style={{fontSize:11,color:G600,marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Due Date</div>
+          <Inp type="date" value={nd} onChange={setNd}/>
         </div>
-      )}
-      {tab==='Notes'&&(
-        <div>
-          <textarea className="notes-area" style={{width:'100%',minHeight:180}} value={notesDraft} onChange={e=>{setNotesDraft(e.target.value);setNotesChanged(true);}}/>
-          {notesChanged&&<button className="btn btn-primary btn-sm" style={{marginTop:8}} onClick={saveNotes}>Save Notes</button>}
-        </div>
-      )}
-      {tab==='Company'&&(
-        <div>
-          {company?(
-            <div>
-              <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>{company.name}</div>
-              {company.website&&<div className="kv"><span className="kv-k">Website</span><a href={company.website} target="_blank" style={{color:'var(--teal)'}}>{company.website}</a></div>}
-              {company.hq&&<div className="kv"><span className="kv-k">HQ</span><span className="kv-v">{company.hq}</span></div>}
-              {company.size&&<div className="kv"><span className="kv-k">Size</span><span className="kv-v">{company.size}</span></div>}
-              {company.tier&&<div className="kv"><span className="kv-k">Tier</span><span className="kv-v">{company.tier}</span></div>}
-              {company.sectors&&company.sectors.length>0&&<div className="kv"><span className="kv-k">Sectors</span><span className="kv-v">{company.sectors.join(', ')}</span></div>}
-              {company.notes&&<div style={{marginTop:10,fontSize:13,color:'var(--muted)'}}>{company.notes}</div>}
-            </div>
-          ):(
-            <div className="empty">No matching company record.<br/><span style={{fontSize:12}}>"{person.company}"</span></div>
-          )}
-        </div>
-      )}
+      </div>
+      <div style={{marginTop:10,display:"flex",justifyContent:"flex-end"}}>
+        <Btn small onClick={log}>✓ Log & Update</Btn>
+      </div>
     </div>
   );
 }
 
-function PeopleView({data,ownerFilter,setOwnerFilter}){
-  const {people,companies,campaigns,savePeople}=data;
-  const [search,setSearch]=useState('');
-  const [filterCamp,setFilterCamp]=useState('');
-  const [selected,setSelected]=useState(null);
-  const [showAdd,setShowAdd]=useState(false);
-  const [showImport,setShowImport]=useState(false);
-  const [followUp,setFollowUp]=useState(null);
-  const [qa,setQa]=useState({name:'',title:'',company:'',email:''});
-  const [qaActive,setQaActive]=useState(false);
+function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
+  var[raw,setRaw]=useState("");
+  var[results,setResults]=useState(null);
+  var fileRef=useRef(null);
+  var CSV_MAP={
+    "name":"name","full name":"name","first name":"firstName","firstname":"firstName","first_name":"firstName",
+    "last name":"lastName","lastname":"lastName","last_name":"lastName","surname":"lastName",
+    "title":"title","job title":"title","jobtitle":"title","position":"title","role":"title",
+    "company":"company","companyname":"company","employer":"company","account":"company",
+    "location":"location","city":"location","email":"email","work email":"email",
+    "phone":"phone","mobile":"phone","linkedin":"linkedin","linkedin url":"linkedin",
+    "notes":"notes","sectors":"sectors","seniority":"seniority","type":"type",
+    "campaign name":"ignore","email provider":"ignore","verification status":"ignore",
+    "lead status":"ignore","pause_until":"ignore","interest status":"ignore",
+    "last contacted from":"ignore","email security gateway provider":"ignore"
+  };
 
-  function filtered(){
-    return people.filter(function(p){
-      var q=search.toLowerCase();
-      var mQ=!q||(p.name&&p.name.toLowerCase().indexOf(q)>=0)||(p.company&&p.company.toLowerCase().indexOf(q)>=0)||(p.title&&p.title.toLowerCase().indexOf(q)>=0);
-      var mC=!filterCamp||(p.campaigns&&p.campaigns.indexOf(filterCamp)>=0);
-      var mO=!ownerFilter||p.owner===ownerFilter;
-      return mQ&&mC&&mO;
+  var parseAndImport=function(text){
+    var lines=text.trim().split(/\r?\n/);
+    if(lines.length<2){alert("Need at least a header row and one data row.");return;}
+    var delim=lines[0].includes("\t")?"\t":",";
+    var parseRow=function(l){var cols=[],cur="",inQ=false;for(var i=0;i<l.length;i++){var c=l[i];if(c==='"'&&!inQ)inQ=true;else if(c==='"'&&inQ)inQ=false;else if(c===delim&&!inQ){cols.push(cur.trim());cur="";}else cur+=c;}cols.push(cur.trim());return cols;};
+    var headers=parseRow(lines[0]).map(function(h){return h.replace(/^"|"$/g,"").trim();});
+    var rows=lines.slice(1).filter(function(l){return l.trim();}).map(function(l){var v=parseRow(l);var o={};headers.forEach(function(h,i){o[h]=(v[i]||"").trim();});return o;});
+    var mappings={};
+    headers.forEach(function(h){mappings[h]=CSV_MAP[h.toLowerCase().trim()]||"ignore";});
+    var np=[].concat(people),nc=[].concat(companies),added=0,skipped=0;
+    rows.forEach(function(row){
+      var p=Object.assign({},BLANKP);var fn="",ln="";
+      Object.keys(mappings).forEach(function(h){
+        var f=mappings[h];if(!f||f==="ignore")return;
+        var v=(row[h]||"").trim();if(!v)return;
+        if(f==="firstName")fn=v;else if(f==="lastName")ln=v;
+        else if(f==="sectors")p.sectors=v.split(/[,;|]/).map(function(s){return s.trim();}).filter(Boolean);
+        else p[f]=v;
+      });
+      if(fn||ln)p.name=[fn,ln].filter(Boolean).join(" ");
+      if(!p.name.trim()){skipped++;return;}
+      if(findDupePeople(p.name,p.company,np).length>0){skipped++;return;}
+      var res=autoLinkCompany(p.company,nc);nc=res.companies;
+      np=[Object.assign({},p,{id:Date.now()+Math.random(),companyId:res.companyId})].concat(np);added++;
     });
-  }
-  function handleSave(p){
-    var upd=people.slice();var idx=upd.findIndex(function(x){return x.id===p.id;});
-    if(idx>=0){upd[idx]=p;}else{
-      var dd=findDupes([p],people).filter(function(d){return d.dupes.length>0;});
-      if(dd.length>0&&!window.confirm('Possible duplicate — '+dd[0].dupes.map(function(d){return d.name;}).join(', ')+' already exists. Add anyway?'))return;
-      upd.unshift(p);
-    }
-    savePeople(upd);setSelected(p);setShowAdd(false);
-  }
-  function handleDelete(id){savePeople(people.filter(function(p){return p.id!==id;}));setSelected(null);}
-  function handleUpdate(p){var upd=people.slice();var i=upd.findIndex(function(x){return x.id===p.id;});if(i>=0)upd[i]=p;savePeople(upd);setSelected(p);}
-  function handleImportCSV(np){savePeople(np.concat(people));setShowImport(false);}
-  function quickAdd(){
-    if(!qa.name.trim())return;
-    var p=Object.assign({id:uid(),sectors:[],campaigns:[],campOutcomes:{},notes:'',nextAction:'',nextActionDate:'',owner:getUser()},qa);
-    var dd=findDupes([p],people).filter(function(d){return d.dupes.length>0;});
-    if(dd.length>0&&!window.confirm('Possible duplicate — '+dd[0].dupes.map(function(d){return d.name;}).join(', ')+' already exists. Add anyway?'))return;
-    savePeople([p].concat(people));setQa({name:'',title:'',company:'',email:''});
-  }
-  var list=filtered();
-  var selPerson=selected?people.find(function(p){return p.id===selected.id;})||selected:null;
+    setPeople(np);setCompanies(nc);persist("people",np);persist("companies",nc);
+    setResults({added:added,skipped:skipped,total:rows.length});
+  };
+
+  if(results)return(
+    <div style={{textAlign:"center",padding:"20px 0"}}>
+      <div style={{fontSize:40,marginBottom:12}}>✓</div>
+      <h3 style={{fontSize:18,fontWeight:700,color:NAVY,marginBottom:16}}>Import complete</h3>
+      <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:20}}>
+        <div style={{background:OK+"10",border:"1px solid "+OK+"30",borderRadius:8,padding:"14px 20px",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:OK}}>{results.added}</div><div style={{fontSize:12,color:G600,marginTop:4}}>Added</div></div>
+        <div style={{background:WARN+"10",border:"1px solid "+WARN+"30",borderRadius:8,padding:"14px 20px",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:WARN}}>{results.skipped}</div><div style={{fontSize:12,color:G600,marginTop:4}}>Skipped</div></div>
+      </div>
+      <button onClick={onClose} style={{background:TEAL,color:"#fff",border:"none",borderRadius:6,padding:"9px 22px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+    </div>
+  );
 
   return(
-    <div className="split">
-      {showAdd&&<PersonModal companies={companies} onSave={handleSave} onClose={()=>setShowAdd(false)}/>}
-      {showImport&&<CSVImportModal people={people} onImport={handleImportCSV} onClose={()=>setShowImport(false)}/>}
-      {followUp&&<FollowUpModal person={followUp} onSave={function(p){handleUpdate(p);setFollowUp(null);}} onClose={()=>setFollowUp(null)}/>}
-      <div className="split-list">
-        <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)',background:'#fff'}}>
-          <div className="flex-between" style={{marginBottom:8}}>
-            <span style={{fontWeight:700,fontSize:14}}>People <span style={{color:'var(--muted)',fontWeight:400,fontSize:12}}>({people.length})</span></span>
-            <div className="flex" style={{gap:5}}>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setShowImport(true)}>⬆ Import</button>
-              <button className="btn btn-primary btn-sm" onClick={()=>setShowAdd(true)}>+ Add</button>
-            </div>
-          </div>
-          <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)}/>
-        </div>
-        {campaigns.length>0&&(
-          <div style={{padding:'6px 12px',background:'#f8fafc',borderBottom:'1px solid var(--border)',display:'flex',gap:4,flexWrap:'wrap'}}>
-            {campaigns.map(c=><span key={c.id} className={'tag '+(filterCamp===c.id?'tag-active':'tag-inactive')} style={{fontSize:10}} onClick={()=>setFilterCamp(filterCamp===c.id?'':c.id)}>{c.name}</span>)}
-          </div>
-        )}
-        {qaActive?(
-          <div style={{padding:'8px 12px',background:'var(--pale)',borderBottom:'1px solid var(--border)'}}>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:4}}>
-              <input placeholder="Name *" value={qa.name} onChange={e=>setQa(Object.assign({},qa,{name:e.target.value}))} style={{padding:'4px 6px',fontSize:12}}/>
-              <input placeholder="Title" value={qa.title} onChange={e=>setQa(Object.assign({},qa,{title:e.target.value}))} style={{padding:'4px 6px',fontSize:12}}/>
-              <input placeholder="Company" value={qa.company} onChange={e=>setQa(Object.assign({},qa,{company:e.target.value}))} style={{padding:'4px 6px',fontSize:12}}/>
-              <input placeholder="Email" value={qa.email} onChange={e=>setQa(Object.assign({},qa,{email:e.target.value}))} style={{padding:'4px 6px',fontSize:12}}/>
-            </div>
-            <div className="flex" style={{gap:4}}>
-              <button className="btn btn-primary btn-sm" onClick={quickAdd}>Add</button>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setQaActive(false)}>Cancel</button>
-            </div>
-          </div>
-        ):(
-          <div style={{padding:'5px 12px',borderBottom:'1px solid var(--border)',background:'#fafafa'}}>
-            <button style={{fontSize:12,color:'var(--teal)',background:'none',border:'none',cursor:'pointer'}} onClick={()=>setQaActive(true)}>+ Quick add person</button>
-          </div>
-        )}
-        <div>
-          {list.length===0&&<div className="empty">No people found</div>}
-          {list.map(function(p){
-            var od=isOverdue(p.nextActionDate);
-            return(
-              <div key={p.id} className="person-row" style={{background:selPerson&&selPerson.id===p.id?'var(--pale)':'',borderLeft:selPerson&&selPerson.id===p.id?'3px solid var(--teal)':'3px solid transparent'}} onClick={()=>setSelected(p)}>
-                <div className="avatar" style={{background:avatarColor(p.name)}}>{initials(p.name)}</div>
-                <div className="person-info">
-                  <div className="person-name">{p.name}</div>
-                  <div className="person-sub">{p.title}{p.title&&p.company?' · ':''}{p.company}</div>
-                  {p.nextAction&&<div style={{fontSize:11,color:od?'var(--red)':'var(--teal)',marginTop:1}}>{od?'⚠ ':'✓ '}{p.nextAction}{p.nextActionDate?' · '+fmtDate(p.nextActionDate):''}</div>}
-                </div>
-                <div className="flex" style={{gap:2}}>
-                  {p.owner&&<span style={{width:7,height:7,borderRadius:'50%',background:USER_COLORS[p.owner]||'var(--muted)',display:'inline-block'}}></span>}
-                  <button className="follow-btn" onClick={function(e){e.stopPropagation();setFollowUp(p);}}>✎</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+    <div>
+      <p style={{color:G600,fontSize:13,marginBottom:14,lineHeight:1.6}}>
+        Paste CSV data or upload a file. <strong>First Name + Last Name</strong> as separate columns auto-detected. Duplicates skipped automatically. Instantly/Apollo exports work out of the box.
+      </p>
+      <div style={{border:"2px dashed "+G300,borderRadius:8,padding:"16px",textAlign:"center",marginBottom:12,background:G50}}>
+        <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" style={{display:"none"}} onChange={function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(ev){setRaw(ev.target.result);};r.readAsText(f);}}/>
+        <button onClick={function(){if(fileRef.current)fileRef.current.click();}} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"7px 16px",fontSize:12,color:G600,cursor:"pointer",fontFamily:"inherit"}}>📄 Choose File</button>
+        <span style={{color:G400,fontSize:13,margin:"0 10px"}}>or paste below</span>
       </div>
-      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-        {selPerson?(
-          <PersonDetail person={selPerson} companies={companies} campaigns={campaigns} onUpdate={handleUpdate} onDelete={handleDelete}/>
-        ):(
-          <div className="empty" style={{paddingTop:80}}>
-            <div style={{fontSize:32,marginBottom:10}}>👥</div>
-            <div style={{fontWeight:600,marginBottom:4}}>Select a person</div>
-            <div style={{fontSize:13}}>Click any name to view their profile.</div>
-          </div>
-        )}
+      <textarea value={raw} onChange={function(e){setRaw(e.target.value);}} rows={6}
+        placeholder={"First Name,Last Name,Email,Company,Job Title\nLauren,Campbell,lauren@voltconsulting.solutions,VoltConsulting,Co-Founder"}
+        style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",fontSize:12,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
+      <div style={{display:"flex",gap:10,marginTop:12,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"8px 16px",fontSize:13,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+        <button onClick={function(){if(raw.trim())parseAndImport(raw);}} style={{background:TEAL,color:"#fff",border:"none",borderRadius:6,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Import →</button>
       </div>
     </div>
   );
 }
 
-function CompaniesView({data}){
-  const {companies,people,saveCompanies}=data;
-  const [search,setSearch]=useState('');
-  const [selected,setSelected]=useState(null);
-  const [showAdd,setShowAdd]=useState(false);
-  const [editing,setEditing]=useState(null);
-  function filtered(){var q=search.toLowerCase();return companies.filter(function(c){return !q||(c.name&&c.name.toLowerCase().indexOf(q)>=0)||(c.hq&&c.hq.toLowerCase().indexOf(q)>=0);});}
-  function handleSave(c){var upd=companies.slice();var i=upd.findIndex(function(x){return x.id===c.id;});if(i>=0)upd[i]=c;else upd.unshift(c);saveCompanies(upd);setSelected(c);setShowAdd(false);setEditing(null);}
-  function handleDelete(id){saveCompanies(companies.filter(function(c){return c.id!==id;}));setSelected(null);}
-  var selCo=selected?companies.find(function(c){return c.id===selected.id;})||selected:null;
-  var coPeople=selCo?people.filter(function(p){return p.company===selCo.name;}):[];
-  return(
-    <div className="split">
-      {(showAdd||editing)&&<CompanyModal company={editing} onSave={handleSave} onClose={()=>{setShowAdd(false);setEditing(null);}}/>}
-      <div className="split-list">
-        <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)'}}>
-          <div className="flex-between" style={{marginBottom:8}}>
-            <span style={{fontWeight:700,fontSize:14}}>Companies <span style={{color:'var(--muted)',fontWeight:400,fontSize:12}}>({companies.length})</span></span>
-            <button className="btn btn-primary btn-sm" onClick={()=>setShowAdd(true)}>+ Add</button>
-          </div>
-          <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)}/>
+function BDTracker({people,companies,setPeople,setCompanies,persist}){
+  const now=new Date();
+  const all=useMemo(()=>{
+    const ps=people.filter(p=>p.nextAction||p.nextDue).map(p=>({...p,_k:"person"}));
+    const cs=companies.filter(c=>c.nextAction||c.nextDue).map(c=>({...c,_k:"company"}));
+    return[...ps,...cs].sort((a,b)=>{
+      if(!a.nextDue&&!b.nextDue)return 0;if(!a.nextDue)return 1;if(!b.nextDue)return -1;
+      return new Date(a.nextDue)-new Date(b.nextDue);
+    });
+  },[people,companies]);
+  const ov=all.filter(i=>i.nextDue&&new Date(i.nextDue)<now);
+  const soon=all.filter(i=>i.nextDue&&new Date(i.nextDue)>=now&&new Date(i.nextDue)<=new Date(Date.now()+7*86400000));
+  const later=all.filter(i=>!i.nextDue||new Date(i.nextDue)>new Date(Date.now()+7*86400000));
+  const markDone=item=>{
+    if(item._k==="person"){const u=people.map(p=>p.id===item.id?{...p,nextAction:"",nextDue:"",lastContacted:today}:p);setPeople(u);persist("people",u);}
+    else{const u=companies.map(c=>c.id===item.id?{...c,nextAction:"",nextDue:"",lastContacted:today}:c);setCompanies(u);persist("companies",u);}
+  };
+  const Sec=({title,items,accent})=>{
+    if(!items.length)return null;
+    return(
+      <div style={{marginBottom:32}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,paddingBottom:10,borderBottom:"2px solid "+accent}}>
+          <span style={{fontWeight:700,color:accent,fontSize:13,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</span>
+          <span style={{background:accent+"15",color:accent,borderRadius:12,padding:"1px 10px",fontSize:12,fontWeight:700}}>{items.length}</span>
         </div>
-        <div>
-          {filtered().length===0&&<div className="empty">No companies</div>}
-          {filtered().map(function(c){
-            var cnt=people.filter(function(p){return p.company===c.name;}).length;
-            return(
-              <div key={c.id} className="person-row" style={{background:selCo&&selCo.id===c.id?'var(--pale)':'',borderLeft:selCo&&selCo.id===c.id?'3px solid var(--teal)':'3px solid transparent'}} onClick={()=>setSelected(c)}>
-                <div className="avatar" style={{background:avatarColor(c.name)}}>{initials(c.name)}</div>
-                <div className="person-info">
-                  <div className="person-name">{c.name}</div>
-                  <div className="person-sub">{c.hq||''}{c.tier?' · '+c.tier:''}</div>
-                </div>
-                <span className="badge badge-teal">{cnt}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-        {selCo?(
-          <div className="split-detail">
-            <div className="flex-between" style={{marginBottom:16}}>
-              <div><div style={{fontWeight:800,fontSize:20}}>{selCo.name}</div><div style={{fontSize:13,color:'var(--muted)'}}>{selCo.hq}{selCo.tier?' · '+selCo.tier:''}</div></div>
-              <div className="flex" style={{gap:6}}><button className="btn btn-ghost btn-sm" onClick={()=>setEditing(selCo)}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>{if(window.confirm('Delete?'))handleDelete(selCo.id);}}>Delete</button></div>
-            </div>
-            {selCo.website&&<div className="kv"><span className="kv-k">Website</span><a href={selCo.website} target="_blank" style={{color:'var(--teal)'}}>{selCo.website}</a></div>}
-            {selCo.size&&<div className="kv"><span className="kv-k">Size</span><span className="kv-v">{selCo.size}</span></div>}
-            {selCo.sectors&&selCo.sectors.length>0&&<div className="kv"><span className="kv-k">Sectors</span><span className="kv-v">{selCo.sectors.join(', ')}</span></div>}
-            {selCo.notes&&<div style={{marginTop:10,fontSize:13}}>{selCo.notes}</div>}
-            <hr className="divider"/>
-            <div className="section-title">People at {selCo.name} ({coPeople.length})</div>
-            {coPeople.length===0?<div style={{fontSize:13,color:'var(--muted)'}}>No people linked</div>:coPeople.map(function(p){return(
-              <div key={p.id} style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
-                <div className="avatar" style={{background:avatarColor(p.name),width:28,height:28,fontSize:11}}>{initials(p.name)}</div>
-                <div><div style={{fontWeight:600,fontSize:13}}>{p.name}</div><div style={{fontSize:11,color:'var(--muted)'}}>{p.title}</div></div>
-              </div>
-            );})}
-          </div>
-        ):(
-          <div className="empty" style={{paddingTop:80}}><div style={{fontSize:32,marginBottom:10}}>🏢</div><div style={{fontWeight:600}}>Select a company</div></div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function BDTrackerView({data,ownerFilter}){
-  const {people,savePeople}=data;
-  const [followUp,setFollowUp]=useState(null);
-  var tracked=people.filter(function(p){return p.nextAction&&p.nextAction.trim();});
-  if(ownerFilter)tracked=tracked.filter(function(p){return p.owner===ownerFilter;});
-  tracked=tracked.slice().sort(function(a,b){if(!a.nextActionDate)return 1;if(!b.nextActionDate)return -1;return a.nextActionDate<b.nextActionDate?-1:1;});
-  function handleUpdate(p){var upd=people.slice();var i=upd.findIndex(function(x){return x.id===p.id;});if(i>=0)upd[i]=p;savePeople(upd);setFollowUp(null);}
-  var todayStr=today();
-  var od=tracked.filter(function(p){return p.nextActionDate&&p.nextActionDate<todayStr;}).length;
-  var dt=tracked.filter(function(p){return p.nextActionDate===todayStr;}).length;
-  return(
-    <div style={{padding:20}}>
-      {followUp&&<FollowUpModal person={followUp} onSave={handleUpdate} onClose={()=>setFollowUp(null)}/>}
-      <div className="flex-between" style={{marginBottom:16}}>
-        <div><div style={{fontWeight:800,fontSize:18}}>BD Tracker</div><div style={{fontSize:12,color:'var(--muted)'}}>Everyone with a Next Action and Due Date set.</div></div>
-        <div className="flex" style={{gap:6}}>
-          {od>0&&<span className="badge badge-red">⚠ {od} overdue</span>}
-          {dt>0&&<span className="badge badge-amber">{dt} due today</span>}
-        </div>
-      </div>
-      {tracked.length===0?(
-        <div className="card" style={{textAlign:'center',padding:'30px 20px'}}>
-          <div style={{fontSize:28,marginBottom:8}}>📋</div>
-          <div style={{fontWeight:600,marginBottom:4}}>No follow-ups tracked yet</div>
-          <div style={{fontSize:13,color:'var(--muted)'}}>Open any person profile and set a <strong>Next Action</strong> and <strong>Due Date</strong>, or use the ✎ button on any person row.</div>
-        </div>
-      ):(
-        <div className="card" style={{padding:0,overflow:'hidden'}}>
-          <div className="tracker-row tracker-header"><span>Person</span><span>Next Action</span><span>Company</span><span>Due</span><span></span></div>
-          {tracked.map(function(p){
-            var ov=isOverdue(p.nextActionDate);
-            return(
-              <div key={p.id} className={'tracker-row'+(ov?' overdue':'')}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div className="avatar" style={{background:avatarColor(p.name),width:26,height:26,fontSize:11}}>{initials(p.name)}</div>
-                  <div><div style={{fontWeight:600,fontSize:13}}>{p.name}</div>{p.owner&&<div style={{fontSize:10,color:USER_COLORS[p.owner]||'var(--muted)'}}>{p.owner}</div>}</div>
-                </div>
-                <span style={{fontSize:13}}>{p.nextAction}</span>
-                <span style={{fontSize:13,color:'var(--muted)'}}>{p.company}</span>
-                <span style={{fontSize:13,color:ov?'var(--red)':p.nextActionDate===todayStr?'var(--teal)':'var(--text)',fontWeight:ov?600:400}}>{fmtDate(p.nextActionDate)||'—'}</span>
-                <button className="follow-btn" onClick={()=>setFollowUp(p)}>✎</button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CampaignsView({data}){
-  const {people,campaigns,saveCampaigns,savePeople}=data;
-  const [showNew,setShowNew]=useState(false);
-  const [newName,setNewName]=useState('');
-  const [selected,setSelected]=useState(null);
-  const [filterStatus,setFilterStatus]=useState('');
-
-  function createCampaign(){
-    if(!newName.trim())return;
-    var c={id:uid(),name:newName.trim(),createdAt:today(),status:'Draft',sequenceName:'',launchedAt:''};
-    saveCampaigns([c].concat(campaigns));setNewName('');setShowNew(false);setSelected(c);
-  }
-  function updateCampaign(u){saveCampaigns(campaigns.map(function(c){return c.id===u.id?u:c;}));setSelected(u);}
-  function deleteCampaign(id){
-    if(!window.confirm('Delete campaign?'))return;
-    saveCampaigns(campaigns.filter(function(c){return c.id!==id;}));
-    savePeople(people.map(function(p){
-      var camps=(p.campaigns||[]).filter(function(cid){return cid!==id;});
-      var outcomes=Object.assign({},p.campOutcomes||{});
-      Object.keys(outcomes).forEach(function(k){if(k.indexOf('co_'+id+'_')===0)delete outcomes[k];});
-      return Object.assign({},p,{campaigns:camps,campOutcomes:outcomes});
-    }));
-    if(selected&&selected.id===id)setSelected(null);
-  }
-  function addPersonToCamp(pid){
-    var person=people.find(function(p){return p.id===pid;});if(!person||!selCamp)return;
-    var camps=(person.campaigns||[]).slice();if(camps.indexOf(selCamp.id)<0)camps.push(selCamp.id);
-    savePeople(people.map(function(p){return p.id===pid?Object.assign({},p,{campaigns:camps}):p;}));
-  }
-  function removePersonFromCamp(pid){
-    savePeople(people.map(function(p){
-      if(p.id!==pid)return p;
-      var camps=(p.campaigns||[]).filter(function(cid){return cid!==selCamp.id;});
-      var outcomes=Object.assign({},p.campOutcomes||{});delete outcomes[coKey(selCamp.id,pid)];
-      return Object.assign({},p,{campaigns:camps,campOutcomes:outcomes});
-    }));
-  }
-  function setOutcome(pid,outcome){
-    savePeople(people.map(function(p){
-      if(p.id!==pid)return p;
-      var outcomes=Object.assign({},p.campOutcomes||{});outcomes[coKey(selCamp.id,pid)]=outcome;
-      var extra={};
-      if(outcome==='Replied'||outcome==='Interested')extra={nextAction:'Follow up — '+selCamp.name,nextActionDate:today()};
-      if(outcome==='Converted')extra={nextAction:'Converted — '+selCamp.name,nextActionDate:today()};
-      return Object.assign({},p,{campOutcomes:outcomes},extra);
-    }));
-  }
-  function getOutcome(p){return selCamp?(p.campOutcomes&&p.campOutcomes[coKey(selCamp.id,p.id)])||'':'';}
-
-  var selCamp=selected?campaigns.find(function(c){return c.id===selected.id;})||null:null;
-  var campPeople=selCamp?people.filter(function(p){return p.campaigns&&p.campaigns.indexOf(selCamp.id)>=0;}):[];
-  var notInCamp=selCamp?people.filter(function(p){return !p.campaigns||p.campaigns.indexOf(selCamp.id)<0;}):[];
-  var visCamps=filterStatus?campaigns.filter(function(c){return c.status===filterStatus;}):campaigns;
-  var replied=campPeople.filter(function(p){var o=getOutcome(p);return o==='Replied'||o==='Interested'||o==='Converted';}).length;
-  var interested=campPeople.filter(function(p){return getOutcome(p)==='Interested';}).length;
-  var converted=campPeople.filter(function(p){return getOutcome(p)==='Converted';}).length;
-
-  return(
-    <div className="split">
-      <div className="split-list">
-        <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)'}}>
-          <div className="flex-between" style={{marginBottom:8}}>
-            <span style={{fontWeight:700,fontSize:14}}>Campaigns</span>
-            <button className="btn btn-primary btn-sm" onClick={()=>setShowNew(!showNew)}>+ New</button>
-          </div>
-          {showNew&&(
-            <div className="flex" style={{gap:6,marginBottom:6}}>
-              <input placeholder="Match Instantly sequence name" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createCampaign()} style={{fontSize:12,padding:'5px 8px'}}/>
-              <button className="btn btn-primary btn-sm" onClick={createCampaign}>Add</button>
-            </div>
-          )}
-          <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-            <span className={'tag '+(filterStatus===''?'tag-active':'tag-inactive')} style={{fontSize:10}} onClick={()=>setFilterStatus('')}>All</span>
-            {CAMP_STATUSES.map(function(s){return <span key={s} className={'tag '+(filterStatus===s?'tag-active':'tag-inactive')} style={{fontSize:10}} onClick={()=>setFilterStatus(filterStatus===s?'':s)}>{s}</span>;})}
-          </div>
-        </div>
-        <div>
-          {visCamps.length===0&&<div className="empty">No campaigns</div>}
-          {visCamps.map(function(c){
-            var cnt=people.filter(function(p){return p.campaigns&&p.campaigns.indexOf(c.id)>=0;}).length;
-            var repCnt=people.filter(function(p){
-              if(!p.campaigns||p.campaigns.indexOf(c.id)<0)return false;
-              var o=(p.campOutcomes&&p.campOutcomes[coKey(c.id,p.id)])||'';
-              return o==='Replied'||o==='Interested'||o==='Converted';
-            }).length;
-            var statusBadge=c.status==='Live'?'badge-teal':c.status==='Paused'?'badge-amber':'badge-gray';
-            return(
-              <div key={c.id} className="camp-row" style={{background:selCamp&&selCamp.id===c.id?'var(--pale)':'',borderLeft:selCamp&&selCamp.id===c.id?'3px solid var(--teal)':'3px solid transparent',flexDirection:'column',alignItems:'stretch',gap:3}} onClick={()=>setSelected(c)}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                  <div style={{fontWeight:600,fontSize:13,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
-                  <span className={'badge '+statusBadge} style={{flexShrink:0,marginLeft:6}}>{c.status||'Draft'}</span>
-                </div>
-                <div style={{display:'flex',gap:8}}>
-                  <span style={{fontSize:11,color:'var(--muted)'}}>{cnt} contacts</span>
-                  {repCnt>0&&<span style={{fontSize:11,color:'var(--teal)',fontWeight:600}}>{repCnt} replied</span>}
-                  {c.launchedAt&&<span style={{fontSize:11,color:'var(--muted)'}}>· {fmtDate(c.launchedAt)}</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-        {selCamp?(
-          <div className="split-detail">
-            <div className="flex-between" style={{marginBottom:12}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:800,fontSize:18,marginBottom:4}}>{selCamp.name}</div>
-                <div className="flex" style={{gap:8,flexWrap:'wrap'}}>
-                  <select value={selCamp.status||'Draft'} onChange={function(e){updateCampaign(Object.assign({},selCamp,{status:e.target.value,launchedAt:e.target.value==='Live'&&!selCamp.launchedAt?today():selCamp.launchedAt}));}} style={{width:'auto',fontSize:12,padding:'3px 8px'}}>
-                    {CAMP_STATUSES.map(function(s){return <option key={s} value={s}>{s}</option>;})}
-                  </select>
-                  <span style={{fontSize:12,color:'var(--muted)'}}>{campPeople.length} contacts</span>
-                  {selCamp.launchedAt&&<span style={{fontSize:12,color:'var(--muted)'}}>Launched {fmtDate(selCamp.launchedAt)}</span>}
-                </div>
-              </div>
-              <div className="flex" style={{gap:6,flexShrink:0}}>
-                <button className="btn btn-primary btn-sm" onClick={()=>exportInstantlyCSV(campPeople,selCamp.name)}>Export CSV</button>
-                <button className="btn btn-danger btn-sm" onClick={()=>deleteCampaign(selCamp.id)}>Delete</button>
-              </div>
-            </div>
-            <div className="form-group" style={{marginBottom:12}}>
-              <label className="form-label">Instantly sequence name</label>
-              <input value={selCamp.sequenceName||''} placeholder="Must match exactly in Instantly" onChange={function(e){updateCampaign(Object.assign({},selCamp,{sequenceName:e.target.value}));}}/>
-            </div>
-            {campPeople.length>0&&(
-              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}}>
-                {[{l:'Contacts',v:campPeople.length},{l:'Replied',v:replied},{l:'Interested',v:interested},{l:'Converted',v:converted}].map(function(s){return(
-                  <div key={s.l} className="card-sm" style={{textAlign:'center',marginBottom:0}}>
-                    <div style={{fontSize:20,fontWeight:800,color:'var(--navy)'}}>{s.v}</div>
-                    <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{s.l}</div>
-                  </div>
-                );})}
-              </div>
-            )}
-            <div className="flex-between" style={{marginBottom:8}}>
-              <div className="section-title" style={{marginBottom:0}}>Contacts</div>
-              <select style={{fontSize:11,padding:'2px 6px',border:'1px solid var(--border)',borderRadius:6,width:'auto'}} onChange={function(e){if(e.target.value){addPersonToCamp(e.target.value);e.target.value=''}}} defaultValue="">
-                <option value="">+ Add contact</option>
-                {notInCamp.map(p=><option key={p.id} value={p.id}>{p.name}{p.company?' — '+p.company:''}</option>)}
-              </select>
-            </div>
-            {campPeople.length===0?(
-              <div style={{fontSize:13,color:'var(--muted)',padding:'16px 0'}}>No contacts yet. Add people then export CSV to Instantly.</div>
-            ):(
-              <div style={{border:'1px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
-                <div style={{display:'grid',gridTemplateColumns:'1.5fr 1fr 1fr auto',padding:'6px 12px',background:'#f8fafc',borderBottom:'1px solid var(--border)',fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'0.04em'}}>
-                  <span>Name</span><span>Company</span><span>Outcome</span><span></span>
-                </div>
-                {campPeople.map(function(p){
-                  var outcome=getOutcome(p);
-                  var isHot=outcome==='Replied'||outcome==='Interested'||outcome==='Converted';
-                  return(
-                    <div key={p.id} style={{display:'grid',gridTemplateColumns:'1.5fr 1fr 1fr auto',padding:'8px 12px',borderBottom:'1px solid var(--border)',alignItems:'center',background:isHot?'var(--pale)':'#fff'}}>
-                      <div>
-                        <div style={{fontWeight:600,fontSize:13}}>{p.name}</div>
-                        <div style={{fontSize:11,color:'var(--muted)'}}>{p.title}</div>
-                      </div>
-                      <div style={{fontSize:12,color:'var(--muted)'}}>{p.company}</div>
-                      <select value={outcome} onChange={function(e){setOutcome(p.id,e.target.value);}} style={{width:'auto',fontSize:11,padding:'3px 6px'}}>
-                        {OUTCOMES.map(function(o){return <option key={o} value={o}>{o||'No status'}</option>;})}
-                      </select>
-                      <button className="btn btn-danger btn-sm" style={{marginLeft:6}} onClick={()=>removePersonFromCamp(p.id)}>×</button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ):(
-          <div className="empty" style={{paddingTop:80}}>
-            <div style={{fontSize:32,marginBottom:10}}>📧</div>
-            <div style={{fontWeight:600,marginBottom:6}}>Select a campaign</div>
-            <div style={{fontSize:13,color:'var(--muted)'}}>Name campaigns to match your Instantly sequence exactly. Build list, export CSV, upload, then log outcomes as replies come in.</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MarketMapView({data,ownerFilter}){
-  const {people}=data;
-  const [filterSector,setFilterSector]=useState('');
-  const [search,setSearch]=useState('');
-  var filtered=people.filter(function(p){
-    var mS=!filterSector||(p.sectors&&p.sectors.indexOf(filterSector)>=0);
-    var mO=!ownerFilter||p.owner===ownerFilter;
-    var q=search.toLowerCase();
-    var mQ=!q||(p.name&&p.name.toLowerCase().indexOf(q)>=0)||(p.company&&p.company.toLowerCase().indexOf(q)>=0);
-    return mS&&mO&&mQ;
-  });
-  return(
-    <div style={{padding:20}}>
-      <div style={{fontWeight:800,fontSize:18,marginBottom:4}}>Market Map</div>
-      <div style={{fontSize:12,color:'var(--muted)',marginBottom:14}}>Your network by sector.</div>
-      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:14}}>
-        <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:160}}/>
-        {SECTORS.map(s=><span key={s} className={'tag '+(filterSector===s?'tag-active':'tag-inactive')} style={{fontSize:11}} onClick={()=>setFilterSector(filterSector===s?'':s)}>{s}</span>)}
-      </div>
-      {filtered.length===0&&<div className="empty">No people match filters</div>}
-      <div className="mm-grid">
-        {filtered.map(function(p){
-          var ps=p.sectors&&p.sectors.length>0?p.sectors[0]:'Other';
+        {items.map(item=>{
+          const ac=item._k==="company"?WARN:item.type==="contact"?"#6f42c1":TEAL;
           return(
-            <div key={p.id} className="mm-card">
-              <div className="sector-bubble" style={{background:SECTOR_COLORS[ps]||SECTOR_COLORS['Other'],color:SECTOR_TEXT[ps]||SECTOR_TEXT['Other']}}>{ps}</div>
-              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-                <div className="avatar" style={{background:avatarColor(p.name),width:24,height:24,fontSize:10}}>{initials(p.name)}</div>
-                <div style={{fontWeight:700,fontSize:13}}>{p.name}</div>
+            <div key={item._k+"-"+item.id} style={{background:W,border:"1px solid "+G200,borderLeft:"4px solid "+accent,borderRadius:8,padding:"14px 18px",marginBottom:10,display:"flex",gap:14,alignItems:"flex-start",boxShadow:"0 1px 3px #0001"}}>
+              <Av name={item.name} size={36} color={ac}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:3}}>
+                  <span style={{fontWeight:700,color:NAVY,fontSize:14}}>{item.name}</span>
+                  <div style={{display:"flex",gap:10,alignItems:"center"}}><DueTag due={item.nextDue}/></div>
+                </div>
+                <div style={{fontSize:12,color:G600,marginBottom:8}}>{item._k==="company"?item.type:item.title}{(item.company||item.hq)?" · "+(item.company||item.hq):""}</div>
+                {item.nextAction&&<div style={{fontSize:13,color:NAVY,background:G50,borderRadius:6,padding:"6px 12px",display:"inline-flex",alignItems:"center",gap:6,border:"1px solid "+G200}}><span style={{color:TEAL,fontWeight:700}}>→</span>{item.nextAction}</div>}
               </div>
-              <div style={{fontSize:11,color:'var(--muted)'}}>{p.title}</div>
-              <div style={{fontSize:11,color:'var(--navy)',fontWeight:500}}>{p.company}</div>
-              {p.owner&&<div style={{marginTop:4,width:6,height:6,borderRadius:'50%',background:USER_COLORS[p.owner]||'var(--muted)'}}></div>}
+              <button onClick={()=>markDone(item)} style={{background:TL,border:"1px solid "+TM,color:TEAL,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit",flexShrink:0}}>✓ Done</button>
             </div>
           );
         })}
       </div>
+    );
+  };
+  return(
+    <div style={{overflowY:"auto",padding:"32px 40px",maxWidth:860,height:"100%"}}>
+      <h1 style={{fontSize:26,fontWeight:700,color:NAVY,margin:"0 0 6px"}}>BD Tracker</h1>
+      <p style={{color:G600,fontSize:14,marginBottom:16}}>Your prioritised follow-up list across all people and companies.</p>
+      <div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 18px",marginBottom:28,fontSize:13,color:NAVY,lineHeight:1.7}}>
+        <strong style={{color:TEAL}}>How to populate this list:</strong> Go to any person or company → BD &amp; Follow-up tab → set a <strong>Next Action</strong> and <strong>Due Date</strong>. They'll appear here automatically, sorted by urgency. You can also use the <strong>✎ Follow-up</strong> button on any person card in the People view.
+      </div>
+      {!all.length&&<div style={{textAlign:"center",padding:"60px 0",color:G400}}><div style={{fontSize:40,marginBottom:12}}>✓</div><div style={{fontSize:14}}>All caught up</div></div>}
+      <Sec title="Overdue" items={ov} accent={DANGER}/>
+      <Sec title="Due this week" items={soon} accent={WARN}/>
+      <Sec title="Later" items={later} accent={G400}/>
     </div>
   );
 }
 
-function TopBar({saving,syncErr,user,ownerFilter,setOwnerFilter,onLogout,people,onReload}){
-  var overdue=people.filter(function(p){return p.nextAction&&isOverdue(p.nextActionDate)&&(!ownerFilter||p.owner===ownerFilter);}).length;
-  return(
-    <div className="topbar">
-      <div className="flex" style={{gap:12}}>
-        {ownerFilter?(
-          <span style={{fontSize:13,fontWeight:600,color:USER_COLORS[ownerFilter],background:USER_COLORS[ownerFilter]+'22',padding:'3px 10px',borderRadius:20}}>
-            {ownerFilter}'s view
-            <button onClick={()=>setOwnerFilter('')} style={{marginLeft:6,background:'none',border:'none',cursor:'pointer',color:USER_COLORS[ownerFilter],fontWeight:700,fontSize:13}}>×</button>
-          </span>
-        ):(
-          <span style={{fontSize:12,color:'var(--muted)'}}>All contacts</span>
-        )}
-        {overdue>0&&<span className="badge badge-red">⚠ {overdue} overdue</span>}
-        {saving?<span style={{fontSize:12,color:'var(--teal)'}}>Saving...</span>:syncErr?<span style={{color:'var(--red)',fontSize:11}}>{syncErr}</span>:<span style={{fontSize:12,color:'var(--green)'}}>✓ Synced</span>}
-      </div>
-      <div className="flex" style={{gap:10}}>
-        <button className="btn btn-ghost btn-sm" onClick={onReload}>↻ Refresh</button>
-        <span style={{fontSize:13,fontWeight:600,color:USER_COLORS[user]||'var(--muted)'}}>{user}</span>
-        <button className="btn btn-ghost btn-sm" onClick={onLogout}>Logout</button>
-      </div>
-    </div>
-  );
-}
+function MarketMap({people,companies,onNavigate}){
+  var[sectorF,setSectorF]=useState("All");
+  var[typeF,setTypeF]=useState("All");
 
-function App(){
-  const [hasToken,setHasToken]=useState(!!getToken());
-  const [user,setUser]=useState(getUser());
-  const [view,setView]=useState('people');
-  const [ownerFilter,setOwnerFilter]=useState(getUser()||'');
-  const data=useVoltData();
-  function handleLogin(u){localStorage.setItem('volt_user',u);setUser(u);setOwnerFilter(u);}
-  function handleLogout(){localStorage.removeItem('volt_user');setUser('');setOwnerFilter('');}
-  if(!hasToken)return <SetupScreen onDone={()=>setHasToken(true)}/>;
-  if(!user)return <LoginScreen onLogin={handleLogin}/>;
-  var navItems=[{id:'people',label:'People',icon:'👥'},{id:'companies',label:'Companies',icon:'🏢'},{id:'tracker',label:'BD Tracker',icon:'📋'},{id:'campaigns',label:'Campaigns',icon:'📧'},{id:'map',label:'Market Map',icon:'🗺'}];
+  var allSectors=useMemo(function(){
+    var s=new Set();
+    people.forEach(function(p){(p.sectors||[]).forEach(function(x){s.add(x);});});
+    return Array.from(s).sort();
+  },[people]);
+
+  var filtered=useMemo(function(){
+    return people.filter(function(p){
+      if(sectorF!=="All"&&!(p.sectors||[]).includes(sectorF))return false;
+      if(typeF!=="All"&&p.type!==typeF)return false;
+      return true;
+    });
+  },[people,sectorF,typeF]);
+
+  var sectorCounts=useMemo(function(){
+    var map={};
+    people.forEach(function(p){(p.sectors||[]).forEach(function(s){map[s]=(map[s]||0)+1;});});
+    return map;
+  },[people]);
+
   return(
-    <div className="app">
-      <div className="sidebar">
-        <div className="sidebar-logo"><img src="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" alt="VoltConsulting"/></div>
-        <div className="sidebar-nav">
-          {navItems.map(function(n){return(
-            <button key={n.id} className={'nav-item'+(view===n.id?' active':'')} onClick={()=>setView(n.id)}>
-              <span className="nav-icon">{n.icon}</span><span>{n.label}</span>
-            </button>
-          );})}
-          <div className="nav-divider"/>
-          <div className="nav-section">View as</div>
-          <button className={'nav-item'+(ownerFilter===''?' active':'')} onClick={()=>setOwnerFilter('')}>
-            <span className="nav-icon">🌐</span><span>Everyone</span>
-          </button>
-          {['David','Lauren','Brinda'].map(function(u){
-            var isActive=ownerFilter===u;
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      {/* Explainer */}
+      <div style={{background:TL,borderBottom:"1px solid "+TM,padding:"12px 28px",fontSize:13,color:NAVY,flexShrink:0}}>
+        <strong style={{color:TEAL}}>Market Map</strong> — Your talent ecosystem at a glance. Click a <strong>sector bubble</strong> to filter. Click any <strong>person card</strong> to open their profile.
+      </div>
+      {/* Filter bar */}
+      <div style={{background:W,borderBottom:"1px solid "+G200,padding:"12px 28px",flexShrink:0,display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:11,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginRight:4}}>Type</span>
+          {["All","candidate","contact"].map(function(t){
+            var active=typeF===t;var c=t==="contact"?"#6f42c1":TEAL;
+            return <button key={t} onClick={function(){setTypeF(t);}} style={{background:active?c+"15":"transparent",color:active?c:G600,border:"1px solid "+(active?c+"40":G300),borderRadius:20,padding:"3px 12px",fontSize:11,fontWeight:active?600:400,cursor:"pointer",fontFamily:"inherit"}}>{t==="all"||t==="All"?"All":t==="candidate"?"Candidates":"Contacts"}</button>;
+          })}
+        </div>
+        <div style={{fontSize:12,color:G600}}>{filtered.length} of {people.length} people</div>
+        {sectorF!=="All"&&<button onClick={function(){setSectorF("All");}} style={{background:DANGER+"10",color:DANGER,border:"1px solid "+DANGER+"30",borderRadius:20,padding:"3px 12px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✕ Clear filter</button>}
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
+        {/* Stats */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:24}}>
+          {[[people.length,"People",TEAL],[companies.length,"Companies","#6f42c1"],[allSectors.length,"Sectors",WARN]].map(function(item){
+            var v=item[0],l=item[1],c=item[2];
             return(
-              <button key={u} className="nav-item" style={isActive?{background:'rgba('+hexToRgb(USER_COLORS[u])+',0.18)',color:USER_COLORS[u],borderRight:'3px solid '+USER_COLORS[u]}:{}} onClick={()=>setOwnerFilter(u)}>
-                <span style={{width:8,height:8,borderRadius:'50%',background:USER_COLORS[u],display:'inline-block',flexShrink:0}}></span>
-                <span style={{marginLeft:6}}>{u}{u===user?' (me)':''}</span>
-              </button>
+              <div key={l} style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"16px 18px",borderTop:"3px solid "+c}}>
+                <div style={{fontSize:28,fontWeight:800,color:c,lineHeight:1}}>{v}</div>
+                <div style={{fontSize:11,color:G600,marginTop:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</div>
+              </div>
             );
           })}
         </div>
-        <div className="sidebar-footer">
-          <div className="user-chip" onClick={()=>setOwnerFilter(ownerFilter===user?'':user)}>
-            <span className="user-dot" style={{background:USER_COLORS[user]||'var(--teal)'}}></span>
-            <span style={{fontSize:12,opacity:0.9,flex:1}}>{user}</span>
-            <span style={{fontSize:10,opacity:0.5}}>{ownerFilter===user?'● my view':'○ all'}</span>
-          </div>
-          <div style={{fontSize:10,opacity:0.4,marginTop:4}}>VoltCRM v1.0</div>
-        </div>
-      </div>
-      <div className="main">
-        <TopBar saving={data.saving} syncErr={data.syncErr} user={user} ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter} onLogout={handleLogout} people={data.people} onReload={data.reload}/>
-        <div className="content">
-          {data.loading?(
-            <div className="empty" style={{paddingTop:80}}>Loading VoltCRM...</div>
-          ):(
-            <div style={{height:'100%'}}>
-              {view==='people'&&<PeopleView data={data} ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter}/>}
-              {view==='companies'&&<CompaniesView data={data}/>}
-              {view==='tracker'&&<BDTrackerView data={data} ownerFilter={ownerFilter}/>}
-              {view==='campaigns'&&<CampaignsView data={data}/>}
-              {view==='map'&&<MarketMapView data={data} ownerFilter={ownerFilter}/>}
+
+        {/* Sector bubbles */}
+        {allSectors.length>0&&(
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>Click a sector to filter</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"flex-end"}}>
+              {allSectors.map(function(sector){
+                var count=sectorCounts[sector]||0;
+                var color=SC[sector]||G600;
+                var size=Math.max(64,Math.min(120,52+count*18));
+                var active=sectorF===sector;
+                return(
+                  <div key={sector} onClick={function(){setSectorF(active?"All":sector);}}
+                    style={{width:size,height:size,borderRadius:"50%",background:active?color+"30":color+"12",border:"2px solid "+(active?color:color+"40"),display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all 0.15s",boxShadow:active?"0 2px 12px "+color+"40":"none",flexShrink:0}}>
+                    <div style={{fontSize:size*.28,fontWeight:800,color:color,lineHeight:1}}>{count}</div>
+                    <div style={{fontSize:Math.max(8,size*.09),color:color,textAlign:"center",padding:"0 4px",lineHeight:1.3,fontWeight:600,marginTop:2}}>{sector}</div>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* People grid */}
+        {filtered.length===0?(
+          <div style={{textAlign:"center",padding:"40px 0",color:G400}}>
+            <div style={{fontSize:28,marginBottom:8}}>🔍</div>
+            <div style={{fontSize:13}}>No people match this filter</div>
+            <button onClick={function(){setSectorF("All");setTypeF("All");}} style={{marginTop:12,background:"transparent",color:TEAL,border:"1px solid "+TM,borderRadius:6,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Clear filters</button>
+          </div>
+        ):(
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>
+              {sectorF!=="All"?sectorF+" — ":"All people — "}{filtered.length+" results"}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:10}}>
+              {filtered.map(function(p){
+                var ac=p.type==="contact"?"#6f42c1":TEAL;
+                return(
+                  <div key={p.id} onClick={function(){onNavigate&&onNavigate("people",p.id);}}
+                    style={{background:W,border:"1px solid "+G200,borderRadius:9,padding:"14px 16px",cursor:"pointer",transition:"border-color 0.12s"}}
+                    onMouseEnter={function(e){e.currentTarget.style.borderColor=TEAL;e.currentTarget.style.boxShadow="0 2px 10px "+TEAL+"20";}}
+                    onMouseLeave={function(e){e.currentTarget.style.borderColor=G200;e.currentTarget.style.boxShadow="none";}}>
+                    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:8}}>
+                      <Av name={p.name} size={34} color={ac}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:700,color:NAVY,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+                        <div style={{fontSize:11,color:G600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.title||""}</div>
+                      </div>
+                    </div>
+                    <div style={{fontSize:11,color:G600,marginBottom:p.sectors&&p.sectors.length?8:0}}>{"🏢 "+(p.company||"—")}</div>
+                    {p.sectors&&p.sectors.length>0&&(
+                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                        {p.sectors.slice(0,2).map(function(s){return <Badge key={s} label={s} color={SC[s]||G600}/>;} )}
+                        {p.sectors.length>2&&<Badge label={"+"+(p.sectors.length-2)} color={G600}/>}
+                      </div>
+                    )}
+                    {p.nextDue&&<div style={{marginTop:7}}><DueTag due={p.nextDue}/></div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-ReactDOM.render(React.createElement(App),document.getElementById('root'));
+function BDTracker({people,companies,setPeople,setCompanies,persist}){
+  const now=new Date();
+  const all=useMemo(()=>{
+    const ps=people.filter(p=>p.nextAction||p.nextDue).map(p=>({...p,_k:"person"}));
+    const cs=companies.filter(c=>c.nextAction||c.nextDue).map(c=>({...c,_k:"company"}));
+    return[...ps,...cs].sort((a,b)=>{
+      if(!a.nextDue&&!b.nextDue)return 0;if(!a.nextDue)return 1;if(!b.nextDue)return -1;
+      return new Date(a.nextDue)-new Date(b.nextDue);
+    });
+  },[people,companies]);
+  const ov=all.filter(i=>i.nextDue&&new Date(i.nextDue)<now);
+  const soon=all.filter(i=>i.nextDue&&new Date(i.nextDue)>=now&&new Date(i.nextDue)<=new Date(Date.now()+7*86400000));
+  const later=all.filter(i=>!i.nextDue||new Date(i.nextDue)>new Date(Date.now()+7*86400000));
+  const markDone=item=>{
+    if(item._k==="person"){const u=people.map(p=>p.id===item.id?{...p,nextAction:"",nextDue:"",lastContacted:today}:p);setPeople(u);persist("people",u);}
+    else{const u=companies.map(c=>c.id===item.id?{...c,nextAction:"",nextDue:"",lastContacted:today}:c);setCompanies(u);persist("companies",u);}
+  };
+  const Sec=({title,items,accent})=>{
+    if(!items.length)return null;
+    return(
+      <div style={{marginBottom:32}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,paddingBottom:10,borderBottom:"2px solid "+accent}}>
+          <span style={{fontWeight:700,color:accent,fontSize:13,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</span>
+          <span style={{background:accent+"15",color:accent,borderRadius:12,padding:"1px 10px",fontSize:12,fontWeight:700}}>{items.length}</span>
+        </div>
+        {items.map(item=>{
+          const ac=item._k==="company"?WARN:item.type==="contact"?"#6f42c1":TEAL;
+          return(
+            <div key={item._k+"-"+item.id} style={{background:W,border:"1px solid "+G200,borderLeft:"4px solid "+accent,borderRadius:8,padding:"14px 18px",marginBottom:10,display:"flex",gap:14,alignItems:"flex-start",boxShadow:"0 1px 3px #0001"}}>
+              <Av name={item.name} size={36} color={ac}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:3}}>
+                  <span style={{fontWeight:700,color:NAVY,fontSize:14}}>{item.name}</span>
+                  <div style={{display:"flex",gap:10,alignItems:"center"}}><DueTag due={item.nextDue}/></div>
+                </div>
+                <div style={{fontSize:12,color:G600,marginBottom:8}}>{item._k==="company"?item.type:item.title}{(item.company||item.hq)?" · "+(item.company||item.hq):""}</div>
+                {item.nextAction&&<div style={{fontSize:13,color:NAVY,background:G50,borderRadius:6,padding:"6px 12px",display:"inline-flex",alignItems:"center",gap:6,border:"1px solid "+G200}}><span style={{color:TEAL,fontWeight:700}}>→</span>{item.nextAction}</div>}
+              </div>
+              <button onClick={()=>markDone(item)} style={{background:TL,border:"1px solid "+TM,color:TEAL,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit",flexShrink:0}}>✓ Done</button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+  return(
+    <div style={{overflowY:"auto",padding:"32px 40px",maxWidth:860,height:"100%"}}>
+      <h1 style={{fontSize:26,fontWeight:700,color:NAVY,margin:"0 0 6px"}}>BD Tracker</h1>
+      <p style={{color:G600,fontSize:14,marginBottom:16}}>Your prioritised follow-up list across all people and companies.</p>
+      <div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 18px",marginBottom:28,fontSize:13,color:NAVY,lineHeight:1.7}}>
+        <strong style={{color:TEAL}}>How to populate this list:</strong> Go to any person or company → BD &amp; Follow-up tab → set a <strong>Next Action</strong> and <strong>Due Date</strong>. They'll appear here automatically, sorted by urgency. You can also use the <strong>✎ Follow-up</strong> button on any person card in the People view.
+      </div>
+      {!all.length&&<div style={{textAlign:"center",padding:"60px 0",color:G400}}><div style={{fontSize:40,marginBottom:12}}>✓</div><div style={{fontSize:14}}>All caught up</div></div>}
+      <Sec title="Overdue" items={ov} accent={DANGER}/>
+      <Sec title="Due this week" items={soon} accent={WARN}/>
+      <Sec title="Later" items={later} accent={G400}/>
+    </div>
+  );
+}
+
+function MarketMap({people,companies,onNavigate}){
+  const[sectorF,setSectorF]=useState("All");
+  const[seniorityF,setSeniorityF]=useState("All");
+    const[typeF,setTypeF]=useState("All");
+  const[mapView,setMapView]=useState("people"); // people | companies
+
+  const allSectors=useMemo(()=>{
+    const s=new Set();people.forEach(p=>(p.sectors||[]).forEach(x=>s.add(x)));return["All",...Array.from(s).sort()];
+  },[people]);
+
+  const filteredPeople=useMemo(()=>people.filter(p=>{
+    if(sectorF!=="All"&&!(p.sectors||[]).includes(sectorF))return false;
+    if(seniorityF!=="All"&&p.seniority!==seniorityF)return false;
+    if(typeF!=="All"&&p.type!==typeF)return false;
+    return true;
+  }),[people,sectorF,seniorityF,typeF]);
+
+  const filteredCompanies=useMemo(()=>companies.filter(c=>{
+    return true;
+  }),[companies]);
+
+  const sectorGroups=useMemo(()=>{
+    const map={};
+    filteredPeople.forEach(p=>(p.sectors||[]).forEach(s=>{if(!map[s])map[s]=[];map[s].push(p);}));
+    return Object.entries(map).sort((a,b)=>b[1].length-a[1].length);
+  },[filteredPeople]);
+
+  const total=people.length+companies.length;
+  const hotCount=0;
+
+  const FilterBtn=({options,value,onChange,colorMap})=>(
+    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+      {options.map(o=>{
+        const c=colorMap?colorMap[o]||G600:TEAL;
+        const active=value===o;
+        return <button key={o} onClick={()=>onChange(o)} style={{background:active?c+"15":"transparent",color:active?c:G600,border:"1px solid "+(active?c+"40":G300),borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>{o}</button>;
+      })}
+    </div>
+  );
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      {/* Filter bar */}
+      <div style={{background:W,borderBottom:"1px solid "+G200,padding:"14px 28px",flexShrink:0}}>
+        <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>View</div>
+            <div style={{display:"flex",gap:5}}>
+              {["people","companies"].map(v=><button key={v} onClick={()=>setMapView(v)} style={{background:mapView===v?TEAL:"transparent",color:mapView===v?W:G600,border:"1px solid "+(mapView===v?TEAL:G300),borderRadius:20,padding:"3px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize"}}>{v}</button>)}
+            </div>
+          </div>
+
+          {mapView==="people"&&<div>
+            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Type</div>
+            <FilterBtn options={["All","candidate","contact"]} value={typeF} onChange={setTypeF}/>
+          </div>}
+          {mapView==="people"&&<div>
+            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Seniority</div>
+            <FilterBtn options={["All","C-Suite / Partner","VP / Director","Manager / Principal","Analyst / Consultant"]} value={seniorityF} onChange={setSeniorityF}/>
+          </div>}
+          {mapView==="people"&&<div>
+            <div style={{fontSize:10,color:G400,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Sector</div>
+            <FilterBtn options={allSectors.slice(0,8)} value={sectorF} onChange={setSectorF}/>
+          </div>}
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>
+        {/* Stats row */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:28}}>
+          {[["Total People",people.length,TEAL],["Companies",companies.length,"#6f42c1"],["Hot relationships",hotCount,DANGER],["Sectors covered",[...new Set(people.flatMap(p=>p.sectors||[]))].length,WARN]].map(([l,v,c])=>(
+            <div key={l} style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"16px 18px",borderTop:"3px solid "+c}}>
+              <div style={{fontSize:28,fontWeight:800,color:c,lineHeight:1}}>{v}</div>
+              <div style={{fontSize:11,color:G600,marginTop:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</div>
+            </div>
+          ))}
+        </div>
+
+        {mapView==="people"&&(
+          <div>
+            {/* Sector bubble clusters */}
+            {sectorGroups.length>0&&(
+              <div style={{marginBottom:28}}>
+                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:14}}>
+                  {"Sector clusters — "+filteredPeople.length+" people shown"}
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-end",marginBottom:20}}>
+                  {sectorGroups.map(([sector,ps])=>{
+                    const color=SC[sector]||G600,size=Math.max(68,Math.min(140,58+ps.length*22));
+                    const active=sectorF===sector;
+                    return(
+                      <div key={sector} onClick={()=>setSectorF(active?"All":sector)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer"}}>
+                        <div style={{width:size,height:size,borderRadius:"50%",background:active?color+"30":color+"12",border:"2px solid "+(active?color:color+"40"),display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",transition:"all 0.15s",boxShadow:active?"0 2px 12px "+color+"40":"none"}}>
+                          <div style={{fontSize:size*.28,fontWeight:800,color,lineHeight:1}}>{ps.length}</div>
+                          <div style={{fontSize:8.5,color,textAlign:"center",padding:"0 6px",lineHeight:1.3,fontWeight:600,marginTop:2}}>{sector}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* People grid — clickable cards */}
+            <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>
+              {"All people — "+filteredPeople.length+" results"}
+            </div>
+            {filteredPeople.length===0&&<div style={{color:G400,fontSize:13,padding:"20px 0"}}>No people match the current filters</div>}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+              {filteredPeople.map(p=>{
+                const ac=p.type==="contact"?"#6f42c1":TEAL;
+                return(
+                  <div key={p.id} onClick={()=>onNavigate&&onNavigate("people",p.id)}
+                    style={{background:W,border:"1px solid "+G200,borderRadius:9,padding:"14px 16px",cursor:"pointer",transition:"all 0.12s",boxShadow:"0 1px 3px #0001"}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor=TEAL;e.currentTarget.style.boxShadow="0 2px 10px "+TEAL+"20";}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor=G200;e.currentTarget.style.boxShadow="0 1px 3px #0001";}}>
+                    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
+                      <Av name={p.name} size={34} color={ac}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:700,color:NAVY,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
+                        <div style={{fontSize:11,color:G600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.title||""}</div>
+                      </div>
+                    </div>
+                    <div style={{fontSize:11,color:G600,marginBottom:8,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{"🏢 "+(p.company||"—")}</div>
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+                      
+                      <Badge label={p.seniority?p.seniority.split(" / ")[0]:""} color={G600}/>
+                    </div>
+                    {(p.sectors||[]).length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:7}}>{(p.sectors||[]).slice(0,2).map(s=><Badge key={s} label={s} color={SC[s]||G600}/>)}</div>}
+                    {p.nextDue&&<div style={{marginTop:7}}><DueTag due={p.nextDue}/></div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {mapView==="companies"&&(
+          <div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24}}>
+              <div style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"18px"}}>
+                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>By Tier</div>
+                {["Key Client","Warm","Prospect"].map(tier=>{
+                  const count=companies.filter(c=>c.tier===tier).length,pct=companies.length?Math.round(count/companies.length*100):0,c=TC_MAP[tier]||G600;
+                  return(
+                    <div key={tier} style={{marginBottom:12}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,fontSize:12,color:G700}}><span>{tier}</span><span style={{fontWeight:700,color:c}}>{count}</span></div>
+                      <div style={{height:6,background:G200,borderRadius:3}}><div style={{height:"100%",width:pct+"%",background:c,borderRadius:3,transition:"width 0.4s"}}/></div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{background:W,border:"1px solid "+G200,borderRadius:10,padding:"18px"}}>
+                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>Relationship Heat</div>
+                {["Hot","Warm","Cold","New"].map(rel=>{
+                  const count=companies.filter(c=>c.relationship===rel).length,pct=companies.length?Math.round(count/companies.length*100):0;
+                  return(
+                    <div key={rel} style={{marginBottom:12}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{fontSize:12,color:G700,fontWeight:600}}>{rel}</span><span style={{fontSize:12,fontWeight:700,color:G700}}>{count}</span></div>
+                      <div style={{height:6,background:G200,borderRadius:3}}><div style={{height:"100%",width:pct+"%",background:REL[rel],borderRadius:3,transition:"width 0.4s"}}/></div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>
+              {"All companies — "+filteredCompanies.length+" results"}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+              {filteredCompanies.map(c=>{
+                const tc=TC_MAP[c.tier]||G400,pCount=people.filter(p=>p.companyId===c.id).length;
+                return(
+                  <div key={c.id} onClick={()=>onNavigate&&onNavigate("companies",c.id)}
+                    style={{background:W,border:"1px solid "+G200,borderLeft:"3px solid "+tc,borderRadius:9,padding:"14px 16px",cursor:"pointer",transition:"all 0.12s",boxShadow:"0 1px 3px #0001"}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor=tc;e.currentTarget.style.boxShadow="0 2px 10px "+tc+"30";}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor=G200;e.currentTarget.style.boxShadow="0 1px 3px #0001";}}>
+                    <div style={{fontWeight:700,color:NAVY,fontSize:14,marginBottom:3}}>{c.name}</div>
+                    <div style={{fontSize:12,color:G600,marginBottom:8}}>{c.type}{c.hq?" · "+c.hq:""}</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      <Badge label={c.tier} color={tc}/>
+                      
+                      {pCount>0&&<span style={{fontSize:11,color:TEAL,fontWeight:600}}>{"👥 "+pCount+" people"}</span>}
+                      {c.openMandates>0&&<span style={{fontSize:11,color:OK,fontWeight:600}}>{"📋 "+c.openMandates+" mandates"}</span>}
+                    </div>
+                    {c.nextDue&&<div style={{marginTop:7}}><DueTag due={c.nextDue}/></div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GlobalSearch({people,companies,onNavigate}){
+  const[q,setQ]=useState("");
+  const[open,setOpen]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
+  },[]);
+  const results=useMemo(()=>{
+    if(!q.trim()||q.length<2)return[];
+    const ql=q.toLowerCase();
+    const pr=people.filter(p=>(p.name+p.company+p.title+(p.sectors||[]).join(" ")).toLowerCase().includes(ql)).slice(0,6).map(p=>({...p,_kind:"person"}));
+    const cr=companies.filter(c=>(c.name+c.type+c.hq).toLowerCase().includes(ql)).slice(0,4).map(c=>({...c,_kind:"company"}));
+    return[...pr,...cr];
+  },[q,people,companies]);
+  return(
+    <div ref={ref} style={{position:"relative",flex:1,maxWidth:420}}>
+      <div style={{position:"relative"}}>
+        <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:14,color:G400,pointerEvents:"none"}}>🔍</span>
+        <input value={q} onChange={e=>{setQ(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)}
+          placeholder="Search everything — people, companies, notes…"
+          style={{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"8px 32px 8px 34px",color:G900,fontSize:13,outline:"none",width:"100%",fontFamily:"inherit"}}/>
+        {q&&<button onClick={()=>{setQ("");setOpen(false);}} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:G400,cursor:"pointer",fontSize:18,lineHeight:1}}>×</button>}
+      </div>
+      {open&&results.length>0&&(
+        <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:W,border:"1px solid "+G200,borderRadius:10,boxShadow:"0 8px 32px #0002",zIndex:200,overflow:"hidden"}}>
+          {results.map(item=>{
+            const ip=item._kind==="person",color=ip?(item.type==="contact"?"#6f42c1":TEAL):(TC_MAP[item.tier]||G600);
+            return(
+              <div key={item._kind+"-"+item.id} onClick={()=>{onNavigate(ip?"people":"companies",item.id);setQ("");setOpen(false);}}
+                style={{display:"flex",gap:12,alignItems:"center",padding:"10px 16px",cursor:"pointer",borderBottom:"1px solid "+G100}}
+                onMouseEnter={e=>e.currentTarget.style.background=G50}
+                onMouseLeave={e=>e.currentTarget.style.background=W}>
+                <Av name={item.name} size={30} color={color}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{item.name}</div>
+                  <div style={{fontSize:11,color:G600}}>{ip?((item.title||"")+(item.company?" · "+item.company:"")):(item.type||"")+(item.hq?" · "+item.hq:"")}</div>
+                </div>
+                <span style={{fontSize:10,color:G400,background:G100,borderRadius:4,padding:"2px 7px",fontWeight:600,textTransform:"uppercase"}}>{ip?item.type:"company"}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {open&&q.length>=2&&!results.length&&(
+        <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:W,border:"1px solid "+G200,borderRadius:10,boxShadow:"0 8px 32px #0002",zIndex:200,padding:"16px",textAlign:"center",color:G400,fontSize:13}}>No results for "{q}"</div>
+      )}
+    </div>
+  );
+}
+
+let AT_TOKEN=localStorage.getItem("volt_at_token")||"";
+let AT_BASE=localStorage.getItem("volt_at_base")||"";
+let AT_TABLE=localStorage.getItem("volt_at_table")||"";
+async function atFetch(path,opts={}){
+  const r=await fetch("https://api.airtable.com/v0/"+AT_BASE+"/"+AT_TABLE+path,{...opts,headers:{"Authorization":"Bearer "+AT_TOKEN,"Content-Type":"application/json",...(opts.headers||{})}});
+  if(!r.ok)throw new Error("AT "+r.status);return r.json();
+}
+async function getOrCreate(name){
+  const d=await atFetch("?filterByFormula=Name%3D%22"+encodeURIComponent(name)+"%22");
+  if(d.records&&d.records.length>0){localStorage.setItem("atid_"+name,d.records[0].id);return d.records[0];}
+  const c=await atFetch("",{method:"POST",body:JSON.stringify({records:[{fields:{Name:name,Notes:"[]"}}]})});
+  localStorage.setItem("atid_"+name,c.records[0].id);return c.records[0];
+}
+async function loadFromAirtable(){
+  const[p,c]=await Promise.all([getOrCreate("PEOPLE"),getOrCreate("COMPANIES")]);
+  let people=[],companies=[];
+  try{people=JSON.parse(p.fields.Notes||"[]");}catch{}
+  try{companies=JSON.parse(c.fields.Notes||"[]");}catch{}
+  if(people.length)localStorage.setItem("voltcrm5-people",JSON.stringify(people));
+  if(companies.length)localStorage.setItem("voltcrm5-companies",JSON.stringify(companies));
+  return{people,companies};
+}
+async function saveToAirtable(name,data){
+  const rec=await getOrCreate(name);
+  await atFetch("/"+rec.id,{method:"PATCH",body:JSON.stringify({fields:{Notes:JSON.stringify(data)}})});
+}
+function SetupScreen({onComplete}){
+  const[token,setToken]=useState("");
+  const[base,setBase]=useState("appD0JD8AUdtR6thY");
+  const[testing,setTesting]=useState(false);
+  const[error,setError]=useState("");
+  const save=async()=>{
+    if(!token.trim()){setError("Please enter your token");return;}
+    setTesting(true);setError("");
+    try{
+      const r=await fetch("https://api.airtable.com/v0/"+base+"/tblUL48Km1j2m8sRU?maxRecords=1",{headers:{"Authorization":"Bearer "+token.trim()}});
+      if(!r.ok)throw new Error("Failed ("+r.status+") — check your token");
+      localStorage.setItem("volt_at_token",token.trim());
+      localStorage.setItem("volt_at_base",base.trim());
+      localStorage.setItem("volt_at_table","tblUL48Km1j2m8sRU");
+      AT_TOKEN=token.trim();AT_BASE=base.trim();AT_TABLE="tblUL48Km1j2m8sRU";
+      onComplete();
+    }catch(e){setTesting(false);setError(e.message);}
+  };
+  return(
+    <div style={{background:"#f8f9fa",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#fff",borderRadius:14,padding:"40px 48px",width:520,maxWidth:"100%",boxShadow:"0 4px 24px #0002",border:"1px solid #e9ecef"}}>
+        <div style={{fontWeight:800,fontSize:18,color:NAVY,marginBottom:4}}>VOLT<span style={{fontWeight:400}}>CONSULTING</span></div>
+        <div style={{fontSize:10.5,color:TEAL,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:24,fontWeight:700}}>Internal CRM</div>
+        <h2 style={{fontSize:18,fontWeight:700,color:NAVY,marginBottom:8}}>Connect to Airtable</h2>
+        <p style={{fontSize:13,color:"#6c757d",marginBottom:24,lineHeight:1.6}}>Enter your credentials once. Stored in this browser only.</p>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,color:"#6c757d",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Personal Access Token</div>
+          <input value={token} onChange={e=>setToken(e.target.value)} placeholder="patXXXXXX…" style={{width:"100%",border:"1px solid #dee2e6",borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:"#6c757d",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Base ID</div>
+          <input value={base} onChange={e=>setBase(e.target.value)} placeholder="appXXXXXX…" style={{width:"100%",border:"1px solid #dee2e6",borderRadius:6,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+        </div>
+        {error&&<div style={{color:"#dc3545",fontSize:13,marginBottom:12}}>{error}</div>}
+        <button onClick={save} disabled={testing} style={{background:TEAL,color:"#fff",border:"none",borderRadius:7,padding:"11px 24px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",fontFamily:"inherit",opacity:testing?0.7:1}}>
+          {testing?"Testing…":"Connect & Open CRM"}
+        </button>
+        <div style={{marginTop:12,fontSize:12,color:"#adb5bd",textAlign:"center"}}>Each team member enters this once on first visit.</div>
+      </div>
+    </div>
+  );
+}
+
+const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"campaigns",label:"Campaigns",icon:"◇"},{id:"map",label:"Market Map",icon:"◌"}];
+
+function App(){
+  const[view,setView]=useState("bd");
+  const[navSel,setNavSel]=useState(null);
+  const[people,setPeople]=useState(SEED_PEOPLE);
+  const[companies,setCompanies]=useState(SEED_COMPANIES);
+  const[ready,setReady]=useState(false);
+  const[saveState,setSaveState]=useState(null);
+
+  const[showSetup,setShowSetup]=useState(!localStorage.getItem("volt_at_token"));
+  const[syncStatus,setSyncStatus]=useState("loading");
+
+  useEffect(()=>{
+    if(showSetup){setReady(true);return;}
+    (async()=>{
+      try{
+        const data=await loadFromAirtable();
+        if(data.people&&data.people.length>0)setPeople(data.people);
+        else{const sp=await sGet("voltcrm5-people");if(sp)setPeople(sp);}
+        if(data.companies&&data.companies.length>0)setCompanies(data.companies);
+        else{const sc=await sGet("voltcrm5-companies");if(sc)setCompanies(sc);}
+        setSyncStatus("ok");
+      }catch(e){
+        const sp=await sGet("voltcrm5-people");const sc=await sGet("voltcrm5-companies");
+        if(sp)setPeople(sp);if(sc)setCompanies(sc);
+        setSyncStatus("offline");
+      }
+      setReady(true);
+    })();
+  },[showSetup]);
+
+  const persist=useCallback(async(key,data)=>{
+    setSaveState("saving");
+    await sSet("voltcrm5-"+key,data);
+    try{if(key==="people")await saveToAirtable("PEOPLE",data);else if(key==="companies")await saveToAirtable("COMPANIES",data);}
+    catch(e){console.warn("AT:",e.message);}
+    setSaveState("saved");
+    setTimeout(()=>setSaveState(null),2500);
+  },[]);
+
+  const handleNavigate=(targetView,id)=>{setView(targetView);setNavSel(id);setTimeout(()=>setNavSel(null),500);};
+  const overdueCount=[...people,...companies].filter(x=>x.nextDue&&new Date(x.nextDue)<new Date()).length;
+
+  if(showSetup)return <SetupScreen onComplete={()=>{setShowSetup(false);window.location.reload();}}/>;
+  if(!ready)return(
+    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:W,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
+      <div style={{fontWeight:800,fontSize:16,color:TEAL}}>VOLT<span style={{fontWeight:400,color:NAVY}}>CONSULTING</span></div>
+      <div style={{fontSize:13,color:G600}}>Connecting to Airtable…</div>
+    </div>
+  );
+
+  return(
+    <div style={{fontFamily:"Aptos,Calibri,'Segoe UI',sans-serif",background:G50,height:"100vh",display:"flex",overflow:"hidden",color:G900}}>
+      <style>{"*{box-sizing:border-box;margin:0;padding:0}input,textarea,select,button{font-family:Aptos,Calibri,'Segoe UI',sans-serif}input::placeholder,textarea::placeholder{color:"+G400+"}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:"+G300+";border-radius:3px}"}</style>
+
+      <div style={{width:220,background:W,borderRight:"1px solid "+G200,display:"flex",flexDirection:"column",flexShrink:0,boxShadow:"1px 0 4px #0001"}}>
+        <div style={{padding:"20px 20px 18px",borderBottom:"1px solid "+G200}}>
+          <img src={LOGO_SRC} alt="VoltConsulting" style={{height:28,maxWidth:"100%",objectFit:"contain",objectPosition:"left"}}/>
+          <div style={{fontSize:10.5,color:TEAL,letterSpacing:"0.12em",textTransform:"uppercase",marginTop:8,fontWeight:700}}>Internal CRM</div>
+        </div>
+        <nav style={{flex:1,padding:"12px 10px"}}>
+          {NAV.map(n=>{
+            const active=view===n.id;
+            return(
+              <button key={n.id} onClick={()=>setView(n.id)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:active?TL:"transparent",border:"1px solid "+(active?TM:"transparent"),borderRadius:7,padding:"10px 12px",marginBottom:3,color:active?TEAL:G600,fontWeight:active?700:400,fontSize:13.5,cursor:"pointer",textAlign:"left",transition:"all 0.12s",fontFamily:"inherit"}}>
+                <span style={{fontSize:14}}>{n.icon}</span>
+                {n.label}
+                {n.id==="bd"&&overdueCount>0&&<span style={{marginLeft:"auto",background:DANGER,color:W,borderRadius:10,padding:"1px 8px",fontSize:10.5,fontWeight:800}}>{overdueCount}</span>}
+              </button>
+            );
+          })}
+        </nav>
+        <div style={{padding:"14px 20px 20px",borderTop:"1px solid "+G200}}>
+          <div style={{fontSize:10.5,color:G400,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>Team</div>
+          {[["David",TEAL],["Lauren","#6f42c1"],["Brinda",WARN]].map(([name,c])=>(
+            <div key={name} style={{display:"flex",alignItems:"center",gap:9,marginBottom:8}}>
+              <Av name={name} size={24} color={c}/>
+              <span style={{fontSize:13,color:G700}}>{name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        <div style={{background:W,borderBottom:"1px solid "+G200,padding:"12px 24px",display:"flex",alignItems:"center",gap:16,flexShrink:0}}>
+          <GlobalSearch people={people} companies={companies} onNavigate={handleNavigate}/>
+          <div style={{fontSize:12,color:G400,whiteSpace:"nowrap"}}>{people.length+" people · "+companies.length+" companies"}</div>
+        </div>
+        <div style={{flex:1,overflow:"hidden"}}>
+          {view==="bd"&&<BDTracker people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist}/>}
+          {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel}/>}
+          {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}}/>}
+          {view==="campaigns"&&<CampaignsView people={people} setPeople={setPeople} persist={persist}/>}
+        {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate}/>}
+        </div>
+      </div>
+
+      {saveState&&<div style={{position:"fixed",bottom:18,right:20,background:saveState==="saved"?OK+"15":G100,border:"1px solid "+(saveState==="saved"?OK:G300),borderRadius:20,padding:"5px 16px",fontSize:12,color:saveState==="saved"?OK:G600,zIndex:500,pointerEvents:"none",fontWeight:600}}>{saveState==="saved"?"✓ Synced":"Saving…"}</div>}
+    </div>
+  );
+}
+var root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
 </script>
 </body>
 </html>
