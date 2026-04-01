@@ -43,7 +43,7 @@ const SECTORS=Object.keys(SC);
 const TC_MAP={"Key Client":TEAL,"Warm":WARN,"Prospect":G600};
 
 async function sGet(k){try{const r=await window.storage.get(k);return r?JSON.parse(r.value):null;}catch{return null;}}
-async function sSet(k,v){try{await window.storage.set(k,JSON.stringify(v));}catch{}}
+async function sSet(k,v){try{await window.storage.set(k,JSON.stringify(v));}catch(e){}}
 
 const today=new Date().toISOString().slice(0,10);
 const dF=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
@@ -97,6 +97,7 @@ function autoLinkCompany(personCompany,companies){
 }
 </script>
 <script type="text/babel">
+var useState=React.useState,useMemo=React.use<script type="text/babel">
 var useState=React.useState,useMemo=React.useMemo,useEffect=React.useEffect,useCallback=React.useCallback,useRef=React.useRef;
 const Av=({name="?",size=36,color=TEAL})=>{
   const i=name.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
@@ -294,7 +295,7 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
   );
 }
 
-function BDTracker({people,companies,setPeople,setCompanies,persist}){
+){
   const now=new Date();
   const all=useMemo(()=>{
     const ps=people.filter(p=>p.nextAction||p.nextDue).map(p=>({...p,_k:"person"}));
@@ -354,7 +355,7 @@ function BDTracker({people,companies,setPeople,setCompanies,persist}){
   );
 }
 
-function MarketMap({people,companies,onNavigate}){
+){
   var[sectorF,setSectorF]=useState("All");
   var[typeF,setTypeF]=useState("All");
 
@@ -803,8 +804,8 @@ async function getOrCreate(name){
 async function loadFromAirtable(){
   const[p,c]=await Promise.all([getOrCreate("PEOPLE"),getOrCreate("COMPANIES")]);
   let people=[],companies=[];
-  try{people=JSON.parse(p.fields.Notes||"[]");}catch{}
-  try{companies=JSON.parse(c.fields.Notes||"[]");}catch{}
+  try{people=JSON.parse(p.fields.Notes||"[]");}catch(e){}
+  try{companies=JSON.parse(c.fields.Notes||"[]");}catch(e){}
   if(people.length)localStorage.setItem("voltcrm5-people",JSON.stringify(people));
   if(companies.length)localStorage.setItem("voltcrm5-companies",JSON.stringify(companies));
   return{people,companies};
@@ -960,6 +961,3 @@ function App(){
 }
 var root=ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(App));
-</script>
-</body>
-</html>
