@@ -1460,6 +1460,7 @@ function SetupScreen({onComplete}){
 
 function App(){
   const[showSetup,setShowSetup]=useState(!localStorage.getItem("volt_at_token"));
+  const isLocalFile=window.location.protocol==="file:";
   const[view,setView]=useState("bd");
   const[navSel,setNavSel]=useState(null);
   const[people,setPeople]=useState(SEED_PEOPLE);
