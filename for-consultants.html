@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>For Consultants | VoltConsulting</title>
+  <meta name="description" content="Looking for your next move in life sciences consulting? VoltConsulting offers genuine advocacy, not agency. Confidential, no-pressure conversations for Partner, Principal and Consultant level professionals." />
+  <link rel="icon" href="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" type="image/png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --teal:       #00C2C7;
+      --teal-light: #c8f4f5;
+      --teal-pale:  #e6fafa;
+      --navy:       #0D1B2A;
+      --white:      #ffffff;
+      --grey-soft:  #f5f8f8;
+      --grey-text:  #4a5568;
+      --grey-border:#dce8e8;
+      --font:       'Plus Jakarta Sans', 'Aptos', 'Segoe UI', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      color: var(--navy);
+      background: var(--white);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--white);
+      border-bottom: 1px solid var(--grey-border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 70px;
+    }
+
+    .nav-logo img {
+      height: 38px;
+      display: block;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+      align-items: center;
+    }
+
+    .nav-links > li {
+      position: relative;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--navy);
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover,
+    .nav-links a.active {
+      color: var(--teal);
+    }
+
+    /* Dropdown */
+    .nav-dropdown {
+      position: relative;
+    }
+
+    .nav-dropdown > a::after {
+      content: ' ▾';
+      font-size: 0.7rem;
+      opacity: 0.6;
+    }
+
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 12px);
+      left: 0;
+      background: var(--white);
+      border: 1px solid var(--grey-border);
+      border-top: 3px solid var(--teal);
+      border-radius: 4px;
+      min-width: 200px;
+      box-shadow: 0 8px 24px rgba(13,27,42,0.1);
+      z-index: 200;
+    }
+
+    .nav-dropdown:hover .dropdown-menu {
+      display: block;
+    }
+
+    .dropdown-menu a {
+      display: block;
+      padding: 0.65rem 1.1rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--navy);
+      border-bottom: 1px solid var(--grey-border);
+      white-space: nowrap;
+    }
+
+    .dropdown-menu a:last-child {
+      border-bottom: none;
+    }
+
+    .dropdown-menu a:hover {
+      background: var(--teal-pale);
+      color: var(--teal);
+    }
+
+    .dropdown-menu a.active {
+      color: var(--teal);
+      font-weight: 700;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, var(--navy) 0%, #005a65 55%, #18c0c8 85%, #e8f9fa 100%);
+      padding: 5rem 2rem 4rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 70% 30%, rgba(0,194,199,0.15) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .hero-eyebrow {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--teal);
+      background: rgba(0,194,199,0.12);
+      border: 1px solid rgba(0,194,199,0.3);
+      border-radius: 2rem;
+      padding: 0.35rem 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800;
+      color: var(--white);
+      line-height: 1.15;
+      max-width: 700px;
+      margin: 0 auto 1.25rem;
+    }
+
+    .hero h1 span { color: var(--teal); }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: rgba(255,255,255,0.82);
+      max-width: 560px;
+      margin: 0 auto 2.25rem;
+      font-weight: 400;
+    }
+
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--teal);
+      color: var(--white);
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 0.85rem 2rem;
+      border-radius: 4px;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.15s;
+    }
+
+    .hero-cta:hover {
+      background: #009fa3;
+      transform: translateY(-1px);
+    }
+
+    /* ── INTRO STRIP ── */
+    .intro-strip {
+      background: var(--teal-pale);
+      border-top: 3px solid var(--teal);
+      border-bottom: 1px solid var(--grey-border);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+
+    .intro-strip p {
+      max-width: 720px;
+      margin: 0 auto;
+      font-size: 1.05rem;
+      color: var(--navy);
+    }
+
+    .intro-strip strong {
+      color: var(--teal);
+      font-weight: 700;
+    }
+
+    /* ── SECTIONS ── */
+    section { padding: 4rem 2rem; }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 0.75rem;
+    }
+
+    .section-title {
+      font-size: clamp(1.5rem, 3vw, 2.1rem);
+      font-weight: 800;
+      color: var(--navy);
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+
+    .section-intro {
+      font-size: 1rem;
+      color: var(--grey-text);
+      max-width: 620px;
+      margin-bottom: 2.5rem;
+    }
+
+    /* ── EXPECT CARDS ── */
+    .expect-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .expect-card {
+      background: var(--white);
+      border: 1px solid var(--grey-border);
+      border-top: 3px solid var(--teal);
+      border-radius: 6px;
+      padding: 1.75rem;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+
+    .expect-card:hover {
+      box-shadow: 0 8px 24px rgba(0,194,199,0.12);
+      transform: translateY(-2px);
+    }
+
+    .expect-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--teal-pale);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    .expect-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: var(--teal);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .expect-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 0.6rem;
+    }
+
+    .expect-card p {
+      font-size: 0.9rem;
+      color: var(--grey-text);
+      line-height: 1.6;
+    }
+
+    /* ── WHO WE WORK WITH ── */
+    .who-section { background: var(--grey-soft); }
+
+    .levels-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .level-pill {
+      background: var(--white);
+      border: 1.5px solid var(--teal);
+      color: var(--navy);
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.5rem 1.25rem;
+      border-radius: 2rem;
+    }
+
+    .specialisms-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+      margin-top: 2rem;
+    }
+
+    .specialism-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.9rem;
+      color: var(--navy);
+      font-weight: 500;
+    }
+
+    .specialism-item::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--teal);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── WHY VOLT ── */
+    .why-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+      align-items: start;
+    }
+
+    .why-item {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    .why-number {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--teal-light);
+      line-height: 1;
+      min-width: 2.5rem;
+    }
+
+    .why-item h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 0.4rem;
+    }
+
+    .why-item p {
+      font-size: 0.9rem;
+      color: var(--grey-text);
+      line-height: 1.6;
+    }
+
+    /* ── VOLTNETWORK BANNER ── */
+    .network-banner {
+      background: linear-gradient(135deg, var(--navy) 0%, #005a65 100%);
+      padding: 3.5rem 2rem;
+      text-align: center;
+    }
+
+    .network-banner .badge {
+      display: inline-block;
+      background: rgba(0,194,199,0.2);
+      border: 1px solid rgba(0,194,199,0.4);
+      color: var(--teal);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.35rem 1rem;
+      border-radius: 2rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .network-banner h2 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 800;
+      color: var(--white);
+      margin-bottom: 0.75rem;
+    }
+
+    .network-banner p {
+      color: rgba(255,255,255,0.78);
+      max-width: 560px;
+      margin: 0 auto 2rem;
+      font-size: 0.975rem;
+    }
+
+    .btn-outline {
+      display: inline-block;
+      border: 2px solid var(--teal);
+      color: var(--teal);
+      font-weight: 700;
+      font-size: 0.9rem;
+      padding: 0.75rem 1.75rem;
+      border-radius: 4px;
+      text-decoration: none;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .btn-outline:hover {
+      background: var(--teal);
+      color: var(--white);
+    }
+
+    /* ── CONTACT ── */
+    .contact-section { background: var(--white); }
+
+    .contact-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: start;
+    }
+
+    .contact-info h2 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--navy);
+      margin-bottom: 1rem;
+    }
+
+    .contact-info p {
+      font-size: 0.95rem;
+      color: var(--grey-text);
+      margin-bottom: 1.25rem;
+      line-height: 1.7;
+    }
+
+    /* Stacked contact persons */
+    .contact-persons {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .contact-person {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--teal-pale);
+      border: 1px solid var(--grey-border);
+      border-left: 4px solid var(--teal);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+    }
+
+    .contact-avatar {
+      width: 44px;
+      height: 44px;
+      background: var(--teal);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: var(--white);
+      font-size: 0.95rem;
+      flex-shrink: 0;
+      letter-spacing: 0.03em;
+    }
+
+    .contact-person-info strong {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--navy);
+    }
+
+    .contact-person-info span {
+      font-size: 0.78rem;
+      color: var(--grey-text);
+    }
+
+    .contact-person-info a {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: var(--teal);
+      text-decoration: none;
+      margin-top: 0.2rem;
+      font-weight: 500;
+    }
+
+    .contact-person-info a:hover {
+      text-decoration: underline;
+    }
+
+    /* Form */
+    .form-card {
+      background: var(--grey-soft);
+      border: 1px solid var(--grey-border);
+      border-radius: 8px;
+      padding: 2rem;
+    }
+
+    .form-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group { margin-bottom: 1.1rem; }
+
+    .form-group label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--navy);
+      margin-bottom: 0.4rem;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.65rem 0.9rem;
+      font-family: var(--font);
+      font-size: 0.875rem;
+      color: var(--navy);
+      background: var(--white);
+      border: 1.5px solid var(--grey-border);
+      border-radius: 4px;
+      outline: none;
+      transition: border-color 0.2s;
+      appearance: none;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--teal);
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 90px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .form-note {
+      font-size: 0.75rem;
+      color: var(--grey-text);
+      margin-top: 0.5rem;
+      line-height: 1.5;
+    }
+
+    .btn-submit {
+      width: 100%;
+      padding: 0.85rem;
+      background: var(--teal);
+      color: var(--white);
+      font-family: var(--font);
+      font-size: 0.95rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 1.25rem;
+      transition: background 0.2s;
+    }
+
+    .btn-submit:hover { background: #009fa3; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--navy);
+      color: rgba(255,255,255,0.6);
+      text-align: center;
+      padding: 2rem;
+      font-size: 0.8rem;
+    }
+
+    footer a { color: var(--teal); text-decoration: none; }
+
+    .footer-logo { margin-bottom: 1rem; }
+
+    .footer-logo img {
+      height: 32px;
+      filter: brightness(0) invert(1);
+      opacity: 0.85;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      nav { padding: 0 1rem; }
+      .nav-links { display: none; }
+      section { padding: 3rem 1.25rem; }
+      .hero { padding: 3.5rem 1.25rem 3rem; }
+      .contact-wrap { grid-template-columns: 1fr; gap: 2rem; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a href="https://voltconsulting.solutions" class="nav-logo">
+      <img src="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" alt="VoltConsulting" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="https://voltconsulting.solutions">Home</a></li>
+      <li class="nav-dropdown">
+        <a href="https://voltconsulting.solutions/consulting-firms.html" class="active">Consulting Firms</a>
+        <div class="dropdown-menu">
+          <a href="https://voltconsulting.solutions/consulting-firms.html">For Consulting Firms</a>
+          <a href="for-consultants.html" class="active">For Consultants</a>
+        </div>
+      </li>
+      <li><a href="https://voltconsulting.solutions/executive-search.html">Executive Search</a></li>
+      <li><a href="https://voltconsulting.solutions/careers.html">Careers</a></li>
+      <li><a href="https://voltconsulting.solutions/contact.html">Contact</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-eyebrow">Life Sciences Consulting Recruitment</div>
+    <h1>Your next move<br /><span>in consulting.</span></h1>
+    <p class="hero-sub">We work exclusively with life sciences consulting professionals. Whether you are actively looking or simply keeping options open, we are worth a conversation.</p>
+    <a href="#contact" class="hero-cta">Start a confidential conversation</a>
+  </section>
+
+  <!-- INTRO STRIP -->
+  <div class="intro-strip">
+    <p>This page is for professionals working inside <strong>life sciences consulting firms</strong> — strategy, market access, HEOR, launch, and commercial. If that is not you, you are probably in the wrong place.</p>
+  </div>
+
+  <!-- WHAT TO EXPECT -->
+  <section>
+    <div class="container">
+      <div class="section-label">What to expect</div>
+      <h2 class="section-title">How we work with consultants</h2>
+      <p class="section-intro">From the first conversation through to offer stage and beyond, here is what working with VoltConsulting actually looks like.</p>
+
+      <div class="expect-grid">
+
+        <div class="expect-card">
+          <div class="expect-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3>A genuine, no-agenda conversation</h3>
+          <p>We begin with a 100% confidential call focused entirely on you — your ambitions, values, and what the right next step actually looks like. Not a CV screen.</p>
+        </div>
+
+        <div class="expect-card">
+          <div class="expect-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>True advocacy in the market</h3>
+          <p>We champion you. Our Advocacy Over Agency&#8482; approach means we prioritise your long-term success over quick placements, uncovering opportunities that genuinely align with your goals.</p>
+        </div>
+
+        <div class="expect-card">
+          <div class="expect-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          </div>
+          <h3>High-touch, fully transparent support</h3>
+          <p>Honest feedback, strategic positioning advice, and hands-on guidance from first call through offer negotiation and onboarding. No surprises. No games.</p>
+        </div>
+
+        <div class="expect-card">
+          <div class="expect-icon">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3>A real long-term partnership</h3>
+          <p>We invest in your career trajectory, not just one move. Many of the people we work with become long-term connections as their careers develop.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- WHO WE WORK WITH -->
+  <section class="who-section">
+    <div class="container">
+      <div class="section-label">Who we work with</div>
+      <h2 class="section-title">Levels and specialisms</h2>
+      <p class="section-intro">We work with professionals across the full consulting career spectrum — from those making their first step into a strategy firm through to Partners looking for a better platform to grow from.</p>
+
+      <div class="levels-row">
+        <span class="level-pill">Partner</span>
+        <span class="level-pill">Principal</span>
+        <span class="level-pill">Engagement Manager</span>
+        <span class="level-pill">Senior Consultant</span>
+        <span class="level-pill">Consultant</span>
+        <span class="level-pill">Associate Consultant</span>
+      </div>
+
+      <div class="specialisms-grid">
+        <span class="specialism-item">Market Access Strategy</span>
+        <span class="specialism-item">Pricing &amp; Reimbursement</span>
+        <span class="specialism-item">HEOR &amp; Value Evidence</span>
+        <span class="specialism-item">Commercial Strategy</span>
+        <span class="specialism-item">Launch Strategy</span>
+        <span class="specialism-item">Market Access Analytics</span>
+        <span class="specialism-item">Product &amp; Portfolio Strategy</span>
+        <span class="specialism-item">Real World Evidence</span>
+        <span class="specialism-item">Go-to-Market Strategy</span>
+        <span class="specialism-item">Health Economics</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY VOLT -->
+  <section>
+    <div class="container">
+      <div class="section-label">Why VoltConsulting</div>
+      <h2 class="section-title">Why consulting professionals work with us</h2>
+
+      <div class="why-grid">
+
+        <div class="why-item">
+          <div class="why-number">01</div>
+          <div>
+            <h3>Life sciences consulting only</h3>
+            <p>We work exclusively in this space. No generalist desk, no divided attention. When you speak to us, you are speaking to someone who understands your market and your career path.</p>
+          </div>
+        </div>
+
+        <div class="why-item">
+          <div class="why-number">02</div>
+          <div>
+            <h3>Zero pressure</h3>
+            <p>We have no interest in placing you somewhere that does not work. Conversations are open, candid, and completely confidential — whether you are actively looking or just keeping options open.</p>
+          </div>
+        </div>
+
+        <div class="why-item">
+          <div class="why-number">03</div>
+          <div>
+            <h3>Access to the right firms</h3>
+            <p>We work across boutique specialists, mid-size practices, and larger global consultancies — giving you genuine breadth of opportunity without the noise.</p>
+          </div>
+        </div>
+
+        <div class="why-item">
+          <div class="why-number">04</div>
+          <div>
+            <h3>Senior-level handling throughout</h3>
+            <p>Your search is managed by a senior member of the VoltConsulting team — not passed down once the first call is done.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- VOLTNETWORK -->
+  <div class="network-banner">
+    <div class="badge">VoltNETWORK</div>
+    <h2>Join our private talent community</h2>
+    <p>VoltNETWORK is our confidential community for senior life sciences consulting professionals. Members get early visibility on mandates, market intelligence, and direct access to our team — with no obligation to move.</p>
+    <a href="https://voltconsulting.solutions/voltnetwork.html" class="btn-outline">Find out more about VoltNETWORK</a>
+  </div>
+
+  <!-- CONTACT -->
+  <section class="contact-section" id="contact">
+    <div class="container">
+      <div class="contact-wrap">
+
+        <div class="contact-info">
+          <div class="section-label">Get in touch</div>
+          <h2>Let's have a conversation</h2>
+          <p>If you are open to exploring what is next — even if you are happily employed and simply curious — get in touch. The first conversation is informal, entirely confidential, and carries no obligation whatsoever.</p>
+          <p>We will get back to you within one business day.</p>
+
+          <div class="contact-persons">
+
+            <div class="contact-person">
+              <div class="contact-avatar">LC</div>
+              <div class="contact-person-info">
+                <strong>Lauren Campbell</strong>
+                <span>Co-Founder | VoltConsulting</span>
+                <a href="/cdn-cgi/l/email-protection#0e626f7b7c6b604e7861627a6d61607d7b627a676069207d61627b7a6761607d"><span class="__cf_email__" data-cfemail="bfd3decacddad1ffc9d0d3cbdcd0d1cccad3cbd6d1d891ccd0d3cacbd6d0d1cc">[email&#160;protected]</span></a>
+              </div>
+            </div>
+
+            <div class="contact-person">
+              <div class="contact-avatar">DB</div>
+              <div class="contact-person-info">
+                <strong>David Boal</strong>
+                <span>Co-Founder | VoltConsulting</span>
+                <a href="/cdn-cgi/l/email-protection#c3a7a2b5aaa783b5acafb7a0acadb0b6afb7aaada4edb0acafb6b7aaacadb0"><span class="__cf_email__" data-cfemail="345055425d5074425b5840575b5a474158405d5a531a475b5841405d5b5a47">[email&#160;protected]</span></a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="form-card">
+          <h3>Send us a message</h3>
+          <form action="https://formspree.io/f/your-form-id" method="POST">
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="fname">First name</label>
+                <input type="text" id="fname" name="first_name" placeholder="First name" required />
+              </div>
+              <div class="form-group">
+                <label for="lname">Last name</label>
+                <input type="text" id="lname" name="last_name" placeholder="Last name" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="email">Email address</label>
+              <input type="email" id="email" name="email" placeholder="your@email.com" required />
+            </div>
+
+            <div class="form-group">
+              <label for="firm">Current firm</label>
+              <input type="text" id="firm" name="current_firm" placeholder="Current employer" />
+            </div>
+
+            <div class="form-group">
+              <label for="level">Current level</label>
+              <select id="level" name="level">
+                <option value="" disabled selected>Select your level</option>
+                <option>Partner</option>
+                <option>Principal</option>
+                <option>Engagement Manager / Associate Principal</option>
+                <option>Senior Consultant</option>
+                <option>Consultant</option>
+                <option>Associate Consultant</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="specialism">Area of specialism</label>
+              <select id="specialism" name="specialism">
+                <option value="" disabled selected>Select your specialism</option>
+                <option>Market Access Strategy</option>
+                <option>Pricing &amp; Reimbursement</option>
+                <option>HEOR &amp; Value Evidence</option>
+                <option>Commercial Strategy</option>
+                <option>Launch Strategy</option>
+                <option>Market Access Analytics</option>
+                <option>Product &amp; Portfolio Strategy</option>
+                <option>Health Economics</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="message">Anything you would like to share</label>
+              <textarea id="message" name="message" placeholder="What you are looking for, where you are in your thinking, or anything else useful..."></textarea>
+            </div>
+
+            <p class="form-note">All enquiries are handled in strict confidence. Your details will never be shared without your explicit permission.</p>
+
+            <button type="submit" class="btn-submit">Send message</button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-logo">
+      <img src="https://voltconsulting.solutions/images/VC_Logo_NEW_Blue_Black.png" alt="VoltConsulting" />
+    </div>
+    <p>
+      <a href="https://voltconsulting.solutions">voltconsulting.solutions</a>
+      &nbsp;|&nbsp;
+      <a h
