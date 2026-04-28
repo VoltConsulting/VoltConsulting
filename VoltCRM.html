@@ -624,6 +624,37 @@ function OverviewTab({selP,people,setPeople,persist}){
         <InfoCard label="Last Contacted"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{selP.lastContacted||"—"}</div></InfoCard>
       </div>
 
+      {/* BD Pipeline */}
+      <div style={{background:W,borderRadius:8,border:"1px solid "+G200,padding:"14px 18px",marginBottom:14}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:selP.bdStage?10:0}}>
+          <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>BD Pipeline</div>
+          {!selP.bdStage?(
+            <button onClick={function(){save("bdStage","Target");}} style={{background:TEAL,color:W,border:"none",borderRadius:5,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+              + Add to BD Pipeline
+            </button>
+          ):(
+            <button onClick={function(){save("bdStage","");}} style={{background:"transparent",color:G400,border:"1px solid "+G300,borderRadius:5,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+              Remove from pipeline
+            </button>
+          )}
+        </div>
+        {selP.bdStage&&(
+          <div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {BD_STAGES.map(function(s){
+                const active=selP.bdStage===s;
+                const col=BD_STAGE_COLORS[s]||G400;
+                return(
+                  <button key={s} onClick={function(){save("bdStage",s);}} style={{background:active?col+"20":"transparent",color:active?col:G600,border:"1px solid "+(active?col+"60":G300),borderRadius:5,padding:"4px 10px",fontSize:11,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Sectors */}
       {(selP.sectors||[]).length>0&&(
         <div style={{background:W,borderRadius:8,padding:"14px 18px",border:"1px solid "+G200,marginBottom:14}}>
@@ -1135,8 +1166,9 @@ function BDTracker({people,companies,setPeople,setCompanies,persist}){
   };
   return(
     <div style={{overflowY:"auto",padding:"32px 40px",maxWidth:860,height:"100%"}}>
-      <h1 style={{fontSize:26,fontWeight:700,color:NAVY,margin:"0 0 6px"}}>BD Tracker</h1>
-      <p style={{color:G600,fontSize:14,marginBottom:32}}>Your prioritised follow-up list across all people and companies</p>
+      <h1 style={{fontSize:26,fontWeight:700,color:NAVY,margin:"0 0 6px"}}>Follow-ups</h1>
+      <p style={{color:G600,fontSize:14,marginBottom:16}}>Everyone with a next action and due date set — your daily action list.</p>
+      <div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"10px 16px",marginBottom:20,fontSize:13,color:NAVY}}>Log an activity in <strong>BD Pipeline</strong> to set a follow-up — it will appear here when due.</div>
       {!all.length&&<div style={{textAlign:"center",padding:"60px 0",color:G400}}><div style={{fontSize:40,marginBottom:12}}>✓</div><div style={{fontSize:14}}>All caught up</div></div>}
       <Sec title="Overdue" items={ov} accent={DANGER}/>
       <Sec title="Due this week" items={soon} accent={WARN}/>
@@ -1459,7 +1491,7 @@ function BDPipelineView({people,setPeople,persist,ownerFilter}){
   var filtered=people.filter(function(p){
     if(ownerFilter&&p.owner!==ownerFilter)return false;
     if(search&&!(p.name+p.company).toLowerCase().includes(search.toLowerCase()))return false;
-    return p.type==="contact"||p.bdStage;
+    return p.bdStage&&p.bdStage.trim()!=="";
   });
 
   var stageMap={};
@@ -1621,7 +1653,7 @@ function GlobalSearch({people,companies,onNavigate}){
 }
 
 // ── ROOT APP ──────────────────────────────────────────────────
-const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"pipeline",label:"BD Pipeline",icon:"◑"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"campaigns",label:"Campaigns",icon:"◇"},{id:"map",label:"Market Map",icon:"◌"}];
+const NAV=[{id:"bd",label:"Follow-ups",icon:"◎"},{id:"pipeline",label:"BD Pipeline",icon:"◑"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"campaigns",label:"Campaigns",icon:"◇"},{id:"map",label:"Market Map",icon:"◌"}];
 
 
 // ── Campaigns ─────────────────────────────────────────────────
