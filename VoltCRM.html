@@ -764,7 +764,7 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
 }
 
 // ── Person form ───────────────────────────────────────────────
-const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:"",owner:""};
+const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:"",owner:"",bdStage:"",activityLog:[]};
 function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
   const[f,setF]=useState({...BLANKP,...(init||{}),...(prefill||{})});
   const[dupes,setDupes]=useState([]);
@@ -1350,6 +1350,224 @@ function MarketMap({people,companies,onNavigate,ownerFilter}){
   );
 }
 
+
+// ── BD Pipeline ───────────────────────────────────────────────
+const BD_STAGES=["Target","Contacted","Responded","Meeting","Proposal","Active","Nurture"];
+const BD_STAGE_COLORS={
+  "Target":G400,
+  "Contacted":"#0284c7",
+  "Responded":TEAL,
+  "Meeting":WARN,
+  "Proposal":"#7c3aed",
+  "Active":OK,
+  "Nurture":"#db2777"
+};
+const ACT_TYPES=[
+  {id:"email",label:"Email sent",icon:"📧"},
+  {id:"call",label:"Called",icon:"📞"},
+  {id:"meeting",label:"Meeting",icon:"🤝"},
+  {id:"note",label:"Note",icon:"📝"}
+];
+
+function ActivityLogModal({person,onSave,onClose}){
+  const[actType,setActType]=useState("email");
+  const[note,setNote]=useState("");
+  const[nextAction,setNextAction]=useState(person.nextAction||"");
+  const[nextDue,setNextDue]=useState(person.nextDue||"");
+  const[stage,setStage]=useState(person.bdStage||"");
+
+  function handleSave(){
+    const ts=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+    const actLabel=ACT_TYPES.find(function(a){return a.id===actType;});
+    const entry={id:Date.now(),type:actType,icon:actLabel?actLabel.icon:"📝",label:actLabel?actLabel.label:"Note",note:note.trim(),date:ts,by:""};
+    const log=[entry,...(person.activityLog||[])];
+    onSave({activityLog:log,nextAction:nextAction,nextDue:nextDue,bdStage:stage,lastContacted:today});
+  }
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}} onClick={onClose}>
+      <div onClick={function(e){e.stopPropagation();}} style={{background:W,borderRadius:12,padding:"24px 28px",width:480,maxWidth:"96vw",boxShadow:"0 20px 60px #0003",border:"1px solid "+G200}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingBottom:14,borderBottom:"1px solid "+G200}}>
+          <span style={{fontWeight:700,fontSize:16,color:NAVY}}>Log Activity — {person.name}</span>
+          <button onClick={onClose} style={{background:"none",border:"none",color:G400,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Activity type</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {ACT_TYPES.map(function(a){
+              const active=actType===a.id;
+              return(
+                <button key={a.id} onClick={function(){setActType(a.id);}} style={{background:active?TEAL+"15":"transparent",color:active?TEAL:G600,border:"1px solid "+(active?TEAL+"50":G300),borderRadius:6,padding:"6px 12px",fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:active?700:400}}>
+                  {a.icon} {a.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Notes</div>
+          <textarea value={note} onChange={function(e){setNote(e.target.value);}} placeholder="What happened? Key points from the conversation..." rows={3}
+            style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"8px 11px",fontSize:13,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Move to stage</div>
+            <select value={stage} onChange={function(e){setStage(e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}>
+              <option value="">Keep current</option>
+              {BD_STAGES.map(function(s){return <option key={s} value={s}>{s}</option>;})}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Next follow-up</div>
+            <input type="date" value={nextDue} onChange={function(e){setNextDue(e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+          </div>
+        </div>
+
+        <div style={{marginBottom:18}}>
+          <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Next action</div>
+          <input value={nextAction} onChange={function(e){setNextAction(e.target.value);}} placeholder="e.g. Follow up call in 2 weeks" style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+        </div>
+
+        <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+          <button onClick={onClose} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"8px 18px",fontSize:13,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={handleSave} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 22px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Save Activity</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BDPipelineView({people,setPeople,persist,ownerFilter}){
+  const[logModal,setLogModal]=useState(null);
+  const[search,setSearch]=useState("");
+
+  function saveActivity(person,updates){
+    const updated=people.map(function(p){return p.id===person.id?Object.assign({},p,updates):p;});
+    setPeople(updated);persist("people",updated);
+    setLogModal(null);
+  }
+
+  function setStage(person,stage){
+    const updated=people.map(function(p){return p.id===person.id?Object.assign({},p,{bdStage:stage}):p;});
+    setPeople(updated);persist("people",updated);
+  }
+
+  // Only show contacts (Lauren's BD targets) - type contact or people with a bdStage set
+  var filtered=people.filter(function(p){
+    if(ownerFilter&&p.owner!==ownerFilter)return false;
+    if(search&&!(p.name+p.company).toLowerCase().includes(search.toLowerCase()))return false;
+    return p.type==="contact"||p.bdStage;
+  });
+
+  var stageMap={};
+  BD_STAGES.forEach(function(s){stageMap[s]=[];});
+  stageMap["Target"]=stageMap["Target"]||[];
+
+  filtered.forEach(function(p){
+    var s=p.bdStage||"Target";
+    if(!stageMap[s])stageMap[s]=[];
+    stageMap[s].push(p);
+  });
+
+  var totalActive=filtered.length;
+  var overdueCount=filtered.filter(function(p){return p.nextDue&&new Date(p.nextDue)<new Date();}).length;
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      {logModal&&<ActivityLogModal person={logModal} onSave={function(updates){saveActivity(logModal,updates);}} onClose={function(){setLogModal(null);}}/>}
+
+      {/* Header */}
+      <div style={{background:W,borderBottom:"1px solid "+G200,padding:"14px 24px",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:16,color:NAVY}}>BD Pipeline</div>
+            <div style={{fontSize:12,color:G600,marginTop:2}}>{totalActive} contacts{overdueCount>0?" · ":""}{overdueCount>0&&<span style={{color:DANGER,fontWeight:700}}>{overdueCount} overdue</span>}</div>
+          </div>
+          <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Search contacts..."
+            style={{background:G50,border:"1px solid "+G200,borderRadius:8,padding:"7px 14px",fontSize:13,outline:"none",fontFamily:"inherit",width:220,marginLeft:"auto"}}/>
+        </div>
+        <div style={{marginTop:10,background:TL,border:"1px solid "+TM,borderRadius:6,padding:"8px 14px",fontSize:12,color:NAVY}}>
+          <strong style={{color:TEAL}}>How to use:</strong> Contacts and companies with type "Contact" appear here automatically. Click <strong>Log Activity</strong> on any card to record a call, email or meeting and move them to the next stage.
+        </div>
+      </div>
+
+      {/* Kanban board */}
+      <div style={{flex:1,overflowX:"auto",overflowY:"hidden",padding:"16px 20px"}}>
+        <div style={{display:"flex",gap:12,height:"100%",minWidth:"fit-content"}}>
+          {BD_STAGES.map(function(stage){
+            var cards=stageMap[stage]||[];
+            var stageColor=BD_STAGE_COLORS[stage]||G400;
+            return(
+              <div key={stage} style={{width:220,flexShrink:0,display:"flex",flexDirection:"column",height:"100%"}}>
+                {/* Column header */}
+                <div style={{background:W,border:"1px solid "+G200,borderRadius:"8px 8px 0 0",padding:"10px 14px",borderBottom:"2px solid "+stageColor,flexShrink:0}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span style={{fontWeight:700,fontSize:13,color:stageColor}}>{stage}</span>
+                    <span style={{background:stageColor+"20",color:stageColor,borderRadius:10,padding:"1px 8px",fontSize:11,fontWeight:700}}>{cards.length}</span>
+                  </div>
+                </div>
+
+                {/* Cards */}
+                <div style={{flex:1,overflowY:"auto",background:G50,border:"1px solid "+G200,borderTop:"none",borderRadius:"0 0 8px 8px",padding:"8px"}}>
+                  {cards.length===0&&(
+                    <div style={{textAlign:"center",padding:"20px 8px",color:G400,fontSize:12}}>No contacts</div>
+                  )}
+                  {cards.map(function(p){
+                    var overdue=p.nextDue&&new Date(p.nextDue)<new Date();
+                    var lastAct=p.activityLog&&p.activityLog.length>0?p.activityLog[0]:null;
+                    var ownerCol=OWNER_COLORS[p.owner]||G400;
+                    return(
+                      <div key={p.id} style={{background:W,border:"1px solid "+(overdue?DANGER+"40":G200),borderRadius:8,padding:"10px 12px",marginBottom:8,boxShadow:"0 1px 3px #0001"}}>
+                        {/* Name & company */}
+                        <div style={{fontWeight:700,color:NAVY,fontSize:13,marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
+                        <div style={{fontSize:11,color:G600,marginBottom:8,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.company}</div>
+
+                        {/* Last activity */}
+                        {lastAct&&(
+                          <div style={{fontSize:11,color:G600,background:G50,borderRadius:4,padding:"4px 7px",marginBottom:6,display:"flex",gap:4,alignItems:"center"}}>
+                            <span>{lastAct.icon}</span>
+                            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lastAct.label} · {lastAct.date.split(",")[0]}</span>
+                          </div>
+                        )}
+
+                        {/* Next follow-up */}
+                        {p.nextDue&&(
+                          <div style={{fontSize:11,fontWeight:600,color:overdue?DANGER:TEAL,marginBottom:8}}>
+                            {overdue?"⚠ Overdue: ":"→ "}{p.nextDue}
+                          </div>
+                        )}
+
+                        {/* Owner dot */}
+                        {p.owner&&<div style={{width:6,height:6,borderRadius:"50%",background:ownerCol,marginBottom:6}}></div>}
+
+                        {/* Actions */}
+                        <div style={{display:"flex",gap:6,marginTop:4}}>
+                          <button onClick={function(){setLogModal(p);}} style={{flex:1,background:TL,color:TEAL,border:"1px solid "+TM,borderRadius:5,padding:"4px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                            Log Activity
+                          </button>
+                        </div>
+
+                        {/* Quick stage move */}
+                        <select value={p.bdStage||"Target"} onChange={function(e){setStage(p,e.target.value);}}
+                          style={{width:"100%",marginTop:6,border:"1px solid "+G300,borderRadius:5,padding:"3px 6px",fontSize:10.5,outline:"none",fontFamily:"inherit",color:G700,background:W}}>
+                          {BD_STAGES.map(function(s){return <option key={s} value={s}>{s}</option>;})}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Global search ─────────────────────────────────────────────
 function GlobalSearch({people,companies,onNavigate}){
   const[q,setQ]=useState("");
@@ -1403,7 +1621,7 @@ function GlobalSearch({people,companies,onNavigate}){
 }
 
 // ── ROOT APP ──────────────────────────────────────────────────
-const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"campaigns",label:"Campaigns",icon:"◇"},{id:"map",label:"Market Map",icon:"◌"}];
+const NAV=[{id:"bd",label:"BD Tracker",icon:"◎"},{id:"pipeline",label:"BD Pipeline",icon:"◑"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"campaigns",label:"Campaigns",icon:"◇"},{id:"map",label:"Market Map",icon:"◌"}];
 
 
 // ── Campaigns ─────────────────────────────────────────────────
@@ -1897,6 +2115,7 @@ function App(){
         </div>
         <div style={{flex:1,overflow:"hidden"}}>
           {view==="bd"&&<BDTracker people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist} ownerFilter={ownerFilter}/>}
+          {view==="pipeline"&&<BDPipelineView people={people} setPeople={setPeople} persist={persist} ownerFilter={ownerFilter}/>}
           {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel} ownerFilter={ownerFilter}/>}
           {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}} ownerFilter={ownerFilter}/>}
           {view==="campaigns"&&<CampaignsView people={people} setPeople={setPeople} campaigns={campaigns} setCampaigns={setCampaigns} persist={persist} ownerFilter={ownerFilter}/>}
