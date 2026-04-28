@@ -1653,223 +1653,315 @@ function GlobalSearch({people,companies,onNavigate}){
 }
 
 // ── ROOT APP ──────────────────────────────────────────────────
-const NAV=[{id:"bd",label:"Follow-ups",icon:"◎"},{id:"pipeline",label:"BD Pipeline",icon:"◑"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"campaigns",label:"Campaigns",icon:"◇"},{id:"map",label:"Market Map",icon:"◌"}];
+const NAV=[{id:"bd",label:"Follow-ups",icon:"◎"},{id:"pipeline",label:"BD Pipeline",icon:"◑"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"network",label:"VoltNETWORK",icon:"◈"},{id:"map",label:"Market Map",icon:"◌"}];
 
 
-// ── Campaigns ─────────────────────────────────────────────────
-const CAMP_STATUSES=["Draft","Live","Paused","Done"];
-const CAMP_OUTCOMES=["","Replied","Interested","Converted","No reply","Bounced"];
+// ── VoltNETWORK ───────────────────────────────────────────────
+const VN_LEVELS=["Associate Consultant","Consultant","Senior Consultant","Principal","Leadership"];
+const VN_REGIONS=["United Kingdom","United States","Europe"];
+const VN_SPECS=["HEOR","Market Access","Pricing & Market Access","Real World Evidence","BioPharma R&D","Commercial Consulting","Medical Affairs","Strategy Consulting","Operations Consulting","Digital Health","Regulatory Affairs","Other"];
+const VN_STATUS=["Actively looking","Open to the right opportunity","Not right now, but happy to stay connected","Open to exploring options, discreetly and with proper representation"];
+const VN_STATUS_SHORT={"Actively looking":"Actively looking","Open to the right opportunity":"Open to right opportunity","Not right now, but happy to stay connected":"Stay connected","Open to exploring options, discreetly and with proper representation":"Exploring discreetly"};
+const VN_STATUS_COLORS={"Actively looking":OK,"Open to the right opportunity":TEAL,"Not right now, but happy to stay connected":G600,"Open to exploring options, discreetly and with proper representation":WARN};
 
-function CampaignsView({people,setPeople,campaigns,setCampaigns,persist,ownerFilter}){
-  const[sel,setSel]=useState(null);
-  const[showNew,setShowNew]=useState(false);
-  const[newName,setNewName]=useState("");
-  const[filterStatus,setFilterStatus]=useState("All");
+function VoltNetworkView({network,setNetwork,persist}){
+  var[sel,setSel]=useState(null);
+  var[search,setSearch]=useState("");
+  var[filterLevel,setFilterLevel]=useState("All");
+  var[filterRegion,setFilterRegion]=useState("All");
+  var[filterSpec,setFilterSpec]=useState("All");
+  var[filterStatus,setFilterStatus]=useState("All");
+  var[showAdd,setShowAdd]=useState(false);
+  var[editMember,setEditMember]=useState(null);
 
-  function coKey(cid,pid){return"co_"+cid+"_"+pid;}
-  function getOutcome(p){if(!sel)return"";return(p.campOutcomes&&p.campOutcomes[coKey(sel.id,p.id)])||"";}
+  var BLANK={id:0,firstName:"",lastName:"",email:"",phone:"",linkedin:"",level:"",region:"",specialism:"",status:"",notes:"",lastContacted:"",nextAction:"",nextDue:"",joinedDate:today};
 
-  function createCampaign(){
-    if(!newName.trim())return;
-    const c={id:Date.now(),name:newName.trim(),status:"Draft",sequenceName:"",launchedAt:"",createdAt:today};
-    const updated=[c,...(campaigns||[])];
-    setCampaigns(updated);persist("campaigns",updated);
-    setNewName("");setShowNew(false);setSel(c);
-  }
-  function updateCampaign(upd){
-    const list=(campaigns||[]).map(c=>c.id===upd.id?upd:c);
-    setCampaigns(list);persist("campaigns",list);setSel(upd);
-  }
-  function deleteCampaign(id){
-    if(!window.confirm("Delete this campaign?"))return;
-    const list=(campaigns||[]).filter(c=>c.id!==id);
-    setCampaigns(list);persist("campaigns",list);
-    const updPeople=people.map(p=>{
-      const camps=(p.campaigns||[]).filter(cid=>cid!==id);
-      const outcomes=Object.assign({},p.campOutcomes||{});
-      Object.keys(outcomes).forEach(k=>{if(k.startsWith("co_"+id+"_"))delete outcomes[k];});
-      return Object.assign({},p,{campaigns:camps,campOutcomes:outcomes});
+  function filtered(){
+    return (network||[]).filter(function(m){
+      var q=search.toLowerCase();
+      var name=(m.firstName+" "+m.lastName).toLowerCase();
+      var mQ=!q||name.includes(q)||(m.email||"").toLowerCase().includes(q)||(m.specialism||"").toLowerCase().includes(q);
+      var mL=filterLevel==="All"||m.level===filterLevel;
+      var mR=filterRegion==="All"||m.region===filterRegion;
+      var mS=filterSpec==="All"||m.specialism===filterSpec;
+      var mSt=filterStatus==="All"||m.status===filterStatus;
+      return mQ&&mL&&mR&&mS&&mSt;
     });
-    setPeople(updPeople);persist("people",updPeople);
-    if(sel&&sel.id===id)setSel(null);
   }
-  function addPerson(pid){
-    const numId=parseFloat(pid);
-    const person=people.find(p=>p.id===numId);
-    if(!person||!sel)return;
-    const camps=(person.campaigns||[]).slice();
-    if(!camps.includes(sel.id))camps.push(sel.id);
-    const updPeople=people.map(p=>p.id===numId?Object.assign({},p,{campaigns:camps}):p);
-    setPeople(updPeople);persist("people",updPeople);
+
+  function saveMember(m){
+    var list=network||[];
+    var idx=list.findIndex(function(x){return x.id===m.id;});
+    var updated;
+    if(idx>=0){updated=list.map(function(x){return x.id===m.id?m:x;});}
+    else{updated=[Object.assign({},m,{id:Date.now()}),...list];}
+    setNetwork(updated);persist("network",updated);
+    setSel(updated.find(function(x){return x.id===m.id;})||updated[0]);
+    setShowAdd(false);setEditMember(null);
   }
-  function removePerson(pid){
-    const updPeople=people.map(p=>{
-      if(p.id!==pid)return p;
-      const camps=(p.campaigns||[]).filter(cid=>cid!==sel.id);
-      const outcomes=Object.assign({},p.campOutcomes||{});
-      delete outcomes[coKey(sel.id,pid)];
-      return Object.assign({},p,{campaigns:camps,campOutcomes:outcomes});
-    });
-    setPeople(updPeople);persist("people",updPeople);
+
+  function deleteMember(id){
+    if(!window.confirm("Remove this member from VoltNETWORK?"))return;
+    var updated=(network||[]).filter(function(m){return m.id!==id;});
+    setNetwork(updated);persist("network",updated);setSel(null);
   }
-  function setOutcome(pid,outcome){
-    const extra={};
-    if(outcome==="Replied"||outcome==="Interested")extra={nextAction:"Follow up — "+sel.name,nextDue:today};
-    if(outcome==="Converted")extra={nextAction:"Converted — "+sel.name,nextDue:today};
-    const updPeople=people.map(p=>{
-      if(p.id!==pid)return p;
-      const outcomes=Object.assign({},p.campOutcomes||{});
-      outcomes[coKey(sel.id,pid)]=outcome;
-      return Object.assign({},p,{campOutcomes:outcomes},...(Object.keys(extra).length?[extra]:[]));
-    });
-    setPeople(updPeople);persist("people",updPeople);
-  }
+
   function exportCSV(){
-    if(!selCamp||!campPeople.length)return;
-    const rows=[["First Name","Last Name","Email","Company","Job Title"]];
-    campPeople.forEach(p=>{
-      const parts=(p.name||"").trim().split(" ");
-      rows.push([parts[0]||"",parts.slice(1).join(" ")||"",p.email||"",p.company||"",p.title||""]);
+    var headers=["First Name","Last Name","Email","Phone","LinkedIn","Level","Region","Specialism","Status","Joined","Last Contacted","Notes"];
+    var rows=[headers];
+    (network||[]).forEach(function(m){
+      rows.push([m.firstName||"",m.lastName||"",m.email||"",m.phone||"",m.linkedin||"",m.level||"",m.region||"",m.specialism||"",m.status||"",m.joinedDate||"",m.lastContacted||"",m.notes||""]);
     });
-    const csv=rows.map(function(r){return r.map(function(v){return String.fromCharCode(34)+String(v).replace(/"/g,"")+String.fromCharCode(34);}).join(",");}).join("\n");
-    const a=document.createElement("a");
+    var csv=rows.map(function(r){return r.map(function(v){return String.fromCharCode(34)+String(v).replace(/"/g,"")+String.fromCharCode(34);}).join(",");}).join("\n");
+    var a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-    a.download=(selCamp.name||"campaign")+"_instantly.csv";a.click();
+    a.download="VoltNETWORK_"+today+".csv";a.click();
   }
 
-  const allCamps=campaigns||[];
-  const selCamp=sel?allCamps.find(c=>c.id===sel.id)||null:null;
-  const campPeople=selCamp?people.filter(p=>(p.campaigns||[]).includes(selCamp.id)):[];
-  const notInCamp=selCamp?people.filter(p=>!(p.campaigns||[]).includes(selCamp.id)):[];
-  const visCamps=(filterStatus==="All"?allCamps:allCamps.filter(c=>c.status===filterStatus)).filter(c=>{
-    if(!ownerFilter)return true;
-    return people.some(p=>(p.campaigns||[]).includes(c.id)&&p.owner===ownerFilter);
-  });
-  const replied=campPeople.filter(p=>{const o=getOutcome(p);return o==="Replied"||o==="Interested"||o==="Converted";}).length;
-  const interested=campPeople.filter(p=>getOutcome(p)==="Interested").length;
-  const converted=campPeople.filter(p=>getOutcome(p)==="Converted").length;
-  const statusColor={Draft:G600,Live:TEAL,Paused:WARN,Done:OK};
+  function logContact(m){
+    var updated=(network||[]).map(function(x){
+      if(x.id!==m.id)return x;
+      return Object.assign({},x,{lastContacted:today});
+    });
+    setNetwork(updated);persist("network",updated);
+    setSel(updated.find(function(x){return x.id===m.id;}));
+  }
+
+  var list=filtered();
+  var selM=sel?(network||[]).find(function(m){return m.id===sel.id;})||null:null;
+
+  var MemberForm=function({init,onSave,onClose}){
+    var[f,setF]=useState(Object.assign({},BLANK,init||{}));
+    function set(k,v){setF(function(p){var n=Object.assign({},p);n[k]=v;return n;});}
+    return(
+      <div style={{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}} onClick={onClose}>
+        <div onClick={function(e){e.stopPropagation();}} style={{background:W,borderRadius:12,padding:"24px 28px",width:560,maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px #0003",border:"1px solid "+G200}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingBottom:14,borderBottom:"1px solid "+G200}}>
+            <span style={{fontWeight:700,fontSize:16,color:NAVY}}>{init&&init.id?"Edit Member":"Add Member"}</span>
+            <button onClick={onClose} style={{background:"none",border:"none",color:G400,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>First Name</div>
+              <input value={f.firstName||""} onChange={function(e){set("firstName",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Last Name</div>
+              <input value={f.lastName||""} onChange={function(e){set("lastName",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Email</div>
+              <input type="email" value={f.email||""} onChange={function(e){set("email",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Phone</div>
+              <input value={f.phone||""} onChange={function(e){set("phone",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div style={{gridColumn:"span 2"}}>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>LinkedIn URL</div>
+              <input value={f.linkedin||""} onChange={function(e){set("linkedin",e.target.value);}} placeholder="linkedin.com/in/..." style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Level</div>
+              <select value={f.level||""} onChange={function(e){set("level",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}>
+                <option value="">Select level</option>
+                {VN_LEVELS.map(function(l){return <option key={l} value={l}>{l}</option>;})}
+              </select>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Region</div>
+              <select value={f.region||""} onChange={function(e){set("region",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}>
+                <option value="">Select region</option>
+                {VN_REGIONS.map(function(r){return <option key={r} value={r}>{r}</option>;})}
+              </select>
+            </div>
+            <div style={{gridColumn:"span 2"}}>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Specialism</div>
+              <select value={f.specialism||""} onChange={function(e){set("specialism",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}>
+                <option value="">Select specialism</option>
+                {VN_SPECS.map(function(s){return <option key={s} value={s}>{s}</option>;})}
+              </select>
+            </div>
+            <div style={{gridColumn:"span 2"}}>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Availability Status</div>
+              <select value={f.status||""} onChange={function(e){set("status",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}>
+                <option value="">Select status</option>
+                {VN_STATUS.map(function(s){return <option key={s} value={s}>{s}</option>;})}
+              </select>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Joined Date</div>
+              <input type="date" value={f.joinedDate||""} onChange={function(e){set("joinedDate",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Last Contacted</div>
+              <input type="date" value={f.lastContacted||""} onChange={function(e){set("lastContacted",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Next Action</div>
+              <input value={f.nextAction||""} onChange={function(e){set("nextAction",e.target.value);}} placeholder="Follow up / Share opportunity..." style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Next Due</div>
+              <input type="date" value={f.nextDue||""} onChange={function(e){set("nextDue",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div style={{gridColumn:"span 2"}}>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Notes</div>
+              <textarea value={f.notes||""} onChange={function(e){set("notes",e.target.value);}} rows={3} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
+            </div>
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+            <button onClick={onClose} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"8px 18px",fontSize:13,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            <button onClick={function(){onSave(f);}} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 22px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Save Member</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return(
     <div style={{display:"flex",height:"100%",overflow:"hidden"}}>
-      <div style={{width:280,borderRight:"1px solid "+G200,background:W,display:"flex",flexDirection:"column",flexShrink:0}}>
-        <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+G200}}>
+      {(showAdd||editMember)&&<MemberForm init={editMember||BLANK} onSave={saveMember} onClose={function(){setShowAdd(false);setEditMember(null);}}/>}
+
+      {/* Left list */}
+      <div style={{width:300,borderRight:"1px solid "+G200,background:W,display:"flex",flexDirection:"column",flexShrink:0}}>
+        <div style={{padding:"14px 16px",borderBottom:"1px solid "+G200,flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <span style={{fontWeight:700,color:NAVY,fontSize:14}}>Campaigns</span>
-            <Btn small onClick={()=>setShowNew(!showNew)}>+ New</Btn>
-          </div>
-          {showNew&&(
-            <div style={{display:"flex",gap:6,marginBottom:8}}>
-              <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createCampaign()}
-                placeholder="Match Instantly sequence name"
-                style={{flex:1,border:"1px solid "+G300,borderRadius:6,padding:"6px 9px",fontSize:12,outline:"none",fontFamily:"inherit"}}/>
-              <Btn small onClick={createCampaign}>Add</Btn>
+            <span style={{fontWeight:700,color:NAVY,fontSize:14}}>VoltNETWORK <span style={{color:G400,fontWeight:400,fontSize:12}}>({(network||[]).length})</span></span>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={exportCSV} style={{background:TL,color:TEAL,border:"1px solid "+TM,borderRadius:5,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>↓ CSV</button>
+              <button onClick={function(){setShowAdd(true);setEditMember(null);}} style={{background:TEAL,color:W,border:"none",borderRadius:5,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>
             </div>
-          )}
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {["All",...CAMP_STATUSES].map(s=>{
-              const active=filterStatus===s;const c=statusColor[s]||G600;
-              return <button key={s} onClick={()=>setFilterStatus(s)} style={{background:active?c+"15":"transparent",color:active?c:G400,border:"1px solid "+(active?c+"40":G300),borderRadius:12,padding:"2px 9px",fontSize:10.5,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>;
+          </div>
+          <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Search members..."
+            style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"6px 10px",fontSize:12,outline:"none",fontFamily:"inherit",marginBottom:8}}/>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {[{l:"All levels",v:"All",opts:null},{l:null,v:null,opts:VN_LEVELS}].map(function(item){
+              if(item.opts)return item.opts.map(function(o){
+                return <button key={o} onClick={function(){setFilterLevel(filterLevel===o?"All":o);}} style={{background:filterLevel===o?TEAL+"15":"transparent",color:filterLevel===o?TEAL:G400,border:"1px solid "+(filterLevel===o?TEAL+"40":G300),borderRadius:10,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:filterLevel===o?700:400}}>{o.split(" ")[0]}</button>;
+              });
+              return <button key="all" onClick={function(){setFilterLevel("All");}} style={{background:filterLevel==="All"?TEAL+"15":"transparent",color:filterLevel==="All"?TEAL:G400,border:"1px solid "+(filterLevel==="All"?TEAL+"40":G300),borderRadius:10,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:filterLevel==="All"?700:400}}>All</button>;
             })}
           </div>
         </div>
+
+        {/* Filter pills */}
+        <div style={{padding:"8px 12px",borderBottom:"1px solid "+G200,background:G50,display:"flex",gap:4,flexWrap:"wrap",flexShrink:0}}>
+          {["All",...VN_REGIONS].map(function(r){
+            return <button key={r} onClick={function(){setFilterRegion(r);}} style={{background:filterRegion===r?NAVY+"15":"transparent",color:filterRegion===r?NAVY:G400,border:"1px solid "+(filterRegion===r?NAVY+"40":G300),borderRadius:10,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:filterRegion===r?700:400}}>{r==="All"?"All regions":r}</button>;
+          })}
+        </div>
+        <div style={{padding:"6px 12px",borderBottom:"1px solid "+G200,background:G50,display:"flex",gap:4,flexWrap:"wrap",flexShrink:0}}>
+          {["All",...VN_STATUS].map(function(s){
+            var col=VN_STATUS_COLORS[s]||G600;
+            var short=s==="All"?"All":VN_STATUS_SHORT[s]||s;
+            return <button key={s} onClick={function(){setFilterStatus(s);}} style={{background:filterStatus===s?col+"15":"transparent",color:filterStatus===s?col:G400,border:"1px solid "+(filterStatus===s?col+"40":G300),borderRadius:10,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:filterStatus===s?700:400}}>{short}</button>;
+          })}
+        </div>
+
+        {/* Member list */}
         <div style={{flex:1,overflowY:"auto"}}>
-          {visCamps.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:G400,fontSize:13}}>No campaigns yet</div>}
-          {visCamps.map(c=>{
-            const cnt=people.filter(p=>(p.campaigns||[]).includes(c.id)).length;
-            const repCnt=people.filter(p=>{
-              if(!(p.campaigns||[]).includes(c.id))return false;
-              const o=(p.campOutcomes&&p.campOutcomes[coKey(c.id,p.id)])||"";
-              return o==="Replied"||o==="Interested"||o==="Converted";
-            }).length;
-            const sc=statusColor[c.status||"Draft"]||G600;
-            const active=selCamp&&selCamp.id===c.id;
+          {list.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:G400,fontSize:13}}>No members found</div>}
+          {list.map(function(m){
+            var stCol=VN_STATUS_COLORS[m.status]||G400;
+            var active=selM&&selM.id===m.id;
+            var overdue=m.nextDue&&new Date(m.nextDue)<new Date();
             return(
-              <div key={c.id} onClick={()=>setSel(c)}
-                style={{padding:"12px 16px",borderBottom:"1px solid "+G100,cursor:"pointer",background:active?TL:W,borderLeft:"3px solid "+(active?TEAL:"transparent")}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-                  <div style={{fontWeight:600,color:NAVY,fontSize:13,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:8}}>{c.name}</div>
-                  <span style={{fontSize:10,fontWeight:700,color:sc,background:sc+"15",border:"1px solid "+sc+"35",borderRadius:4,padding:"1px 6px",flexShrink:0}}>{c.status||"Draft"}</span>
+              <div key={m.id} onClick={function(){setSel(m);}}
+                style={{padding:"10px 14px",borderBottom:"1px solid "+G100,cursor:"pointer",background:active?TL:W,borderLeft:"3px solid "+(active?TEAL:"transparent")}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:3}}>
+                  <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{m.firstName} {m.lastName}</div>
+                  {m.status&&<span style={{fontSize:9,fontWeight:700,color:stCol,background:stCol+"15",borderRadius:3,padding:"1px 5px",flexShrink:0,marginLeft:4,textAlign:"right",maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{VN_STATUS_SHORT[m.status]||m.status}</span>}
                 </div>
-                <div style={{display:"flex",gap:10,fontSize:11,color:G600}}>
-                  <span>{cnt} contacts</span>
-                  {repCnt>0&&<span style={{color:TEAL,fontWeight:700}}>{repCnt} replied</span>}
-                </div>
+                <div style={{fontSize:11,color:G600,marginBottom:2}}>{m.level}{m.region?" · "+m.region:""}</div>
+                <div style={{fontSize:11,color:G400}}>{m.specialism}</div>
+                {m.nextDue&&<div style={{fontSize:10,fontWeight:600,color:overdue?DANGER:TEAL,marginTop:3}}>{overdue?"⚠ Overdue":"→ "+m.nextDue}</div>}
               </div>
             );
           })}
         </div>
       </div>
 
+      {/* Right detail */}
       <div style={{flex:1,overflowY:"auto",background:G50}}>
-        {!selCamp?(
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",color:G400,gap:10,padding:40}}>
-            <div style={{fontSize:32}}>◇</div>
-            <div style={{fontSize:14,fontWeight:600,color:G600}}>Select a campaign</div>
-            <div style={{fontSize:13,textAlign:"center",maxWidth:320,lineHeight:1.6,color:G600}}>Name campaigns to match your Instantly sequence exactly. Build list, export CSV, upload to Instantly, then log outcomes as replies come in.</div>
+        {!selM?(
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:10,padding:40}}>
+            <div style={{fontSize:32}}>◈</div>
+            <div style={{fontSize:14,fontWeight:600,color:G600}}>Select a member</div>
+            <div style={{fontSize:13,color:G400,textAlign:"center",maxWidth:320,lineHeight:1.6}}>Add members manually or from your website sign-up form. Export CSV for newsletter or outreach campaigns.</div>
+            <div style={{display:"flex",gap:10,marginTop:8}}>
+              <button onClick={exportCSV} style={{background:TL,color:TEAL,border:"1px solid "+TM,borderRadius:6,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Export CSV</button>
+              <button onClick={function(){setShowAdd(true);}} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Add Member</button>
+            </div>
           </div>
         ):(
-          <div style={{padding:"28px 32px",maxWidth:820}}>
+          <div style={{padding:"24px 28px",maxWidth:700}}>
+            {/* Header */}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:800,fontSize:22,color:NAVY,marginBottom:8}}>{selCamp.name}</div>
-                <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-                  <SelEl value={selCamp.status||"Draft"} onChange={v=>updateCampaign(Object.assign({},selCamp,{status:v,launchedAt:v==="Live"&&!selCamp.launchedAt?today:selCamp.launchedAt}))} options={CAMP_STATUSES} style={{width:"auto",fontSize:12,padding:"4px 8px"}}/>
-                  <span style={{fontSize:12,color:G600}}>{campPeople.length} contacts</span>
-                  {selCamp.launchedAt&&<span style={{fontSize:12,color:G600}}>Launched {selCamp.launchedAt}</span>}
+              <div>
+                <div style={{fontWeight:800,fontSize:22,color:NAVY,marginBottom:4}}>{selM.firstName} {selM.lastName}</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                  {selM.level&&<span style={{background:TEAL+"15",color:TEAL,border:"1px solid "+TEAL+"40",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600}}>{selM.level}</span>}
+                  {selM.region&&<span style={{background:NAVY+"10",color:NAVY,border:"1px solid "+NAVY+"30",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600}}>{selM.region}</span>}
+                  {selM.specialism&&<span style={{background:G100,color:G700,border:"1px solid "+G300,borderRadius:4,padding:"2px 8px",fontSize:11}}>{selM.specialism}</span>}
                 </div>
               </div>
               <div style={{display:"flex",gap:8,flexShrink:0}}>
-                <Btn variant="teal" small onClick={exportCSV}>Export Instantly CSV</Btn>
-                <Btn variant="danger" small onClick={()=>deleteCampaign(selCamp.id)}>Delete</Btn>
+                <button onClick={function(){logContact(selM);}} style={{background:TL,color:TEAL,border:"1px solid "+TM,borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓ Log contact</button>
+                <button onClick={function(){setEditMember(selM);}} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"6px 14px",fontSize:12,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                <button onClick={function(){deleteMember(selM.id);}} style={{background:"transparent",border:"1px solid "+DANGER+"44",borderRadius:6,padding:"6px 14px",fontSize:12,color:DANGER,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
               </div>
             </div>
 
-            <div style={{background:W,border:"1px solid "+G200,borderRadius:9,padding:"14px 18px",marginBottom:14}}>
-              <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Instantly Sequence Name</div>
-              <Inp value={selCamp.sequenceName||""} onChange={v=>updateCampaign(Object.assign({},selCamp,{sequenceName:v}))} placeholder="Must match exactly in Instantly"/>
-            </div>
-
-            {campPeople.length>0&&(
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
-                {[["Contacts",campPeople.length,TEAL],["Replied",replied,OK],["Interested",interested,WARN],["Converted",converted,"#6f42c1"]].map(([l,v,color])=>(
-                  <div key={l} style={{background:W,border:"1px solid "+G200,borderRadius:9,padding:"14px 16px",textAlign:"center",borderTop:"3px solid "+color}}>
-                    <div style={{fontSize:26,fontWeight:800,color,lineHeight:1}}>{v}</div>
-                    <div style={{fontSize:11,color:G600,marginTop:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</div>
-                  </div>
-                ))}
+            {/* Status */}
+            {selM.status&&(
+              <div style={{background:W,border:"1px solid "+G200,borderRadius:8,padding:"12px 16px",marginBottom:14}}>
+                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Availability</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {VN_STATUS.map(function(s){
+                    var active=selM.status===s;var col=VN_STATUS_COLORS[s]||G600;
+                    return <button key={s} onClick={function(){saveMember(Object.assign({},selM,{status:s}));}} style={{background:active?col+"20":"transparent",color:active?col:G600,border:"1px solid "+(active?col+"60":G300),borderRadius:5,padding:"5px 10px",fontSize:11,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>{VN_STATUS_SHORT[s]||s}</button>;
+                  })}
+                </div>
               </div>
             )}
 
-            <div style={{background:W,border:"1px solid "+G200,borderRadius:9,overflow:"hidden"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:"1px solid "+G200}}>
-                <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Contacts</div>
-                <SelEl value="" onChange={v=>{if(v)addPerson(v);}} options={[{v:"",l:"+ Add contact"},...notInCamp.map(p=>({v:String(p.id),l:p.name+(p.company?" — "+p.company:"")}))] } style={{width:"auto",fontSize:12,padding:"4px 8px"}}/>
+            {/* Contact details */}
+            <div style={{background:W,border:"1px solid "+G200,borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Contact Details</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 24px"}}>
+                {selM.email&&<div><div style={{fontSize:10,color:G400,marginBottom:2}}>Email</div><a href={"mailto:"+selM.email} style={{fontSize:13,color:TEAL,textDecoration:"none"}}>{selM.email}</a></div>}
+                {selM.phone&&<div><div style={{fontSize:10,color:G400,marginBottom:2}}>Phone</div><div style={{fontSize:13,color:NAVY}}>{selM.phone}</div></div>}
+                {selM.linkedin&&<div style={{gridColumn:"span 2"}}><div style={{fontSize:10,color:G400,marginBottom:2}}>LinkedIn</div><a href={selM.linkedin.startsWith("http")?selM.linkedin:"https://"+selM.linkedin} target="_blank" style={{fontSize:13,color:TEAL,textDecoration:"none"}}>{selM.linkedin}</a></div>}
               </div>
-              {campPeople.length===0?(
-                <div style={{padding:"28px",textAlign:"center",color:G400,fontSize:13}}>No contacts yet. Add people then export CSV to Instantly.</div>
-              ):(
+            </div>
+
+            {/* Engagement */}
+            <div style={{background:W,border:"1px solid "+G200,borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Engagement</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 24px",marginBottom:10}}>
+                <div><div style={{fontSize:10,color:G400,marginBottom:2}}>Joined</div><div style={{fontSize:13,color:NAVY}}>{selM.joinedDate||"—"}</div></div>
+                <div><div style={{fontSize:10,color:G400,marginBottom:2}}>Last Contacted</div><div style={{fontSize:13,color:selM.lastContacted?NAVY:G400}}>{selM.lastContacted||"Never"}</div></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 150px 28px",padding:"7px 16px",background:G50,borderBottom:"1px solid "+G200,fontSize:10.5,fontWeight:700,color:G600,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-                    <span>Name</span><span>Company</span><span>Outcome</span><span></span>
-                  </div>
-                  {campPeople.map(p=>{
-                    const outcome=getOutcome(p);
-                    const isHot=outcome==="Replied"||outcome==="Interested"||outcome==="Converted";
-                    return(
-                      <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 150px 28px",padding:"9px 16px",borderBottom:"1px solid "+G100,alignItems:"center",background:isHot?TL:W}}>
-                        <div>
-                          <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name}</div>
-                          <div style={{fontSize:11,color:G600}}>{p.title}</div>
-                        </div>
-                        <div style={{fontSize:12,color:G600}}>{p.company}</div>
-                        <SelEl value={outcome} onChange={v=>setOutcome(p.id,v)} options={CAMP_OUTCOMES.map(o=>({v:o,l:o||"No status"}))} style={{fontSize:11,padding:"3px 6px"}}/>
-                        <button onClick={()=>removePerson(p.id)} style={{background:"none",border:"none",color:G400,cursor:"pointer",fontSize:18,lineHeight:1,padding:"0 4px"}}>×</button>
-                      </div>
-                    );
-                  })}
+                  <div style={{fontSize:10,color:G400,marginBottom:4}}>Next Action</div>
+                  <input defaultValue={selM.nextAction||""} onBlur={function(e){saveMember(Object.assign({},selM,{nextAction:e.target.value}));}} placeholder="Follow up / Share opportunity..."
+                    style={{width:"100%",border:"1px solid "+G300,borderRadius:5,padding:"6px 9px",fontSize:12,outline:"none",fontFamily:"inherit"}}/>
                 </div>
-              )}
+                <div>
+                  <div style={{fontSize:10,color:G400,marginBottom:4}}>Due Date</div>
+                  <input type="date" defaultValue={selM.nextDue||""} onBlur={function(e){saveMember(Object.assign({},selM,{nextDue:e.target.value}));}}
+                    style={{width:"100%",border:"1px solid "+G300,borderRadius:5,padding:"6px 9px",fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div style={{background:W,border:"1px solid "+G200,borderRadius:8,padding:"14px 16px"}}>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Notes</div>
+              <textarea defaultValue={selM.notes||""} onBlur={function(e){saveMember(Object.assign({},selM,{notes:e.target.value}));}} rows={4} placeholder="Background, preferences, opportunities discussed..."
+                style={{width:"100%",border:"1px solid "+G300,borderRadius:5,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
             </div>
           </div>
         )}
@@ -2012,7 +2104,7 @@ function App(){
   const[navSel,setNavSel]=useState(null);
   const[people,setPeople]=useState(SEED_PEOPLE);
   const[companies,setCompanies]=useState(SEED_COMPANIES);
-  const[campaigns,setCampaigns]=useState([]);
+  const[network,setNetwork]=useState([]);
   const[ready,setReady]=useState(false);
   const[saveState,setSaveState]=useState(null);
   const[syncStatus,setSyncStatus]=useState("loading");
@@ -2038,8 +2130,8 @@ function App(){
           if(sc && sc.length>0) setCompanies(JSON.parse(typeof sc==="string"?sc:JSON.stringify(sc)));
           // else keep SEED_COMPANIES
         }
-        const scamp=await sGet("voltcrm5-campaigns");
-        if(scamp && scamp.length>0) setCampaigns(JSON.parse(typeof scamp==="string"?scamp:JSON.stringify(scamp)));
+        const snet=await sGet("voltcrm5-network");
+        if(snet && snet.length>0) setNetwork(JSON.parse(typeof snet==="string"?snet:JSON.stringify(snet)));
         setSyncStatus("ok");
         // If Airtable was empty, push seed data up so all users see it
         if((!data.people||data.people.length===0)&&(!data.companies||data.companies.length===0)){
@@ -2070,7 +2162,7 @@ function App(){
     try {
       if(key==="people") await saveToAirtable("PEOPLE", data);
       else if(key==="companies") await saveToAirtable("COMPANIES", data);
-      else if(key==="campaigns") await saveToAirtable("CAMPAIGNS", data);
+      else if(key==="network") await saveToAirtable("NETWORK", data);
       setSyncStatus("ok");
     } catch(e) {
       console.warn("Airtable save failed:", e.message);
@@ -2150,7 +2242,7 @@ function App(){
           {view==="pipeline"&&<BDPipelineView people={people} setPeople={setPeople} persist={persist} ownerFilter={ownerFilter}/>}
           {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel} ownerFilter={ownerFilter}/>}
           {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}} ownerFilter={ownerFilter}/>}
-          {view==="campaigns"&&<CampaignsView people={people} setPeople={setPeople} campaigns={campaigns} setCampaigns={setCampaigns} persist={persist} ownerFilter={ownerFilter}/>}
+          {view==="network"&&<VoltNetworkView network={network} setNetwork={setNetwork} persist={persist}/>}
           {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate} ownerFilter={ownerFilter}/>}
         </div>
       </div>
