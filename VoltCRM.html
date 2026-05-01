@@ -863,7 +863,7 @@ function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
 }
 
 // ── PEOPLE VIEW ───────────────────────────────────────────────
-function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}){
+function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel,ownerFilter}){
   const[search,setSearch]=useState("");
   const[typeF,setTypeF]=useState("all");
   const[relF,setRelF]=useState("all");
@@ -984,7 +984,7 @@ function CompanyForm({init,onSave,onClose,companies,isEdit}){
 }
 
 // ── COMPANIES VIEW ────────────────────────────────────────────
-function CompaniesView({companies,setCompanies,people,setPeople,persist,initialSel,onNavigatePerson}){
+function CompaniesView({companies,setCompanies,people,setPeople,persist,initialSel,onNavigatePerson,ownerFilter}){
   const[search,setSearch]=useState("");
   const[tierF,setTierF]=useState("all");
   const[sel,setSel]=useState(initialSel||null);
@@ -1141,7 +1141,7 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
 }
 
 // ── BD TRACKER ────────────────────────────────────────────────
-function BDTracker({people,companies,setPeople,setCompanies,persist}){
+function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}){
   const now=new Date();
   const all=useMemo(()=>{
     const ps=people.filter(p=>p.nextAction||p.nextDue).map(p=>({...p,_k:"person"}));
