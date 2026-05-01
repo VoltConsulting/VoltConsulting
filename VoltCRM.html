@@ -383,7 +383,7 @@ function CompanyLinkedInPaste({onParsed}){
 }
 
 // ── CSV importer ──────────────────────────────────────────────
-const CSV_MAP={"name":"name","full name":"name","fullname":"name","title":"title","job title":"title","position":"title","role":"title","company":"company","employer":"company","organization":"company","location":"location","city":"location","linkedin":"linkedin","linkedin url":"linkedin","url":"linkedin","email":"email","email address":"email","relationship":"relationship","status":"relationship","sectors":"sectors","sector":"sectors","expertise":"sectors","notes":"notes","note":"notes","comments":"notes","seniority":"seniority","level":"seniority","last contacted":"lastContacted","last contact":"lastContacted","next action":"nextAction","action":"nextAction","next due":"nextDue","due date":"nextDue","due":"nextDue","type":"type"};
+const CSV_MAP={"name":"name","full name":"name","fullname":"name","first name":"firstName","firstname":"firstName","last name":"lastName","lastname":"lastName","surname":"lastName","phone":"phone","phone number":"phone","mobile":"phone","mobile number":"phone","title":"title","job title":"title","position":"title","role":"title","company":"company","employer":"company","organization":"company","location":"location","city":"location","linkedin":"linkedin","linkedin url":"linkedin","url":"linkedin","email":"email","email address":"email","relationship":"relationship","status":"relationship","sectors":"sectors","sector":"sectors","expertise":"sectors","notes":"notes","note":"notes","comments":"notes","seniority":"seniority","level":"seniority","last contacted":"lastContacted","last contact":"lastContacted","next action":"nextAction","action":"nextAction","next due":"nextDue","due date":"nextDue","due":"nextDue","type":"type"};
 
 function parseCSV(text){
   const lines=text.trim().split(/\r?\n/);
@@ -418,7 +418,7 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
   const[preview,setPreview]=useState([]);
   const[results,setResults]=useState(null);
   const fileRef=useRef(null);
-  const CRM_FIELDS=["ignore","name","title","company","location","type","seniority","sectors","linkedin","email","relationship","lastContacted","nextAction","nextDue","notes"];
+  const CRM_FIELDS=["ignore","firstName","lastName","name","title","company","location","type","seniority","sectors","linkedin","email","phone","relationship","lastContacted","nextAction","nextDue","notes"];
 
   const handleFile=e=>{
     const file=e.target.files[0];if(!file)return;
@@ -433,13 +433,14 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
     setMappings(auto);setStep("map");
   };
   const mapRow=row=>{
-    const p={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
+    const p={type:"candidate",name:"",firstName:"",lastName:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
     Object.entries(mappings).forEach(([csvH,crmF])=>{
       if(!crmF||crmF==="ignore")return;
       const val=(row[csvH]||"").trim();if(!val)return;
       if(crmF==="sectors")p.sectors=val.split(/[,;|]/).map(s=>s.trim()).filter(Boolean);
       else p[crmF]=val;
     });
+    if(p.firstName||p.lastName){p.name=(p.firstName+" "+p.lastName).trim();}
     const tl=(p.type||"").toLowerCase();p.type=tl.includes("contact")||tl.includes("client")?"contact":"candidate";
     const rl=(p.relationship||"").toLowerCase();p.relationship=rl.includes("hot")?"Hot":rl.includes("cold")?"Cold":rl.includes("new")?"New":"Warm";
     return p;
@@ -1653,7 +1654,7 @@ function GlobalSearch({people,companies,onNavigate}){
 }
 
 // ── ROOT APP ──────────────────────────────────────────────────
-const NAV=[{id:"bd",label:"Follow-ups",icon:"◎"},{id:"pipeline",label:"BD Pipeline",icon:"◑"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"network",label:"VoltNETWORK",icon:"◈"},{id:"map",label:"Market Map",icon:"◌"}];
+const NAV=[{id:"bd",label:"Follow-ups",icon:"◎"},{id:"pipeline",label:"BD Pipeline",icon:"◑"},{id:"people",label:"People",icon:"◉"},{id:"companies",label:"Companies",icon:"◈"},{id:"vacancies",label:"Vacancies",icon:"◎"},{id:"network",label:"VoltNETWORK",icon:"◈"},{id:"map",label:"Market Map",icon:"◌"}];
 
 
 // ── VoltNETWORK ───────────────────────────────────────────────
@@ -1971,6 +1972,483 @@ function VoltNetworkView({network,setNetwork,persist}){
 }
 
 
+// ── Vacancies ─────────────────────────────────────────────────
+const VAC_TYPES=["Retained","Contingent","VoltTEAMbuild"];
+const VAC_STATUSES=["Active","On Hold","Filled","Lost"];
+const VAC_TYPE_COLORS={"Retained":"#7c3aed","Contingent":TEAL,"VoltTEAMbuild":WARN};
+
+const RETAINED_STAGES=["Longlist","Approached","Screened","Shortlisted","Submitted","1st Interview","2nd Interview","3rd Interview","4th Interview","5th Interview","Final Interview","Offer","Placed","Lost"];
+const CONTINGENT_STAGES=["Approached","Screened","Submitted","1st Interview","2nd Interview","3rd Interview","4th Interview","5th Interview","Final Interview","Offer","Placed","Lost"];
+const KANBAN_STAGES_RETAINED=["Longlist","Approached","Screened","Shortlisted","Submitted","Interview","Offer","Placed","Lost"];
+const KANBAN_STAGES_OTHER=["Approached","Screened","Submitted","Interview","Offer","Placed","Lost"];
+const INTERVIEW_STAGES=["1st Interview","2nd Interview","3rd Interview","4th Interview","5th Interview","Final Interview"];
+const STAGE_COLORS={"Longlist":G400,"Approached":"#0284c7","Screened":TEAL,"Shortlisted":"#0891b2","Submitted":"#7c3aed","Interview":WARN,"Offer":OK,"Placed":"#166534","Lost":DANGER};
+
+function fmtFee(vac){
+  if(!vac)return"—";
+  if(vac.type==="VoltTEAMbuild")return vac.flatFee?("£"+Number(vac.flatFee).toLocaleString()+" flat fee"):"Fee TBC";
+  if(vac.feePercent&&vac.agreedSalary)return"£"+Math.round(vac.agreedSalary*vac.feePercent/100).toLocaleString()+" ("+vac.feePercent+"%)";
+  if(vac.feePercent&&vac.salaryMin)return vac.feePercent+"% of salary";
+  return"Fee TBC";
+}
+
+function calcTranches(salary,pct){
+  var total=Math.round(salary*pct/100);
+  var t=Math.round(total/3);
+  return[t,t,total-t*2];
+}
+
+function VacancyForm({init,companies,people,onSave,onClose}){
+  var BLANK={id:0,title:"",companyId:null,type:"Retained",status:"Active",location:"",exclusive:false,salaryMin:"",salaryMax:"",agreedSalary:"",feePercent:"",flatFee:"",jobTitle:"",startDate:"",targetClose:"",notes:"",keyContactId:null,tranches:[{invoiced:false,paid:false},{invoiced:false,paid:false},{invoiced:false,paid:false}]};
+  var[f,setF]=useState(Object.assign({},BLANK,init||{}));
+  function set(k,v){setF(function(p){var n=Object.assign({},p);n[k]=v;return n;});}
+  var linkedPeople=f.companyId?people.filter(function(p){return p.companyId===f.companyId;}):[];
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:20}} onClick={onClose}>
+      <div onClick={function(e){e.stopPropagation();}} style={{background:W,borderRadius:12,padding:"24px 28px",width:620,maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px #0003",border:"1px solid "+G200}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingBottom:14,borderBottom:"1px solid "+G200}}>
+          <span style={{fontWeight:700,fontSize:16,color:NAVY}}>{init&&init.id?"Edit Vacancy":"New Vacancy"}</span>
+          <button onClick={onClose} style={{background:"none",border:"none",color:G400,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div style={{gridColumn:"span 2"}}>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Role Title *</div>
+            <input value={f.title||""} onChange={function(e){set("title",e.target.value);}} placeholder="e.g. Partner, Life Science Practice" style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Client *</div>
+            <select value={f.companyId||""} onChange={function(e){set("companyId",e.target.value?parseFloat(e.target.value):null);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}>
+              <option value="">Select client</option>
+              {companies.map(function(co){return <option key={co.id} value={co.id}>{co.name}</option>;})}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Key Contact</div>
+            <select value={f.keyContactId||""} onChange={function(e){set("keyContactId",e.target.value?parseFloat(e.target.value):null);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}>
+              <option value="">Select contact</option>
+              {linkedPeople.map(function(p){return <option key={p.id} value={p.id}>{p.name} — {p.title}</option>;})}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Type</div>
+            <select value={f.type||"Retained"} onChange={function(e){set("type",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}>
+              {VAC_TYPES.map(function(t){return <option key={t} value={t}>{t}</option>;})}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Status</div>
+            <select value={f.status||"Active"} onChange={function(e){set("status",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}>
+              {VAC_STATUSES.map(function(s){return <option key={s} value={s}>{s}</option>;})}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Location</div>
+            <input value={f.location||""} onChange={function(e){set("location",e.target.value);}} placeholder="e.g. London, Boston, Remote" style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:20}}>
+            <input type="checkbox" id="excl" checked={f.exclusive||false} onChange={function(e){set("exclusive",e.target.checked);}} style={{width:16,height:16,cursor:"pointer"}}/>
+            <label htmlFor="excl" style={{fontSize:13,color:G700,cursor:"pointer",fontWeight:500}}>Exclusive mandate</label>
+          </div>
+
+          {/* Fee section */}
+          {f.type!=="VoltTEAMbuild"?(
+            <>
+              <div>
+                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Fee %</div>
+                <input type="number" value={f.feePercent||""} onChange={function(e){set("feePercent",e.target.value);}} placeholder="e.g. 22.5" style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Salary Range</div>
+                <div style={{display:"flex",gap:6}}>
+                  <input type="number" value={f.salaryMin||""} onChange={function(e){set("salaryMin",e.target.value);}} placeholder="Min £" style={{flex:1,border:"1px solid "+G300,borderRadius:6,padding:"7px 8px",fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+                  <input type="number" value={f.salaryMax||""} onChange={function(e){set("salaryMax",e.target.value);}} placeholder="Max £" style={{flex:1,border:"1px solid "+G300,borderRadius:6,padding:"7px 8px",fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+                </div>
+              </div>
+              <div style={{gridColumn:"span 2"}}>
+                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Agreed Salary (editable — used for fee calculation)</div>
+                <input type="number" value={f.agreedSalary||""} onChange={function(e){set("agreedSalary",e.target.value);}} placeholder="Final agreed salary £" style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+                {f.agreedSalary&&f.feePercent&&<div style={{marginTop:6,fontSize:13,color:OK,fontWeight:700}}>Calculated fee: £{Math.round(parseFloat(f.agreedSalary)*parseFloat(f.feePercent)/100).toLocaleString()}</div>}
+              </div>
+            </>
+          ):(
+            <>
+              <div>
+                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Job Title / Level</div>
+                <input value={f.jobTitle||""} onChange={function(e){set("jobTitle",e.target.value);}} placeholder="e.g. Principal Consultant" style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Flat Fee £</div>
+                <input type="number" value={f.flatFee||""} onChange={function(e){set("flatFee",e.target.value);}} placeholder="e.g. 25000" style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+              </div>
+            </>
+          )}
+
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Start Date</div>
+            <input type="date" value={f.startDate||""} onChange={function(e){set("startDate",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Target Close</div>
+            <input type="date" value={f.targetClose||""} onChange={function(e){set("targetClose",e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+          </div>
+          <div style={{gridColumn:"span 2"}}>
+            <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Job Spec / Brief Notes</div>
+            <textarea value={f.notes||""} onChange={function(e){set("notes",e.target.value);}} rows={4} placeholder="Role brief, key requirements, client preferences..." style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
+          </div>
+        </div>
+
+        <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+          <button onClick={onClose} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"8px 18px",fontSize:13,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={function(){if(!f.title.trim()||!f.companyId){alert("Role title and client are required");return;}onSave(f);}} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 22px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Save Vacancy</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VacanciesView({vacancies,setVacancies,companies,setCompanies,people,setPeople,persist}){
+  var[sel,setSel]=useState(null);
+  var[showForm,setShowForm]=useState(false);
+  var[editVac,setEditVac]=useState(null);
+  var[filterType,setFilterType]=useState("All");
+  var[filterStatus,setFilterStatus]=useState("Active");
+  var[search,setSearch]=useState("");
+  var[kanbanView,setKanbanView]=useState(false);
+
+  function saveVacancy(v){
+    var list=vacancies||[];
+    var isNew=!v.id||v.id===0;
+    var saved=Object.assign({},v,{id:v.id&&v.id!==0?v.id:Date.now(),candidates:v.candidates||[]});
+    var updated=isNew?[saved,...list]:list.map(function(x){return x.id===saved.id?saved:x;});
+    setVacancies(updated);persist("vacancies",updated);
+    // Mark company as client
+    if(isNew&&saved.companyId){
+      var updCos=companies.map(function(co){return co.id===saved.companyId?Object.assign({},co,{tier:"Key Client"}):co;});
+      setCompanies(updCos);persist("companies",updCos);
+    }
+    setSel(updated.find(function(x){return x.id===saved.id;}));
+    setShowForm(false);setEditVac(null);
+  }
+
+  function deleteVacancy(id){
+    if(!window.confirm("Delete this vacancy?"))return;
+    var updated=(vacancies||[]).filter(function(v){return v.id!==id;});
+    setVacancies(updated);persist("vacancies",updated);setSel(null);
+  }
+
+  function addCandidate(vac,personId){
+    var pid=parseFloat(personId);
+    var cands=vac.candidates||[];
+    if(cands.find(function(c){return c.personId===pid;}))return;
+    var stage=vac.type==="Retained"?"Longlist":"Approached";
+    var newCand={personId:pid,stage:stage,interviewStage:"",notes:"",addedDate:today};
+    var updated=(vacancies||[]).map(function(v){
+      if(v.id!==vac.id)return v;
+      return Object.assign({},v,{candidates:[...cands,newCand]});
+    });
+    setVacancies(updated);persist("vacancies",updated);
+    setSel(updated.find(function(x){return x.id===vac.id;}));
+  }
+
+  function updateCandidate(vac,personId,updates){
+    var updated=(vacancies||[]).map(function(v){
+      if(v.id!==vac.id)return v;
+      var cands=(v.candidates||[]).map(function(c){
+        if(c.personId!==personId)return c;
+        return Object.assign({},c,updates);
+      });
+      return Object.assign({},v,{candidates:cands});
+    });
+    setVacancies(updated);persist("vacancies",updated);
+    setSel(updated.find(function(x){return x.id===vac.id;}));
+  }
+
+  function removeCandidate(vac,personId){
+    if(!window.confirm("Remove this candidate from the vacancy?"))return;
+    var updated=(vacancies||[]).map(function(v){
+      if(v.id!==vac.id)return v;
+      return Object.assign({},v,{candidates:(v.candidates||[]).filter(function(c){return c.personId!==personId;})});
+    });
+    setVacancies(updated);persist("vacancies",updated);
+    setSel(updated.find(function(x){return x.id===vac.id;}));
+  }
+
+  var filtered=(vacancies||[]).filter(function(v){
+    if(filterType!=="All"&&v.type!==filterType)return false;
+    if(filterStatus!=="All"&&v.status!==filterStatus)return false;
+    if(search){
+      var co=companies.find(function(c){return c.id===v.companyId;});
+      var coName=co?co.name:"";
+      if(!(v.title+coName).toLowerCase().includes(search.toLowerCase()))return false;
+    }
+    return true;
+  });
+
+  var selVac=sel?(vacancies||[]).find(function(v){return v.id===sel.id;})||null:null;
+  var selCo=selVac?companies.find(function(c){return c.id===selVac.companyId;}):null;
+  var selContact=selVac&&selVac.keyContactId?people.find(function(p){return p.id===selVac.keyContactId;}):null;
+  var kanbanStages=selVac&&selVac.type==="Retained"?KANBAN_STAGES_RETAINED:KANBAN_STAGES_OTHER;
+  var notInVac=selVac?people.filter(function(p){return!(selVac.candidates||[]).find(function(c){return c.personId===p.id;});}):[];
+
+  // Fee display for retained
+  var totalFee=selVac&&selVac.agreedSalary&&selVac.feePercent?Math.round(parseFloat(selVac.agreedSalary)*parseFloat(selVac.feePercent)/100):0;
+  var tranches=totalFee?calcTranches(parseFloat(selVac.agreedSalary),parseFloat(selVac.feePercent)):null;
+
+  return(
+    <div style={{display:"flex",height:"100%",overflow:"hidden"}}>
+      {(showForm||editVac)&&<VacancyForm init={editVac} companies={companies} people={people} onSave={saveVacancy} onClose={function(){setShowForm(false);setEditVac(null);}}/>}
+
+      {/* Left list */}
+      <div style={{width:300,borderRight:"1px solid "+G200,background:W,display:"flex",flexDirection:"column",flexShrink:0}}>
+        <div style={{padding:"14px 16px",borderBottom:"1px solid "+G200,flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <span style={{fontWeight:700,color:NAVY,fontSize:14}}>Vacancies <span style={{color:G400,fontWeight:400,fontSize:12}}>({(vacancies||[]).length})</span></span>
+            <button onClick={function(){setShowForm(true);setEditVac(null);}} style={{background:TEAL,color:W,border:"none",borderRadius:5,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
+          </div>
+          <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Search vacancies..." style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"6px 10px",fontSize:12,outline:"none",fontFamily:"inherit",marginBottom:8}}/>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
+            {["All",...VAC_TYPES].map(function(t){
+              var col=VAC_TYPE_COLORS[t]||G600;
+              return <button key={t} onClick={function(){setFilterType(t);}} style={{background:filterType===t?col+"15":"transparent",color:filterType===t?col:G400,border:"1px solid "+(filterType===t?col+"40":G300),borderRadius:10,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:filterType===t?700:400}}>{t}</button>;
+            })}
+          </div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {["All",...VAC_STATUSES].map(function(s){
+              return <button key={s} onClick={function(){setFilterStatus(s);}} style={{background:filterStatus===s?NAVY+"15":"transparent",color:filterStatus===s?NAVY:G400,border:"1px solid "+(filterStatus===s?NAVY+"30":G300),borderRadius:10,padding:"2px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:filterStatus===s?700:400}}>{s}</button>;
+            })}
+          </div>
+        </div>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {filtered.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:G400,fontSize:13}}>No vacancies found</div>}
+          {filtered.map(function(v){
+            var co=companies.find(function(c){return c.id===v.companyId;});
+            var col=VAC_TYPE_COLORS[v.type]||G600;
+            var active=selVac&&selVac.id===v.id;
+            var candCount=(v.candidates||[]).length;
+            var placed=(v.candidates||[]).filter(function(c){return c.stage==="Placed";}).length;
+            return(
+              <div key={v.id} onClick={function(){setSel(v);setKanbanView(false);}}
+                style={{padding:"10px 14px",borderBottom:"1px solid "+G100,cursor:"pointer",background:active?TL:W,borderLeft:"3px solid "+(active?TEAL:"transparent")}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:3}}>
+                  <div style={{fontWeight:600,color:NAVY,fontSize:13,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:6}}>{v.title}</div>
+                  <span style={{fontSize:9,fontWeight:700,color:col,background:col+"15",borderRadius:3,padding:"1px 5px",flexShrink:0}}>{v.type}</span>
+                </div>
+                <div style={{fontSize:11,color:G600,marginBottom:3}}>{co?co.name:"—"}{v.location?" · "+v.location:""}</div>
+                <div style={{display:"flex",gap:8,fontSize:11}}>
+                  <span style={{color:G400}}>{candCount} candidates</span>
+                  {placed>0&&<span style={{color:OK,fontWeight:700}}>{placed} placed</span>}
+                  <span style={{color:v.status==="Active"?TEAL:G400,fontWeight:600}}>{v.status}</span>
+                </div>
+                {v.type!=="VoltTEAMbuild"&&v.feePercent&&<div style={{fontSize:11,color:"#7c3aed",fontWeight:600,marginTop:2}}>{fmtFee(v)}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Right detail */}
+      <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        {!selVac?(
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:10,padding:40}}>
+            <div style={{fontSize:32}}>◎</div>
+            <div style={{fontSize:14,fontWeight:600,color:G600}}>Select a vacancy</div>
+            <div style={{fontSize:13,color:G400,textAlign:"center",maxWidth:320,lineHeight:1.6}}>Create vacancies against client companies. Add candidates from the People tab and Kanban them through the interview process.</div>
+            <button onClick={function(){setShowForm(true);}} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>+ New Vacancy</button>
+          </div>
+        ):(
+          <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+            {/* Vacancy header */}
+            <div style={{background:W,borderBottom:"1px solid "+G200,padding:"16px 22px",flexShrink:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div>
+                  <div style={{fontWeight:800,fontSize:20,color:NAVY,marginBottom:4}}>{selVac.title}</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                    <span style={{fontSize:13,color:G600,fontWeight:600}}>{selCo?selCo.name:"—"}</span>
+                    {selVac.location&&<span style={{fontSize:12,color:G400}}>· {selVac.location}</span>}
+                    <span style={{fontSize:11,fontWeight:700,color:VAC_TYPE_COLORS[selVac.type]||G600,background:(VAC_TYPE_COLORS[selVac.type]||G600)+"15",borderRadius:4,padding:"2px 8px"}}>{selVac.type}</span>
+                    {selVac.exclusive&&<span style={{fontSize:11,fontWeight:700,color:OK,background:OK+"15",borderRadius:4,padding:"2px 8px"}}>Exclusive</span>}
+                    <select value={selVac.status} onChange={function(e){saveVacancy(Object.assign({},selVac,{status:e.target.value}));}} style={{fontSize:11,border:"1px solid "+G300,borderRadius:4,padding:"2px 6px",outline:"none",fontFamily:"inherit"}}>
+                      {VAC_STATUSES.map(function(s){return <option key={s} value={s}>{s}</option>;})}
+                    </select>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:8,flexShrink:0}}>
+                  <button onClick={function(){setKanbanView(!kanbanView);}} style={{background:kanbanView?TEAL:TL,color:kanbanView?W:TEAL,border:"1px solid "+TM,borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{kanbanView?"◎ Details":"◈ Kanban"}</button>
+                  <button onClick={function(){setEditVac(selVac);}} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"6px 14px",fontSize:12,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+                  <button onClick={function(){deleteVacancy(selVac.id);}} style={{background:"transparent",border:"1px solid "+DANGER+"44",borderRadius:6,padding:"6px 14px",fontSize:12,color:DANGER,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+                </div>
+              </div>
+
+              {/* Fee summary */}
+              <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                {selVac.type==="VoltTEAMbuild"?(
+                  <div style={{background:WARN+"10",border:"1px solid "+WARN+"30",borderRadius:6,padding:"6px 14px",fontSize:12}}>
+                    <span style={{color:G600}}>Flat fee: </span><span style={{fontWeight:700,color:WARN}}>£{Number(selVac.flatFee||0).toLocaleString()} per placement</span>
+                    {selVac.jobTitle&&<span style={{color:G400}}> · {selVac.jobTitle}</span>}
+                  </div>
+                ):(
+                  <>
+                    {totalFee>0&&<div style={{background:"#7c3aed10",border:"1px solid #7c3aed30",borderRadius:6,padding:"6px 14px",fontSize:12}}>
+                      <span style={{color:G600}}>Total fee: </span><span style={{fontWeight:700,color:"#7c3aed"}}>£{totalFee.toLocaleString()}</span>
+                      <span style={{color:G400}}> ({selVac.feePercent}% of £{Number(selVac.agreedSalary).toLocaleString()})</span>
+                    </div>}
+                    {selVac.salaryMin&&!selVac.agreedSalary&&<div style={{fontSize:12,color:G600,padding:"6px 0"}}>Salary range: £{Number(selVac.salaryMin).toLocaleString()} – £{Number(selVac.salaryMax||0).toLocaleString()}</div>}
+                  </>
+                )}
+                {selContact&&<div style={{fontSize:12,color:G600,padding:"6px 0"}}>Contact: <span style={{fontWeight:600,color:NAVY}}>{selContact.name}</span></div>}
+                {selVac.targetClose&&<div style={{fontSize:12,color:G600,padding:"6px 0"}}>Target close: <span style={{fontWeight:600}}>{selVac.targetClose}</span></div>}
+              </div>
+
+              {/* Retained tranches */}
+              {selVac.type==="Retained"&&tranches&&(
+                <div style={{marginTop:10,background:G50,border:"1px solid "+G200,borderRadius:6,padding:"10px 14px"}}>
+                  <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Payment Tranches</div>
+                  <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                    {[["1st — On engagement",0],["2nd — On shortlist",1],["3rd — On placement",2]].map(function(item){
+                      var label=item[0],idx=item[1];
+                      var tr=(selVac.tranches&&selVac.tranches[idx])||{invoiced:false,paid:false};
+                      return(
+                        <div key={idx} style={{background:tr.paid?OK+"10":tr.invoiced?"#7c3aed10":W,border:"1px solid "+(tr.paid?OK+"40":tr.invoiced?"#7c3aed40":G200),borderRadius:6,padding:"8px 12px",minWidth:160}}>
+                          <div style={{fontSize:11,color:G600,marginBottom:4}}>{label}</div>
+                          <div style={{fontWeight:700,fontSize:15,color:tr.paid?OK:tr.invoiced?"#7c3aed":NAVY,marginBottom:6}}>£{tranches[idx].toLocaleString()}</div>
+                          <div style={{display:"flex",gap:10}}>
+                            <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer"}}>
+                              <input type="checkbox" checked={tr.invoiced||false} onChange={function(e){
+                                var newT=(selVac.tranches||[{},{},{}]).map(function(t,i){return i===idx?Object.assign({},t,{invoiced:e.target.checked}):t;});
+                                saveVacancy(Object.assign({},selVac,{tranches:newT}));
+                              }} style={{cursor:"pointer"}}/>
+                              Invoiced
+                            </label>
+                            <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer"}}>
+                              <input type="checkbox" checked={tr.paid||false} onChange={function(e){
+                                var newT=(selVac.tranches||[{},{},{}]).map(function(t,i){return i===idx?Object.assign({},t,{paid:e.target.checked}):t;});
+                                saveVacancy(Object.assign({},selVac,{tranches:newT}));
+                              }} style={{cursor:"pointer"}}/>
+                              Paid
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Main content area */}
+            <div style={{flex:1,overflow:"hidden"}}>
+              {!kanbanView?(
+                /* Details view */
+                <div style={{overflowY:"auto",height:"100%",padding:"16px 22px"}}>
+                  {/* Notes */}
+                  {selVac.notes&&(
+                    <div style={{background:W,border:"1px solid "+G200,borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+                      <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Job Spec / Brief</div>
+                      <div style={{fontSize:13,color:G800,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{selVac.notes}</div>
+                    </div>
+                  )}
+
+                  {/* Candidates list */}
+                  <div style={{background:W,border:"1px solid "+G200,borderRadius:8,overflow:"hidden"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:"1px solid "+G200}}>
+                      <div style={{fontSize:11,color:G600,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Candidates ({(selVac.candidates||[]).length})</div>
+                      <select style={{fontSize:11,border:"1px solid "+G300,borderRadius:5,padding:"3px 8px",outline:"none",fontFamily:"inherit"}} onChange={function(e){if(e.target.value){addCandidate(selVac,e.target.value);e.target.value="";}}} defaultValue="">
+                        <option value="">+ Add candidate</option>
+                        {notInVac.map(function(p){return <option key={p.id} value={p.id}>{p.name}{p.company?" — "+p.company:""}</option>;})}
+                      </select>
+                    </div>
+                    {(selVac.candidates||[]).length===0?(
+                      <div style={{padding:"24px",textAlign:"center",color:G400,fontSize:13}}>No candidates yet. Add from People above or switch to Kanban view.</div>
+                    ):(
+                      <div>
+                        <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr 1fr 1fr auto",padding:"6px 14px",background:G50,borderBottom:"1px solid "+G200,fontSize:10.5,fontWeight:700,color:G600,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                          <span>Candidate</span><span>Stage</span><span>Interview</span><span>Notes</span><span></span>
+                        </div>
+                        {(selVac.candidates||[]).map(function(cand){
+                          var person=people.find(function(p){return p.id===cand.personId;});
+                          if(!person)return null;
+                          var stageCol=STAGE_COLORS[cand.stage]||G400;
+                          var isInterview=cand.stage==="Interview";
+                          return(
+                            <div key={cand.personId} style={{display:"grid",gridTemplateColumns:"1.5fr 1fr 1fr 1fr auto",padding:"8px 14px",borderBottom:"1px solid "+G100,alignItems:"center",background:cand.stage==="Placed"?OK+"08":cand.stage==="Lost"?DANGER+"05":W}}>
+                              <div>
+                                <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{person.name}</div>
+                                <div style={{fontSize:11,color:G600}}>{person.title}</div>
+                              </div>
+                              <select value={cand.stage||""} onChange={function(e){updateCandidate(selVac,cand.personId,{stage:e.target.value,interviewStage:e.target.value!=="Interview"?"":cand.interviewStage});}} style={{fontSize:11,border:"1px solid "+stageCol+"60",borderRadius:5,padding:"3px 6px",outline:"none",fontFamily:"inherit",color:stageCol,fontWeight:600,background:stageCol+"10"}}>
+                                {(selVac.type==="Retained"?RETAINED_STAGES:CONTINGENT_STAGES).map(function(s){return <option key={s} value={s}>{s}</option>;})}
+                              </select>
+                              <div>
+                                {isInterview&&<select value={cand.interviewStage||""} onChange={function(e){updateCandidate(selVac,cand.personId,{interviewStage:e.target.value});}} style={{fontSize:11,border:"1px solid "+G300,borderRadius:5,padding:"3px 6px",outline:"none",fontFamily:"inherit",width:"100%"}}>
+                                  <option value="">Select</option>
+                                  {INTERVIEW_STAGES.map(function(s){return <option key={s} value={s}>{s}</option>;})}
+                                </select>}
+                              </div>
+                              <input defaultValue={cand.notes||""} onBlur={function(e){updateCandidate(selVac,cand.personId,{notes:e.target.value});}} placeholder="Feedback / notes..." style={{fontSize:11,border:"1px solid "+G300,borderRadius:5,padding:"4px 7px",outline:"none",fontFamily:"inherit",width:"100%"}}/>
+                              <button onClick={function(){removeCandidate(selVac,cand.personId);}} style={{background:"none",border:"none",color:G400,cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 4px",marginLeft:4}}>×</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ):(
+                /* Kanban view */
+                <div style={{overflowX:"auto",overflowY:"hidden",height:"100%",padding:"12px 16px"}}>
+                  <div style={{display:"flex",gap:10,height:"100%",minWidth:"fit-content"}}>
+                    {kanbanStages.map(function(stage){
+                      var stageCands=(selVac.candidates||[]).filter(function(c){
+                        if(stage==="Interview")return c.stage==="Interview"||INTERVIEW_STAGES.includes(c.stage);
+                        return c.stage===stage;
+                      });
+                      var col=STAGE_COLORS[stage]||G400;
+                      return(
+                        <div key={stage} style={{width:200,flexShrink:0,display:"flex",flexDirection:"column",height:"100%"}}>
+                          <div style={{background:W,border:"1px solid "+G200,borderRadius:"7px 7px 0 0",padding:"8px 12px",borderBottom:"2px solid "+col,flexShrink:0}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                              <span style={{fontWeight:700,fontSize:12,color:col}}>{stage}</span>
+                              <span style={{background:col+"20",color:col,borderRadius:8,padding:"0px 6px",fontSize:11,fontWeight:700}}>{stageCands.length}</span>
+                            </div>
+                          </div>
+                          <div style={{flex:1,overflowY:"auto",background:G50,border:"1px solid "+G200,borderTop:"none",borderRadius:"0 0 7px 7px",padding:"6px"}}>
+                            {stageCands.length===0&&<div style={{textAlign:"center",padding:"16px 8px",color:G400,fontSize:11}}>—</div>}
+                            {stageCands.map(function(cand){
+                              var person=people.find(function(p){return p.id===cand.personId;});
+                              if(!person)return null;
+                              return(
+                                <div key={cand.personId} style={{background:W,border:"1px solid "+G200,borderRadius:6,padding:"8px 10px",marginBottom:6,boxShadow:"0 1px 3px #0001"}}>
+                                  <div style={{fontWeight:600,color:NAVY,fontSize:12,marginBottom:2}}>{person.name}</div>
+                                  <div style={{fontSize:10,color:G600,marginBottom:6}}>{person.company}</div>
+                                  {stage==="Interview"&&<select value={cand.interviewStage||""} onChange={function(e){updateCandidate(selVac,cand.personId,{interviewStage:e.target.value});}} style={{width:"100%",fontSize:10,border:"1px solid "+G300,borderRadius:4,padding:"2px 4px",outline:"none",fontFamily:"inherit",marginBottom:4}}>
+                                    <option value="">Select interview</option>
+                                    {INTERVIEW_STAGES.map(function(s){return <option key={s} value={s}>{s}</option>;})}
+                                  </select>}
+                                  <select value={cand.stage||""} onChange={function(e){updateCandidate(selVac,cand.personId,{stage:e.target.value});}} style={{width:"100%",fontSize:10,border:"1px solid "+col+"50",borderRadius:4,padding:"2px 4px",outline:"none",fontFamily:"inherit",color:col,fontWeight:600,background:col+"10",marginBottom:4}}>
+                                    {(selVac.type==="Retained"?RETAINED_STAGES:CONTINGENT_STAGES).map(function(s){return <option key={s} value={s}>{s}</option>;})}
+                                  </select>
+                                  {cand.notes&&<div style={{fontSize:10,color:G600,fontStyle:"italic",borderTop:"1px solid "+G100,paddingTop:4,marginTop:2}}>{cand.notes}</div>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 // ── Password Gate ─────────────────────────────────────────────
 // Hash function - simple but effective for this use case
 function hashCode(str){
@@ -2105,6 +2583,7 @@ function App(){
   const[people,setPeople]=useState(SEED_PEOPLE);
   const[companies,setCompanies]=useState(SEED_COMPANIES);
   const[network,setNetwork]=useState([]);
+  const[vacancies,setVacancies]=useState([]);
   const[ready,setReady]=useState(false);
   const[saveState,setSaveState]=useState(null);
   const[syncStatus,setSyncStatus]=useState("loading");
@@ -2132,6 +2611,8 @@ function App(){
         }
         const snet=await sGet("voltcrm5-network");
         if(snet && snet.length>0) setNetwork(JSON.parse(typeof snet==="string"?snet:JSON.stringify(snet)));
+        const svac=await sGet("voltcrm5-vacancies");
+        if(svac && svac.length>0) setVacancies(JSON.parse(typeof svac==="string"?svac:JSON.stringify(svac)));
         setSyncStatus("ok");
         // If Airtable was empty, push seed data up so all users see it
         if((!data.people||data.people.length===0)&&(!data.companies||data.companies.length===0)){
@@ -2163,6 +2644,7 @@ function App(){
       if(key==="people") await saveToAirtable("PEOPLE", data);
       else if(key==="companies") await saveToAirtable("COMPANIES", data);
       else if(key==="network") await saveToAirtable("NETWORK", data);
+      else if(key==="vacancies") await saveToAirtable("VACANCIES", data);
       setSyncStatus("ok");
     } catch(e) {
       console.warn("Airtable save failed:", e.message);
@@ -2242,6 +2724,7 @@ function App(){
           {view==="pipeline"&&<BDPipelineView people={people} setPeople={setPeople} persist={persist} ownerFilter={ownerFilter}/>}
           {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel} ownerFilter={ownerFilter}/>}
           {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}} ownerFilter={ownerFilter}/>}
+          {view==="vacancies"&&<VacanciesView vacancies={vacancies} setVacancies={setVacancies} companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist}/>}
           {view==="network"&&<VoltNetworkView network={network} setNetwork={setNetwork} persist={persist}/>}
           {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate} ownerFilter={ownerFilter}/>}
         </div>
