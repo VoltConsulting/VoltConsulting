@@ -104,7 +104,7 @@ const TEAL="#00C2C7",NAVY="#0D1B2A",TL="#e6fafa",TM="#b3f0f1";
 const W="#fff",G50="#f8f9fa",G100="#f1f3f5",G200="#e9ecef",G300="#dee2e6";
 const G400="#ced4da",G600="#6c757d",G700="#495057",G800="#343a40",G900="#212529";
 const DANGER="#dc3545",WARN="#e8a020",OK="#198754";
-const REL={Hot:"#dc3545",Warm:"#e8a020",Cold:"#ced4da",New:"#00C2C7"};
+const REL={Active:OK,Passive:WARN};
 const SC={"Life Sciences":"#00C2C7","Strategy":"#6f42c1","Commercial":"#e8a020","Oncology":"#dc3545","RWE":"#0dcaf0","Market Access":"#6610f2","Operations":"#198754","MedTech":"#fd7e14","Digital Health":"#d63384","Biotech":"#20c997","Regulatory":"#ffc107","Pricing":"#0d6efd","Other":"#6c757d"};
 const SECTORS=Object.keys(SC);
 const TC_MAP={"Key Client":TEAL,"Warm":WARN,"Prospect":G600};
@@ -150,20 +150,20 @@ const today=new Date().toISOString().slice(0,10);
 const dF=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
 
 const SEED_PEOPLE=[
-  {id:1,type:"candidate",name:"Dr. Sarah Chen",title:"VP Strategy",company:"Huron Consulting",companyId:5,location:"London",seniority:"VP / Director",sectors:["Life Sciences","Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-5),nextAction:"Follow up re: CRA opportunity",nextDue:dF(2),relationship:"Warm",notes:"Strong BCG background. Open to right move."},
-  {id:2,type:"candidate",name:"James Okafor",title:"Principal",company:"ZS Associates",companyId:6,location:"Boston",seniority:"Manager / Principal",sectors:["Commercial","Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-30),nextAction:"Check in — placement anniversary",nextDue:dF(7),relationship:"Hot",notes:"Placed at CRA Jan 2025. Great referral source."},
-  {id:3,type:"candidate",name:"Priya Mehta",title:"Associate Director",company:"IQVIA",companyId:7,location:"New York",seniority:"Manager / Principal",sectors:["RWE","Market Access"],linkedin:"",email:"",phone:"",lastContacted:dF(-14),nextAction:"Send Roche JD",nextDue:dF(1),relationship:"Warm",notes:"6-12 month horizon. Wants boutique."},
-  {id:4,type:"contact",name:"Maria Lopez",title:"Chief People Officer",company:"Charles River Associates",companyId:1,location:"Boston",seniority:"C-Suite / Partner",sectors:["Strategy","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-3),nextAction:"Send shortlist for Energy role",nextDue:dF(1),relationship:"Hot",notes:"Key decision maker. Prefers WhatsApp."},
-  {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),nextAction:"Schedule longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Very responsive. Wants weekly updates."},
+  {id:1,type:"candidate",name:"Dr. Sarah Chen",title:"VP Strategy",company:"Huron Consulting",companyId:5,location:"London",seniority:"VP / Director",sectors:["Life Sciences","Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-5),nextAction:"Follow up re: CRA opportunity",nextDue:dF(2),relationship:"Active",notes:"Strong BCG background. Open to right move."},
+  {id:2,type:"candidate",name:"James Okafor",title:"Principal",company:"ZS Associates",companyId:6,location:"Boston",seniority:"Manager / Principal",sectors:["Commercial","Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-30),nextAction:"Check in — placement anniversary",nextDue:dF(7),relationship:"Active",notes:"Placed at CRA Jan 2025. Great referral source."},
+  {id:3,type:"candidate",name:"Priya Mehta",title:"Associate Director",company:"IQVIA",companyId:7,location:"New York",seniority:"Manager / Principal",sectors:["RWE","Market Access"],linkedin:"",email:"",phone:"",lastContacted:dF(-14),nextAction:"Send Roche JD",nextDue:dF(1),relationship:"Active",notes:"6-12 month horizon. Wants boutique."},
+  {id:4,type:"contact",name:"Maria Lopez",title:"Chief People Officer",company:"Charles River Associates",companyId:1,location:"Boston",seniority:"C-Suite / Partner",sectors:["Strategy","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-3),nextAction:"Send shortlist for Energy role",nextDue:dF(1),relationship:"Active",notes:"Key decision maker. Prefers WhatsApp."},
+  {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),nextAction:"Schedule longlist review call",nextDue:dF(3),relationship:"Active",notes:"Very responsive. Wants weekly updates."},
 ];
 const SEED_COMPANIES=[
-  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openMandates:2,lastContacted:dF(-3),nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Hot",notes:"Retained engagement ongoing."},
-  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openMandates:1,lastContacted:dF(-7),nextAction:"Longlist review call",nextDue:dF(3),relationship:"Warm",notes:"Global Oncology search."},
-  {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openMandates:0,lastContacted:dF(-45),nextAction:"Introductory call",nextDue:dF(10),relationship:"Cold",notes:"Intro via network."},
-  {id:4,name:"Vertex Pharmaceuticals",type:"Pharma",tier:"Warm",hq:"Boston",keyContact:"James Carney",openMandates:0,lastContacted:dF(-20),nextAction:"Follow up on pipeline",nextDue:dF(5),relationship:"Warm",notes:"Warm intro via Brinda."},
-  {id:5,name:"Huron Consulting",type:"Consulting",tier:"Prospect",hq:"Chicago",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
-  {id:6,name:"ZS Associates",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
-  {id:7,name:"IQVIA",type:"Pharma",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created."},
+  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openMandates:2,lastContacted:dF(-3),nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Active",notes:"Retained engagement ongoing."},
+  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openMandates:1,lastContacted:dF(-7),nextAction:"Longlist review call",nextDue:dF(3),relationship:"Active",notes:"Global Oncology search."},
+  {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openMandates:0,lastContacted:dF(-45),nextAction:"Introductory call",nextDue:dF(10),relationship:"Passive",notes:"Intro via network."},
+  {id:4,name:"Vertex Pharmaceuticals",type:"Pharma",tier:"Prospect",hq:"Boston",keyContact:"James Carney",openMandates:0,lastContacted:dF(-20),nextAction:"Follow up on pipeline",nextDue:dF(5),relationship:"Active",notes:"Warm intro via Brinda."},
+  {id:5,name:"Huron Consulting",type:"Consulting",tier:"Prospect",hq:"Chicago",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created."},
+  {id:6,name:"ZS Associates",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created."},
+  {id:7,name:"IQVIA",type:"Pharma",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created."},
 ];
 
 function normalize(s){return(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");}
@@ -193,7 +193,7 @@ function autoLinkCompany(personCompany,companies){
   if(!personCompany?.trim())return{companies,companyId:null};
   const match=companies.find(c=>similarity(personCompany,c.name)>=0.82);
   if(match)return{companies,companyId:match.id};
-  const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Cold",notes:"Auto-created from people record."};
+  const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created from people record."};
   return{companies:[...companies,newCo],companyId:newCo.id};
 }
 
@@ -466,7 +466,7 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
     setMappings(auto);setStep("map");
   };
   const mapRow=row=>{
-    const p={type:"candidate",name:"",firstName:"",lastName:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:""};
+    const p={type:"candidate",name:"",firstName:"",lastName:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"",notes:"",type:"contact"};
     Object.entries(mappings).forEach(([csvH,crmF])=>{
       if(!crmF||crmF==="ignore")return;
       const val=(row[csvH]||"").trim();if(!val)return;
@@ -475,7 +475,7 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
     });
     if(p.firstName||p.lastName){p.name=(p.firstName+" "+p.lastName).trim();}
     const tl=(p.type||"").toLowerCase();p.type=tl.includes("contact")||tl.includes("client")?"contact":"candidate";
-    const rl=(p.relationship||"").toLowerCase();p.relationship=rl.includes("hot")?"Hot":rl.includes("cold")?"Cold":rl.includes("new")?"New":"Warm";
+    const rl=(p.relationship||"").toLowerCase();p.relationship=rl.includes("active")?"Active":rl.includes("passive")?"Passive":"";
     return p;
   };
   const runImport=()=>{
@@ -821,7 +821,7 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
 }
 
 // ── Person form ───────────────────────────────────────────────
-const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:"",owners:[],bdStage:"",activityLog:[]};
+const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"",notes:"",owners:[],bdStage:"",activityLog:[]};
 function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
   const[f,setF]=useState({...BLANKP,...(init||{}),...(prefill||{})});
   const[dupes,setDupes]=useState([]);
@@ -838,8 +838,8 @@ function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
   return(
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
       {dupes.length>0&&<div style={{gridColumn:"span 2"}}><DupeBanner dupes={dupes} onDismiss={()=>{setDupes([]);setDismissed(true);}}/></div>}
-      <Fld label="Type"><SelEl value={f.type} onChange={set("type")} options={[{v:"candidate",l:"Candidate"},{v:"contact",l:"Client Contact"}]}/></Fld>
-      <Fld label="Relationship"><SelEl value={f.relationship} onChange={set("relationship")} options={["Hot","Warm","Cold","New"]}/></Fld>
+      <Fld label="Type"><SelEl value={f.type} onChange={set("type")} options={[{v:"",l:"— Select type —"},{v:"contact",l:"Contact"},{v:"candidate",l:"Candidate"},{v:"bd-target",l:"BD Target"},{v:"client",l:"Client"}]}/></Fld>
+      <Fld label="Status"><SelEl value={f.relationship} onChange={set("relationship")} options={[{v:"",l:"— Select status —"},{v:"Active",l:"Active"},{v:"Passive",l:"Passive"}]}/></Fld>
       <Fld label="Full Name"><Inp value={f.name} onChange={set("name")} placeholder="Dr. Sarah Chen"/></Fld>
       <Fld label="Title"><Inp value={f.title} onChange={set("title")} placeholder="VP Strategy"/></Fld>
       <Fld label="Company"><Inp value={f.company} onChange={set("company")} placeholder="Charles River Associates"/></Fld>
@@ -901,11 +901,13 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel,
           </div>
           <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
             {filterBtn("all","All",TEAL,typeF,setTypeF)}
-            {filterBtn("candidate","Candidates",TEAL,typeF,setTypeF)}
-            {filterBtn("contact","Contacts","#6f42c1",typeF,setTypeF)}
+            {filterBtn("contact","Contacts",TEAL,typeF,setTypeF)}
+            {filterBtn("candidate","Candidates","#7c3aed",typeF,setTypeF)}
+            {filterBtn("bd-target","BD Targets","#0284c7",typeF,setTypeF)}
+            {filterBtn("client","Clients",OK,typeF,setTypeF)}
           </div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {["all","Hot","Warm","Cold","New"].map(r=>filterBtn(r,r==="all"?"All":r,REL[r]||TEAL,relF,setRelF))}
+            {["all","Active","Passive"].map(r=>filterBtn(r,r==="all"?"All":r,REL[r]||TEAL,relF,setRelF))}
           </div>
         </div>
         <div style={{overflowY:"auto",flex:1,padding:"8px 8px"}}>
@@ -944,7 +946,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel,
 }
 
 // ── Company form ──────────────────────────────────────────────
-const BLANKCO={name:"",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:"0",lastContacted:today,nextAction:"",nextDue:"",relationship:"Cold",notes:"",owners:[]};
+const BLANKCO={name:"",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:"0",lastContacted:today,nextAction:"",nextDue:"",relationship:"Passive",notes:"",owners:[]};
 function CompanyForm({init,onSave,onClose,companies,isEdit}){
   const[f,setF]=useState({...BLANKCO,...(init||{})});
   const[dupes,setDupes]=useState([]);
@@ -1143,6 +1145,10 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
 // ── BD TRACKER ────────────────────────────────────────────────
 function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}){
   const now=new Date();
+  const[doneModal,setDoneModal]=useState(null);
+  const[doneNote,setDoneNote]=useState("");
+  const[doneNextAction,setDoneNextAction]=useState("");
+  const[doneNextDue,setDoneNextDue]=useState("");
   const all=useMemo(()=>{
     const ps=people.filter(p=>p.nextAction||p.nextDue).map(p=>({...p,_k:"person"}));
     const cs=companies.filter(c=>c.nextAction||c.nextDue).map(c=>({...c,_k:"company"}));
@@ -1154,9 +1160,28 @@ function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}
   const ov=all.filter(i=>i.nextDue&&new Date(i.nextDue)<now);
   const soon=all.filter(i=>i.nextDue&&new Date(i.nextDue)>=now&&new Date(i.nextDue)<=new Date(Date.now()+7*86400000));
   const later=all.filter(i=>!i.nextDue||new Date(i.nextDue)>new Date(Date.now()+7*86400000));
-  const markDone=item=>{
-    if(item._k==="person"){const u=people.map(p=>p.id===item.id?{...p,nextAction:"",nextDue:"",lastContacted:today}:p);setPeople(u);persist("people",u);}
-    else{const u=companies.map(c=>c.id===item.id?{...c,nextAction:"",nextDue:"",lastContacted:today}:c);setCompanies(u);persist("companies",u);}
+  const openDone=function(item){setDoneModal(item);setDoneNote("");setDoneNextAction("");setDoneNextDue("");};
+  const confirmDone=function(){
+    if(!doneModal)return;
+    var item=doneModal;
+    var ts=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+    var noteEntry=doneNote.trim()?"["+ts+"] Done: "+doneNote.trim():"";
+    if(item._k==="person"){
+      var u=people.map(function(p){
+        if(p.id!==item.id)return p;
+        var newNotes=noteEntry?(noteEntry+"\n\n"+(p.notes||"")):p.notes;
+        return Object.assign({},p,{nextAction:doneNextAction,nextDue:doneNextDue,lastContacted:today,notes:newNotes});
+      });
+      setPeople(u);persist("people",u);
+    }else{
+      var u=companies.map(function(co){
+        if(co.id!==item.id)return co;
+        var newNotes=noteEntry?(noteEntry+"\n\n"+(co.notes||"")):co.notes;
+        return Object.assign({},co,{nextAction:doneNextAction,nextDue:doneNextDue,lastContacted:today,notes:newNotes});
+      });
+      setCompanies(u);persist("companies",u);
+    }
+    setDoneModal(null);
   };
   const Sec=({title,items,accent})=>{
     if(!items.length)return null;
@@ -1177,9 +1202,12 @@ function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}
                   <div style={{display:"flex",gap:10,alignItems:"center"}}><DueTag due={item.nextDue}/><RelDot rel={item.relationship}/></div>
                 </div>
                 <div style={{fontSize:12,color:G600,marginBottom:8}}>{item._k==="company"?item.type:item.title}{(item.company||item.hq)?" · "+(item.company||item.hq):""}</div>
-                {item.nextAction&&<div style={{fontSize:13,color:NAVY,background:G50,borderRadius:6,padding:"6px 12px",display:"inline-flex",alignItems:"center",gap:6,border:"1px solid "+G200}}><span style={{color:TEAL,fontWeight:700}}>→</span>{item.nextAction}</div>}
+                {item.nextAction&&<div style={{fontSize:13,color:NAVY,background:G50,borderRadius:6,padding:"8px 12px",marginTop:4,border:"1px solid "+G200}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:item.nextDue?4:0}}><span style={{color:TEAL,fontWeight:700}}>→</span><span style={{fontWeight:600}}>{item.nextAction}</span></div>
+                    {item.nextDue&&<div style={{fontSize:11,color:new Date(item.nextDue)<new Date()?DANGER:G600,fontWeight:600}}>Due: {item.nextDue}{new Date(item.nextDue)<new Date()?" — OVERDUE":""}</div>}
+                  </div>}
               </div>
-              <button onClick={()=>markDone(item)} style={{background:TL,border:"1px solid "+TM,color:TEAL,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit",flexShrink:0}}>✓ Done</button>
+              <button onClick={function(){openDone(item);}} style={{background:TL,border:"1px solid "+TM,color:TEAL,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit",flexShrink:0}}>✓ Done</button>
             </div>
           );
         })}
@@ -1188,6 +1216,32 @@ function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}
   };
   return(
     <div style={{overflowY:"auto",padding:"32px 40px",maxWidth:860,height:"100%"}}>
+      {doneModal&&(
+        <div style={{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}} onClick={function(){setDoneModal(null);}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:W,borderRadius:12,padding:"24px 28px",width:440,maxWidth:"96vw",boxShadow:"0 20px 60px #0003",border:"1px solid "+G200}}>
+            <div style={{fontWeight:700,fontSize:16,color:NAVY,marginBottom:4}}>Mark Done — {doneModal.name}</div>
+            <div style={{fontSize:12,color:G600,marginBottom:16}}>Log what happened and set the next follow-up if needed.</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Notes (optional)</div>
+              <textarea value={doneNote} onChange={function(e){setDoneNote(e.target.value);}} rows={3} placeholder="What happened? Any key points..." style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+              <div>
+                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Next Action</div>
+                <input value={doneNextAction} onChange={function(e){setDoneNextAction(e.target.value);}} placeholder="e.g. Follow up call" style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Due Date</div>
+                <input type="date" value={doneNextDue} onChange={function(e){setDoneNextDue(e.target.value);}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+              </div>
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+              <button onClick={function(){setDoneModal(null);}} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"8px 18px",fontSize:13,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button onClick={confirmDone} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 22px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓ Done</button>
+            </div>
+          </div>
+        </div>
+      )}
       <h1 style={{fontSize:26,fontWeight:700,color:NAVY,margin:"0 0 6px"}}>Follow-ups</h1>
       <p style={{color:G600,fontSize:14,marginBottom:16}}>Everyone with a next action and due date set — your daily action list.</p>
       <div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"10px 16px",marginBottom:20,fontSize:13,color:NAVY}}>Log an activity in <strong>BD Pipeline</strong> to set a follow-up — it will appear here when due.</div>
