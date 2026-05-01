@@ -109,6 +109,39 @@ const SC={"Life Sciences":"#00C2C7","Strategy":"#6f42c1","Commercial":"#e8a020",
 const SECTORS=Object.keys(SC);
 const TC_MAP={"Key Client":TEAL,"Warm":WARN,"Prospect":G600};
 const OWNER_COLORS={"David":TEAL,"Lauren":"#6f42c1","Brinda":WARN};
+const TEAM=["David","Lauren","Brinda"];
+
+// Migrate old single owner string to array
+function migrateOwners(owners,owner){
+  if(Array.isArray(owners))return owners;
+  if(owner&&typeof owner==="string"&&owner.trim())return[owner.trim()];
+  return[];
+}
+
+// Reusable owner picker component
+function OwnerPicker({owners,onChange,label}){
+  var ow=Array.isArray(owners)?owners:(owners?[owners]:[]);
+  return(
+    <div>
+      {label&&<div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>{label}</div>}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {TEAM.map(function(name){
+          var col=OWNER_COLORS[name]||G400;
+          var active=ow.includes(name);
+          return(
+            <button key={name} onClick={function(){
+              var next=active?ow.filter(function(o){return o!==name;}):ow.concat([name]);
+              onChange(next);
+            }} style={{background:active?col+"20":"transparent",color:active?col:G600,border:"1px solid "+(active?col+"60":G300),borderRadius:6,padding:"5px 12px",fontSize:12,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>
+              {active?"✓ ":""}{name}
+            </button>
+          );
+        })}
+        {ow.length===0&&<span style={{fontSize:12,color:G400,alignSelf:"center"}}>Unassigned</span>}
+      </div>
+    </div>
+  );
+}
 
 async function sGet(k){try{const r=await window.storage.get(k);return r?JSON.parse(r.value):null;}catch{return null;}}
 async function sSet(k,v){try{await window.storage.set(k,JSON.stringify(v));}catch(e){}}
@@ -606,16 +639,8 @@ function OverviewTab({selP,people,setPeople,persist}){
           <InlineField label="Title" value={selP.title} onChange={v=>save("title",v)}/>
           <InlineField label="Company" value={selP.company} onChange={v=>save("company",v)}/>
         </div>
-        <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+G100,display:"flex",alignItems:"center",gap:10}}>
-          <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",minWidth:80}}>Owner</div>
-          <div style={{display:"flex",gap:6}}>
-            {["David","Lauren","Brinda"].map(function(name){
-              const col=OWNER_COLORS[name]||G400;
-              const active=selP.owner===name;
-              return <button key={name} onClick={function(){save("owner",active?"":name);}} style={{background:active?col+"20":"transparent",color:active?col:G600,border:"1px solid "+(active?col+"60":G300),borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>{name}</button>;
-            })}
-            {!selP.owner&&<span style={{fontSize:11,color:G400,alignSelf:"center"}}>Unassigned</span>}
-          </div>
+        <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+G100}}>
+          <OwnerPicker owners={migrateOwners(selP.owners,selP.owner)} label="Owner" onChange={function(next){save("owners",next);}}/>
         </div>
       </div>
 
@@ -796,7 +821,7 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
 }
 
 // ── Person form ───────────────────────────────────────────────
-const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:"",owner:"",bdStage:"",activityLog:[]};
+const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"Warm",notes:"",owners:[],bdStage:"",activityLog:[]};
 function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
   const[f,setF]=useState({...BLANKP,...(init||{}),...(prefill||{})});
   const[dupes,setDupes]=useState([]);
@@ -827,7 +852,7 @@ function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
       <Fld label="Last Contacted"><Inp type="date" value={f.lastContacted} onChange={set("lastContacted")}/></Fld>
       <Fld label="Next Due"><Inp type="date" value={f.nextDue} onChange={set("nextDue")}/></Fld>
       <Fld label="Next Action" span2><Inp value={f.nextAction} onChange={set("nextAction")} placeholder="Send JD / Schedule call…"/></Fld>
-      <Fld label="Owner"><SelEl value={f.owner||""} onChange={set("owner")} options={[{v:"",l:"— Unassigned —"},{v:"David",l:"David"},{v:"Lauren",l:"Lauren"},{v:"Brinda",l:"Brinda"}]}/></Fld>
+      <Fld label="Owner" span2><OwnerPicker owners={migrateOwners(f.owners,f.owner)} onChange={function(next){setF(function(p){var n=Object.assign({},p);n.owners=next;return n;})}}/></Fld>
       <Fld label="Notes" span2><Tarea value={f.notes} onChange={set("notes")} rows={3}/></Fld>
       <div style={{gridColumn:"span 2",display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -849,8 +874,9 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}
 
   const list=useMemo(()=>people.filter(p=>
     (typeF==="all"||p.type===typeF)&&(relF==="all"||p.relationship===relF)&&
+    (!ownerFilter||migrateOwners(p.owners,p.owner).includes(ownerFilter))&&
     (p.name+p.company+p.title+(p.sectors||[]).join(" ")).toLowerCase().includes(search.toLowerCase())
-  ),[people,search,typeF,relF]);
+  ),[people,search,typeF,relF,ownerFilter]);
 
   const selP=people.find(p=>p.id===sel);
 
@@ -871,6 +897,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}
           <div style={{display:"flex",gap:8,marginBottom:10}}>
             <Inp value={search} onChange={setSearch} placeholder="Filter people…" style={{fontSize:12}}/>
             <Btn small onClick={()=>{setPrefill(null);setModal("add");}}>+ Add</Btn>
+            <Btn variant="ghost" small onClick={()=>setModal("csv")}>⬆ Import CSV</Btn>
           </div>
           <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
             {filterBtn("all","All",TEAL,typeF,setTypeF)}
@@ -892,7 +919,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
                       <div style={{fontWeight:700,color:NAVY,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>{p.name}</div>
                       <RelDot rel={p.relationship}/>
-                      {p.owner&&<span style={{fontSize:9,fontWeight:700,color:OWNER_COLORS[p.owner]||G400,background:(OWNER_COLORS[p.owner]||G400)+"18",borderRadius:3,padding:"1px 5px"}}>{p.owner}</span>}
+                      {migrateOwners(p.owners,p.owner).map(function(o){return <span key={o} style={{fontSize:9,fontWeight:700,color:OWNER_COLORS[o]||G400,background:(OWNER_COLORS[o]||G400)+"18",borderRadius:3,padding:"1px 5px",marginRight:2}}>{o}</span>;})}
                     </div>
                     <div style={{fontSize:11.5,color:G600,marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.title}{p.company?" · "+p.company:""}</div>
                     {p.nextDue&&<div style={{marginTop:4}}><DueTag due={p.nextDue}/></div>}
@@ -903,15 +930,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}
           })}
           {list.length===0&&<div style={{color:G400,textAlign:"center",marginTop:40,fontSize:13}}>No results</div>}
         </div>
-        <div style={{padding:"12px 16px",borderTop:"1px solid "+G200}}>
-          <div style={{display:"flex",gap:8,marginBottom:8}}>
-            <LinkedInPaste onParsed={p=>{setPrefill(p);setModal("add");}}/>
-            <Btn variant="ghost" small onClick={()=>setModal("csv")}>⬆ CSV</Btn>
-          </div>
-          <div style={{fontSize:11,color:G400,lineHeight:1.4}}>
-            Paste a LinkedIn profile to auto-fill fields, or import a CSV to bulk-add people.
-          </div>
-        </div>
+
       </div>
 
       {/* Detail */}
@@ -925,7 +944,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel}
 }
 
 // ── Company form ──────────────────────────────────────────────
-const BLANKCO={name:"",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:"0",lastContacted:today,nextAction:"",nextDue:"",relationship:"Cold",notes:"",owner:""};
+const BLANKCO={name:"",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:"0",lastContacted:today,nextAction:"",nextDue:"",relationship:"Cold",notes:"",owners:[]};
 function CompanyForm({init,onSave,onClose,companies,isEdit}){
   const[f,setF]=useState({...BLANKCO,...(init||{})});
   const[dupes,setDupes]=useState([]);
@@ -953,7 +972,7 @@ function CompanyForm({init,onSave,onClose,companies,isEdit}){
         <Fld label="Last Contacted"><Inp type="date" value={f.lastContacted} onChange={s("lastContacted")}/></Fld>
         <Fld label="Next Due"><Inp type="date" value={f.nextDue} onChange={s("nextDue")}/></Fld>
         <Fld label="Next Action" span2><Inp value={f.nextAction} onChange={s("nextAction")} placeholder="Schedule intro call…"/></Fld>
-        <Fld label="Owner"><SelEl value={f.owner||""} onChange={s("owner")} options={[{v:"",l:"— Unassigned —"},{v:"David",l:"David"},{v:"Lauren",l:"Lauren"},{v:"Brinda",l:"Brinda"}]}/></Fld>
+        <Fld label="Owner" span2><OwnerPicker owners={migrateOwners(f.owners,f.owner)} onChange={function(next){setF(function(p){var n=Object.assign({},p);n.owners=next;return n;})}}/></Fld>
       <Fld label="Notes" span2><Tarea value={f.notes} onChange={s("notes")} rows={3}/></Fld>
       </div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16}}>
@@ -975,8 +994,9 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
 
   const list=useMemo(()=>companies.filter(c=>
     (tierF==="all"||c.tier===tierF)&&
+    (!ownerFilter||migrateOwners(c.owners,c.owner).includes(ownerFilter)||people.some(function(p){return p.companyId===c.id&&migrateOwners(p.owners,p.owner).includes(ownerFilter);}))&&
     (c.name+c.type+c.hq).toLowerCase().includes(search.toLowerCase())
-  ),[companies,search,tierF]);
+  ),[companies,people,search,tierF,ownerFilter]);
 
   const selC=companies.find(c=>c.id===sel);
   const linked=selC?people.filter(p=>p.companyId===selC.id):[];
@@ -992,6 +1012,7 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
           <div style={{display:"flex",gap:8,marginBottom:10}}>
             <Inp value={search} onChange={setSearch} placeholder="Filter companies…" style={{fontSize:12}}/>
             <Btn small onClick={()=>setModal("add")}>+ Add</Btn>
+            <Btn variant="ghost" small onClick={()=>setModal("csv-co")}>⬆ Import CSV</Btn>
           </div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
             {["all","Key Client","Warm","Prospect"].map(t=>(
@@ -1191,7 +1212,7 @@ function MarketMap({people,companies,onNavigate,ownerFilter}){
   },[people]);
 
   const filteredPeople=useMemo(()=>people.filter(p=>{
-    if(ownerFilter&&p.owner!==ownerFilter)return false;
+    if(ownerFilter&&!migrateOwners(p.owners,p.owner).includes(ownerFilter))return false;
     if(sectorF!=="All"&&!(p.sectors||[]).includes(sectorF))return false;
     if(seniorityF!=="All"&&p.seniority!==seniorityF)return false;
     if(relF!=="All"&&p.relationship!==relF)return false;
@@ -1490,7 +1511,7 @@ function BDPipelineView({people,setPeople,persist,ownerFilter}){
 
   // Only show contacts (Lauren's BD targets) - type contact or people with a bdStage set
   var filtered=people.filter(function(p){
-    if(ownerFilter&&p.owner!==ownerFilter)return false;
+    if(ownerFilter&&!migrateOwners(p.owners,p.owner).includes(ownerFilter))return false;
     if(search&&!(p.name+p.company).toLowerCase().includes(search.toLowerCase()))return false;
     return p.bdStage&&p.bdStage.trim()!=="";
   });
@@ -1665,7 +1686,7 @@ const VN_STATUS=["Actively looking","Open to the right opportunity","Not right n
 const VN_STATUS_SHORT={"Actively looking":"Actively looking","Open to the right opportunity":"Open to right opportunity","Not right now, but happy to stay connected":"Stay connected","Open to exploring options, discreetly and with proper representation":"Exploring discreetly"};
 const VN_STATUS_COLORS={"Actively looking":OK,"Open to the right opportunity":TEAL,"Not right now, but happy to stay connected":G600,"Open to exploring options, discreetly and with proper representation":WARN};
 
-function VoltNetworkView({network,setNetwork,persist}){
+function VoltNetworkView({network,setNetwork,persist,ownerFilter}){
   var[sel,setSel]=useState(null);
   var[search,setSearch]=useState("");
   var[filterLevel,setFilterLevel]=useState("All");
@@ -1675,7 +1696,7 @@ function VoltNetworkView({network,setNetwork,persist}){
   var[showAdd,setShowAdd]=useState(false);
   var[editMember,setEditMember]=useState(null);
 
-  var BLANK={id:0,firstName:"",lastName:"",email:"",phone:"",linkedin:"",level:"",region:"",specialism:"",status:"",notes:"",lastContacted:"",nextAction:"",nextDue:"",joinedDate:today};
+  var BLANK={id:0,firstName:"",lastName:"",email:"",phone:"",linkedin:"",level:"",region:"",specialism:"",status:"",notes:"",lastContacted:"",nextAction:"",nextDue:"",joinedDate:today,owners:[]};
 
   function filtered(){
     return (network||[]).filter(function(m){
@@ -1686,7 +1707,8 @@ function VoltNetworkView({network,setNetwork,persist}){
       var mR=filterRegion==="All"||m.region===filterRegion;
       var mS=filterSpec==="All"||m.specialism===filterSpec;
       var mSt=filterStatus==="All"||m.status===filterStatus;
-      return mQ&&mL&&mR&&mS&&mSt;
+      var mO=!ownerFilter||(m.owners||[]).includes(ownerFilter);
+      return mQ&&mL&&mR&&mS&&mSt&&mO;
     });
   }
 
@@ -1810,6 +1832,9 @@ function VoltNetworkView({network,setNetwork,persist}){
               <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Notes</div>
               <textarea value={f.notes||""} onChange={function(e){set("notes",e.target.value);}} rows={3} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
             </div>
+          </div>
+          <div style={{gridColumn:"span 2",marginBottom:4}}>
+            <OwnerPicker owners={f.owners||[]} label="Assign to" onChange={function(next){setF(function(p){var n=Object.assign({},p);n.owners=next;return n;});}}/>
           </div>
           <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
             <button onClick={onClose} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"8px 18px",fontSize:13,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
@@ -1999,7 +2024,7 @@ function calcTranches(salary,pct){
 }
 
 function VacancyForm({init,companies,people,onSave,onClose}){
-  var BLANK={id:0,title:"",companyId:null,type:"Retained",status:"Active",location:"",exclusive:false,salaryMin:"",salaryMax:"",agreedSalary:"",feePercent:"",flatFee:"",jobTitle:"",startDate:"",targetClose:"",notes:"",keyContactId:null,tranches:[{invoiced:false,paid:false},{invoiced:false,paid:false},{invoiced:false,paid:false}]};
+  var BLANK={id:0,title:"",companyId:null,type:"Retained",status:"Active",location:"",exclusive:false,salaryMin:"",salaryMax:"",agreedSalary:"",feePercent:"",flatFee:"",jobTitle:"",startDate:"",targetClose:"",notes:"",keyContactId:null,owners:[],tranches:[{invoiced:false,paid:false},{invoiced:false,paid:false},{invoiced:false,paid:false}]};
   var[f,setF]=useState(Object.assign({},BLANK,init||{}));
   function set(k,v){setF(function(p){var n=Object.assign({},p);n[k]=v;return n;});}
   var linkedPeople=f.companyId?people.filter(function(p){return p.companyId===f.companyId;}):[];
@@ -2099,6 +2124,9 @@ function VacancyForm({init,companies,people,onSave,onClose}){
           </div>
         </div>
 
+        <div style={{marginBottom:16}}>
+          <OwnerPicker owners={f.owners||[]} label="Assign to" onChange={function(next){setF(function(p){var n=Object.assign({},p);n.owners=next;return n;});}}/>
+        </div>
         <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
           <button onClick={onClose} style={{background:"transparent",border:"1px solid "+G300,borderRadius:6,padding:"8px 18px",fontSize:13,color:G600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
           <button onClick={function(){if(!f.title.trim()||!f.companyId){alert("Role title and client are required");return;}onSave(f);}} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 22px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Save Vacancy</button>
@@ -2108,7 +2136,7 @@ function VacancyForm({init,companies,people,onSave,onClose}){
   );
 }
 
-function VacanciesView({vacancies,setVacancies,companies,setCompanies,people,setPeople,persist}){
+function VacanciesView({vacancies,setVacancies,companies,setCompanies,people,setPeople,persist,ownerFilter}){
   var[sel,setSel]=useState(null);
   var[showForm,setShowForm]=useState(false);
   var[editVac,setEditVac]=useState(null);
@@ -2178,6 +2206,7 @@ function VacanciesView({vacancies,setVacancies,companies,setCompanies,people,set
   var filtered=(vacancies||[]).filter(function(v){
     if(filterType!=="All"&&v.type!==filterType)return false;
     if(filterStatus!=="All"&&v.status!==filterStatus)return false;
+    if(ownerFilter&&!(v.owners||[]).includes(ownerFilter))return false;
     if(search){
       var co=companies.find(function(c){return c.id===v.companyId;});
       var coName=co?co.name:"";
@@ -2299,6 +2328,7 @@ function VacanciesView({vacancies,setVacancies,companies,setCompanies,people,set
                 )}
                 {selContact&&<div style={{fontSize:12,color:G600,padding:"6px 0"}}>Contact: <span style={{fontWeight:600,color:NAVY}}>{selContact.name}</span></div>}
                 {selVac.targetClose&&<div style={{fontSize:12,color:G600,padding:"6px 0"}}>Target close: <span style={{fontWeight:600}}>{selVac.targetClose}</span></div>}
+                {(selVac.owners||[]).length>0&&<div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}><span style={{fontSize:12,color:G600}}>Assigned:</span>{(selVac.owners||[]).map(function(o){var col=OWNER_COLORS[o]||G400;return <span key={o} style={{fontSize:11,fontWeight:700,color:col,background:col+"15",borderRadius:4,padding:"2px 8px"}}>{o}</span>;})}</div>}
               </div>
 
               {/* Retained tranches */}
@@ -2578,7 +2608,7 @@ function App(){
   const[unlocked,setUnlocked]=useState(!!sessionStorage.getItem("volt_auth"));
   const isLocalFile=window.location.protocol==="file:";
   const[view,setView]=useState("bd");
-  const[ownerFilter,setOwnerFilter]=useState(null);
+  const[ownerFilter,setOwnerFilter]=useState(sessionStorage.getItem("volt_owner")||null);
   const[navSel,setNavSel]=useState(null);
   const[people,setPeople]=useState(SEED_PEOPLE);
   const[companies,setCompanies]=useState(SEED_COMPANIES);
@@ -2693,7 +2723,7 @@ function App(){
           {[["David",TEAL],["Lauren","#6f42c1"],["Brinda",WARN]].map(([name,col])=>{
             const active=ownerFilter===name;
             return(
-              <div key={name} onClick={()=>setOwnerFilter(active?null:name)}
+              <div key={name} onClick={()=>{var next=active?null:name;setOwnerFilter(next);if(next)sessionStorage.setItem("volt_owner",next);else sessionStorage.removeItem("volt_owner");}}
                 style={{display:"flex",alignItems:"center",gap:9,marginBottom:6,cursor:"pointer",padding:"5px 8px",borderRadius:6,background:active?col+"15":"transparent",border:"1px solid "+(active?col+"40":"transparent"),transition:"all 0.12s"}}>
                 <Av name={name} size={24} color={col}/>
                 <span style={{fontSize:13,color:active?col:G700,fontWeight:active?700:400}}>{name}</span>
@@ -2715,7 +2745,7 @@ function App(){
           <GlobalSearch people={people} companies={companies} onNavigate={handleNavigate}/>
           {ownerFilter&&<div style={{display:"flex",alignItems:"center",gap:8,background:TEAL+"15",border:"1px solid "+TEAL+"40",borderRadius:20,padding:"4px 12px",fontSize:12,color:TEAL,fontWeight:600,whiteSpace:"nowrap"}}>
             {ownerFilter}&apos;s view
-            <button onClick={()=>setOwnerFilter(null)} style={{background:"none",border:"none",color:TEAL,cursor:"pointer",fontSize:14,lineHeight:1,fontWeight:700,padding:"0 0 0 4px"}}>×</button>
+            <button onClick={()=>{setOwnerFilter(null);sessionStorage.removeItem("volt_owner");}} style={{background:"none",border:"none",color:TEAL,cursor:"pointer",fontSize:14,lineHeight:1,fontWeight:700,padding:"0 0 0 4px"}}>×</button>
           </div>}
           <div style={{fontSize:12,color:G400,whiteSpace:"nowrap"}}>{people.length+" people · "+companies.length+" companies"}</div>
         </div>
@@ -2724,8 +2754,8 @@ function App(){
           {view==="pipeline"&&<BDPipelineView people={people} setPeople={setPeople} persist={persist} ownerFilter={ownerFilter}/>}
           {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel} ownerFilter={ownerFilter}/>}
           {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}} ownerFilter={ownerFilter}/>}
-          {view==="vacancies"&&<VacanciesView vacancies={vacancies} setVacancies={setVacancies} companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist}/>}
-          {view==="network"&&<VoltNetworkView network={network} setNetwork={setNetwork} persist={persist}/>}
+          {view==="vacancies"&&<VacanciesView vacancies={vacancies} setVacancies={setVacancies} companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} ownerFilter={ownerFilter}/>}
+          {view==="network"&&<VoltNetworkView network={network} setNetwork={setNetwork} persist={persist} ownerFilter={ownerFilter}/>}
           {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate} ownerFilter={ownerFilter}/>}
         </div>
       </div>
@@ -2746,4 +2776,95 @@ function App(){
     root.render(<App />);
   </script>
 </body>
-</html>
+</html
+// ── Company CSV Importer ───────────────────────────────────────
+const CO_CSV_MAP={"company name":"name","company":"name","name":"name","organisation":"name","organization":"name","type":"type","sector":"type","industry":"type","tier":"tier","hq":"hq","location":"hq","city":"hq","headquarters":"hq","key contact":"keyContact","contact":"keyContact","website":"website","notes":"notes","note":"notes","comments":"notes"};
+
+function CompanyCSVImporter({companies,setCompanies,persist,onClose}){
+  var[raw,setRaw]=useState("");
+  var[parsed,setParsed]=useState(null);
+  var[mapping,setMapping]=useState({});
+  var[results,setResults]=useState(null);
+
+  function handleFile(e){
+    var file=e.target.files[0];
+    if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(ev){var text=ev.target.result;setRaw(text);var p=parseCSV(text);setParsed(p);var auto={};p.headers.forEach(function(h){auto[h]=CO_CSV_MAP[h.toLowerCase().trim()]||"ignore";});setMapping(auto);};
+    reader.readAsText(file);
+  }
+
+  function runImport(){
+    if(!parsed)return;
+    var added=0,dupes=0;
+    var newCos=[...companies];
+    parsed.rows.forEach(function(row){
+      var obj={};
+      Object.entries(mapping).forEach(function(entry){
+        var h=entry[0],f=entry[1];
+        if(!f||f==="ignore")return;
+        var val=(row[h]||"").trim();
+        if(val)obj[f]=val;
+      });
+      if(!obj.name)return;
+      var exists=newCos.find(function(co){return co.name.toLowerCase()===obj.name.toLowerCase();});
+      if(exists){dupes++;return;}
+      newCos.push(Object.assign({},BLANKCO,obj,{id:Date.now()+Math.random(),tier:obj.tier||"Prospect",owners:[]}));
+      added++;
+    });
+    setCompanies(newCos);persist("companies",newCos);
+    setResults({added,skipped:dupes});
+  }
+
+  var CO_FIELDS=["name","type","tier","hq","keyContact","notes","ignore"];
+
+  if(results)return(
+    <div style={{padding:"20px",textAlign:"center"}}>
+      <div style={{fontSize:24,marginBottom:12}}>✓</div>
+      <h3 style={{color:NAVY,marginBottom:16}}>Import complete</h3>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+        <div style={{background:OK+"10",border:"1px solid "+OK+"30",borderRadius:8,padding:"14px",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:OK}}>{results.added}</div><div style={{fontSize:12,color:G600}}>Added</div></div>
+        <div style={{background:WARN+"10",border:"1px solid "+WARN+"30",borderRadius:8,padding:"14px",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:WARN}}>{results.skipped}</div><div style={{fontSize:12,color:G600}}>Skipped (dupes)</div></div>
+      </div>
+      <button onClick={onClose} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 24px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+    </div>
+  );
+
+  return(
+    <div style={{padding:"4px"}}>
+      <div style={{marginBottom:12,fontSize:13,color:G600,lineHeight:1.6}}>Import companies from any CSV. Auto-maps common column names.</div>
+      <label style={{display:"block",background:G50,border:"2px dashed "+G300,borderRadius:8,padding:"16px",textAlign:"center",cursor:"pointer",marginBottom:12}}>
+        <div style={{fontWeight:600,color:NAVY,marginBottom:4}}>Drop a CSV file or click to browse</div>
+        <div style={{fontSize:12,color:G400}}>Company name, type, location, tier, notes</div>
+        <input type="file" accept=".csv,.tsv,.txt" onChange={handleFile} style={{display:"none"}}/>
+      </label>
+      <div style={{marginBottom:8,fontSize:12,color:G400,textAlign:"center"}}>— or paste CSV data directly —</div>
+      <textarea value={raw} onChange={function(e){setRaw(e.target.value);var p=parseCSV(e.target.value);setParsed(p);var auto={};p.headers.forEach(function(h){auto[h]=CO_CSV_MAP[h.toLowerCase().trim()]||"ignore";});setMapping(auto);}} rows={4} placeholder="Paste CSV here..." style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"8px",fontSize:12,outline:"none",fontFamily:"inherit",resize:"vertical",marginBottom:12}}/>
+      {parsed&&parsed.headers.length>0&&(
+        <div style={{marginBottom:12}}>
+          <div style={{fontWeight:600,color:NAVY,fontSize:13,marginBottom:8}}>Map columns ({parsed.rows.length} rows detected)</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"6px 10px",background:G50,borderRadius:"6px 6px 0 0",border:"1px solid "+G200,fontSize:10.5,fontWeight:700,color:G600,textTransform:"uppercase"}}>
+            <span>CSV Column</span><span>Sample</span><span>Map to</span>
+          </div>
+          {parsed.headers.map(function(h){
+            var sample=parsed.rows[0]?parsed.rows[0][h]||"—":"—";
+            return(
+              <div key={h} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"6px 10px",borderBottom:"1px solid "+G100,border:"1px solid "+G200,borderTop:"none",fontSize:12,alignItems:"center"}}>
+                <span style={{fontWeight:600,color:NAVY}}>{h}</span>
+                <span style={{color:G500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sample}</span>
+                <select value={mapping[h]||"ignore"} onChange={function(e){setMapping(function(m){var n=Object.assign({},m);n[h]=e.target.value;return n;});}} style={{fontSize:11,border:"1px solid "+G300,borderRadius:4,padding:"2px 4px",outline:"none",fontFamily:"inherit"}}>
+                  {CO_FIELDS.map(function(f){return <option key={f} value={f}>{f==="ignore"?"— ignore —":f}</option>;})}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {parsed&&parsed.rows.length>0&&(
+        <button onClick={runImport} style={{width:"100%",background:TEAL,color:W,border:"none",borderRadius:6,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Import {parsed.rows.length} Companies</button>
+      )}
+    </div>
+  );
+}
+
+>
