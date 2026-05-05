@@ -212,7 +212,7 @@ function findDupeCompanies(name,companies,excludeId){
   return companies.filter(c=>c.id!==excludeId&&similarity(name,c.name)>=0.82);
 }
 function autoLinkCompany(personCompany,companies){
-  if(!personCompany?.trim())return{companies,companyId:null};
+  if(!personCompany||!personCompany.trim())return{companies,companyId:null};
   const match=companies.find(c=>similarity(personCompany,c.name)>=0.82);
   if(match)return{companies,companyId:match.id};
   const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openVacancies:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created from people record."};
@@ -358,7 +358,7 @@ function LinkedInPaste({onParsed}){
           messages:[{role:"user",content:"Extract the PRIMARY person's details from this LinkedIn profile page text. LinkedIn pages often contain duplicated text and noise - ignore it and focus on the main person at the top.\n\nThe text may be messy with repeated words/phrases - that is normal, work with it.\n\nReturn ONLY a valid JSON object, absolutely nothing else, no backticks, no explanation.\n\nJSON fields:\n- name: their full name (string)\n- title: their current job title (string)\n- company: their current employer (string)\n- location: city and country (string)\n- seniority: exactly one of [Analyst / Consultant, Manager / Principal, VP / Director, C-Suite / Partner]\n- sectors: array of relevant tags from [Life Sciences, Strategy, Commercial, Oncology, RWE, Market Access, Operations, MedTech, Digital Health, Biotech, Regulatory, Pricing, Other]\n- linkedin: their LinkedIn profile URL if visible, else empty string\n\nProfile text:\n"+text.slice(0,5000)}]})});
       if(!res.ok){const errText=await res.text();throw new Error("API error "+res.status+": "+errText);}
       const data=await res.json();
-      const raw=(data.content?.[0]?.text||"").trim();
+      const raw=((data.content&&data.content[0]?data.content[0].text:"")||"").trim();
       if(!raw)throw new Error("Empty response from AI");
       const clean=raw.replace(/^```json|^```|```$/gm,"").trim();
       const parsed=JSON.parse(clean);
@@ -406,7 +406,7 @@ function CompanyLinkedInPaste({onParsed}){
           messages:[{role:"user",content:"You are extracting data from a LinkedIn COMPANY page. Extract details about the company itself, not any individual person.\n\nReturn ONLY valid JSON, no markdown, no explanation.\n\nSchema: {\"name\":\"Full company name\",\"type\":\"one of: Consulting, Pharma, Biotech, MedTech, Other\",\"hq\":\"City, Country of headquarters\",\"notes\":\"1-2 sentence summary of what the company does, from their About section\"}\n\nLinkedIn company page text:\n"+text.slice(0,4000)}]})});
       if(!res.ok){const errText=await res.text();throw new Error("API error "+res.status+": "+errText);}
       const data=await res.json();
-      const raw=(data.content?.[0]?.text||"").trim();
+      const raw=((data.content&&data.content[0]?data.content[0].text:"")||"").trim();
       const clean=raw.replace(/^```json|^```|```$/gm,"").trim();
       const parsed=JSON.parse(clean);
       onParsed(parsed);setOpen(false);setText("");
@@ -538,7 +538,7 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
         {parsed.headers.map((h,i)=>(
           <div key={h} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"10px 16px",borderTop:"1px solid "+G200,alignItems:"center",background:i%2===0?W:G50}}>
             <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{h}</div>
-            <div style={{fontSize:12,color:G600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(parsed.rows[0]?.[h]||"—").slice(0,25)}</div>
+            <div style={{fontSize:12,color:G600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{((parsed.rows[0]?parsed.rows[0][h]:"")||"—").slice(0,25)}</div>
             <SelEl value={mappings[h]||"ignore"} onChange={v=>setMappings(m=>({...m,[h]:v}))} options={CRM_FIELDS} style={{fontSize:12,padding:"5px 8px"}}/>
           </div>
         ))}
@@ -640,6 +640,60 @@ function InlineField({label,value,onChange,type="text",href,linkLabel}){
   );
 }
 
+function AddToVacancy({selP,vacancies,setVacancies,persist}){
+  var allVacs=vacancies||[];
+  var personVacs=allVacs.filter(function(v){
+    return (v.candidates||[]).some(function(c){return c.personId===selP.id;});
+  });
+  var activeVacs=allVacs.filter(function(v){
+    return v.status==="Active"&&!(v.candidates||[]).some(function(c){return c.personId===selP.id;});
+  });
+
+  function addToVac(vacId){
+    if(!vacId)return;
+    var vid=parseFloat(vacId);
+    var vac=allVacs.find(function(v){return v.id===vid;});
+    if(!vac)return;
+    var stage=vac.type==="Retained"?"Longlist":"Approached";
+    var newCand={personId:selP.id,stage:stage,interviewStage:"",notes:"",addedDate:today};
+    var newCands=(vac.candidates||[]).slice();
+    newCands.push(newCand);
+    var updated=allVacs.map(function(v){
+      if(v.id!==vid)return v;
+      return Object.assign({},v,{candidates:newCands});
+    });
+    setVacancies(updated);persist("vacancies",updated);
+  }
+
+  return(
+    <div style={{background:W,borderRadius:8,border:"1px solid "+G200,padding:"14px 18px",marginBottom:14}}>
+      <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Vacancies</div>
+      {personVacs.length>0&&(
+        <div style={{marginBottom:8}}>
+          {personVacs.map(function(v){
+            var cand=(v.candidates||[]).find(function(c){return c.personId===selP.id;});
+            var col=VAC_TYPE_COLORS[v.type]||G400;
+            return(
+              <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid "+G100}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:600,color:NAVY}}>{v.title}</div>
+                  <div style={{fontSize:11,color:G600}}>{cand?cand.stage:""}</div>
+                </div>
+                <span style={{fontSize:10,fontWeight:700,color:col,background:col+"15",borderRadius:3,padding:"1px 6px"}}>{v.type}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <select onChange={function(e){addToVac(e.target.value);e.target.value="";}} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:12,outline:"none",fontFamily:"inherit",color:G600}}>
+        <option value="">+ Add to vacancy...</option>
+        {activeVacs.map(function(v){return <option key={v.id} value={v.id}>{v.title} ({v.type})</option>;})}
+      </select>
+    </div>
+  );
+}
+
+
 function OverviewTab({selP,people,setPeople,persist,vacancies,setVacancies}){
   const save=(field,value)=>{
     const updated=people.map(p=>p.id===selP.id?{...p,[field]:value}:p);
@@ -704,52 +758,7 @@ function OverviewTab({selP,people,setPeople,persist,vacancies,setVacancies}){
       </div>
 
       {/* Add to Vacancy */}
-      <div style={{background:W,borderRadius:8,border:"1px solid "+G200,padding:"14px 18px",marginBottom:14}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Vacancies</div>
-        </div>
-        {(function(){
-          var personVacs=(vacancies||[]).filter(function(v){return (v.candidates||[]).some(function(cand){return cand.personId===selP.id;});});
-          var activeVacs=(vacancies||[]).filter(function(v){return v.status==="Active"&&!(v.candidates||[]).some(function(cand){return cand.personId===selP.id;});});
-          return(
-            <div>
-              {personVacs.length>0&&(
-                <div style={{marginBottom:8}}>
-                  {personVacs.map(function(v){
-                    var cand=(v.candidates||[]).find(function(c){return c.personId===selP.id;});
-                    return(
-                      <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid "+G100}}>
-                        <div>
-                          <div style={{fontSize:12,fontWeight:600,color:NAVY}}>{v.title}</div>
-                          <div style={{fontSize:11,color:G600}}>{cand?cand.stage:""}</div>
-                        </div>
-                        <span style={{fontSize:10,fontWeight:700,color:VAC_TYPE_COLORS[v.type]||G400,background:(VAC_TYPE_COLORS[v.type]||G400)+"15",borderRadius:3,padding:"1px 6px"}}>{v.type}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <select onChange={function(e){
-                if(!e.target.value)return;
-                var vacId=parseFloat(e.target.value);
-                var vac=(vacancies||[]).find(function(v){return v.id===vacId;});
-                if(!vac)return;
-                var stage=vac.type==="Retained"?"Longlist":"Approached";
-                var newCand={personId:selP.id,stage:stage,interviewStage:"",notes:"",addedDate:today};
-                var updated=(vacancies||[]).map(function(v){
-                  if(v.id!==vacId)return v;
-                  return Object.assign({},v,{candidates:[...(v.candidates||[]),newCand]});
-                });
-                setVacancies(updated);persist("vacancies",updated);
-                e.target.value="";
-              }} style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"7px 10px",fontSize:12,outline:"none",fontFamily:"inherit",marginTop:4,color:G600}}>
-                <option value="">+ Add to vacancy...</option>
-                {activeVacs.map(function(v){return <option key={v.id} value={v.id}>{v.title}{v.companyId?" — "+((vacancies||[]).find(function(x){return x.id===v.id;})||{}).title:""}  ({v.type})</option>;})}
-              </select>
-            </div>
-          );
-        })()}
-      </div>
+      <AddToVacancy selP={selP} vacancies={vacancies} setVacancies={setVacancies} persist={persist}/>
 
       {/* Sectors */}
       {(selP.sectors||[]).length>0&&(
@@ -771,9 +780,9 @@ function OverviewTab({selP,people,setPeople,persist,vacancies,setVacancies}){
 }
 
 // ── People detail panel with tabs ─────────────────────────────
-function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,setSel}){
+function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,setSel,vacancies,setVacancies}){
   const[tab,setTab]=useState("Overview");
-  useEffect(()=>setTab("Overview"),[selP?.id]);
+  useEffect(()=>setTab("Overview"),[selP?selP.id:null]);
   const companyPeople=selP&&selP.companyId?people.filter(p=>p.companyId===selP.companyId&&p.id!==selP.id):[];
   const co=selP?companies.find(c=>c.id===selP.companyId):null;
   const logUpdate=f=>{const u=people.map(p=>p.id===selP.id?{...p,...f}:p);setPeople(u);persist("people",u);};
@@ -1007,7 +1016,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel,
       </div>
 
       {/* Detail */}
-      <PersonDetail selP={selP} people={people} companies={companies} setPeople={setPeople} persist={persist} onDelete={delPerson} onEdit={()=>setModal("edit")} setSel={setSel}/>
+      <PersonDetail selP={selP} people={people} companies={companies} setPeople={setPeople} persist={persist} onDelete={delPerson} onEdit={()=>setModal("edit")} setSel={setSel} vacancies={vacancies} setVacancies={setVacancies}/>
 
       {modal==="add"&&<ModalEl title="Add Person" onClose={()=>setModal(null)} wide><PersonForm init={BLANKP} prefill={prefill} onSave={addPerson} onClose={()=>setModal(null)} people={people} isEdit={false}/></ModalEl>}
       {modal==="edit"&&selP&&<ModalEl title={"Edit — "+selP.name} onClose={()=>setModal(null)} wide><PersonForm init={selP} onSave={updPerson} onClose={()=>setModal(null)} people={people} isEdit={true}/></ModalEl>}
