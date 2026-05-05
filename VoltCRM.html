@@ -117,8 +117,6 @@ function migrateRelationship(rel){
   var r=rel.toLowerCase();
   if(r==="active")return"Active";
   if(r==="passive")return"Passive";
-  if(r==="hot"||r==="warm"||r==="new")return"Active";
-  if(r==="cold")return"Passive";
   return"";
 }
 
