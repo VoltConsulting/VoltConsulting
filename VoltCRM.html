@@ -112,6 +112,16 @@ const OWNER_COLORS={"David":TEAL,"Lauren":"#6f42c1","Brinda":WARN};
 const TEAM=["David","Lauren","Brinda"];
 
 // Migrate old single owner string to array
+function migrateRelationship(rel){
+  if(!rel)return"";
+  var r=rel.toLowerCase();
+  if(r==="active")return"Active";
+  if(r==="passive")return"Passive";
+  if(r==="hot"||r==="warm"||r==="new")return"Active";
+  if(r==="cold")return"Passive";
+  return"";
+}
+
 function migrateOwners(owners,owner){
   if(Array.isArray(owners))return owners;
   if(owner&&typeof owner==="string"&&owner.trim())return[owner.trim()];
@@ -1145,6 +1155,7 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
 // ── BD TRACKER ────────────────────────────────────────────────
 function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}){
   const now=new Date();
+  const[selPerson,setSelPerson]=useState(null);
   const[doneModal,setDoneModal]=useState(null);
   const[doneNote,setDoneNote]=useState("");
   const[doneNextAction,setDoneNextAction]=useState("");
@@ -1198,7 +1209,7 @@ function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}
               <Av name={item.name} size={36} color={ac}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:3}}>
-                  <span style={{fontWeight:700,color:NAVY,fontSize:14}}>{item.name}</span>
+                  <span onClick={function(){if(item._k==="person"){var p=people.find(function(p){return p.id===item.id;});if(p)setSelPerson(p);}}} style={{fontWeight:700,color:NAVY,fontSize:14,cursor:item._k==="person"?"pointer":"default",textDecoration:item._k==="person"?"underline":"none",textDecorationColor:TEAL}}>{item.name}</span>
                   <div style={{display:"flex",gap:10,alignItems:"center"}}><DueTag due={item.nextDue}/><RelDot rel={item.relationship}/></div>
                 </div>
                 <div style={{fontSize:12,color:G600,marginBottom:8}}>{item._k==="company"?item.type:item.title}{(item.company||item.hq)?" · "+(item.company||item.hq):""}</div>
@@ -1216,6 +1227,47 @@ function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}
   };
   return(
     <div style={{overflowY:"auto",padding:"32px 40px",maxWidth:860,height:"100%"}}>
+      {selPerson&&(
+        <div style={{position:"fixed",inset:0,background:"#0004",zIndex:200,display:"flex",justifyContent:"flex-end"}} onClick={function(){setSelPerson(null);}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{width:480,maxWidth:"95vw",height:"100%",background:W,boxShadow:"-4px 0 24px #0002",overflowY:"auto",display:"flex",flexDirection:"column"}}>
+            <div style={{padding:"16px 20px",borderBottom:"1px solid "+G200,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,background:W,position:"sticky",top:0,zIndex:1}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:18,color:NAVY}}>{selPerson.name}</div>
+                <div style={{fontSize:13,color:G600}}>{selPerson.title}{selPerson.company?" · "+selPerson.company:""}</div>
+              </div>
+              <button onClick={function(){setSelPerson(null);}} style={{background:"none",border:"none",color:G400,fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{padding:"20px",flex:1}}>
+              {/* Contact details */}
+              <div style={{background:G50,borderRadius:8,padding:"14px 16px",marginBottom:14,border:"1px solid "+G200}}>
+                <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Contact Details</div>
+                <div style={{display:"grid",gap:8}}>
+                  {selPerson.email&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:G400,minWidth:60}}>Email</span><a href={"mailto:"+selPerson.email} style={{fontSize:13,color:TEAL,textDecoration:"none",fontWeight:500}}>{selPerson.email}</a></div>}
+                  {selPerson.phone&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:G400,minWidth:60}}>Phone</span><a href={"tel:"+selPerson.phone} style={{fontSize:13,color:TEAL,textDecoration:"none",fontWeight:500}}>{selPerson.phone}</a></div>}
+                  {selPerson.linkedin&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:G400,minWidth:60}}>LinkedIn</span><a href={selPerson.linkedin.startsWith("http")?selPerson.linkedin:"https://"+selPerson.linkedin} target="_blank" style={{fontSize:13,color:TEAL,textDecoration:"none",fontWeight:500}}>View profile</a></div>}
+                  {selPerson.location&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:G400,minWidth:60}}>Location</span><span style={{fontSize:13,color:NAVY}}>{selPerson.location}</span></div>}
+                </div>
+              </div>
+              {/* Next action */}
+              <div style={{background:TL,borderRadius:8,padding:"14px 16px",marginBottom:14,border:"1px solid "+TM}}>
+                <div style={{fontSize:11,color:TEAL,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Current Follow-up</div>
+                <div style={{fontWeight:600,color:NAVY,fontSize:14,marginBottom:4}}>→ {selPerson.nextAction||"No action set"}</div>
+                {selPerson.nextDue&&<div style={{fontSize:12,color:new Date(selPerson.nextDue)<new Date()?DANGER:G600,fontWeight:600}}>Due: {selPerson.nextDue}</div>}
+              </div>
+              {/* Notes */}
+              {selPerson.notes&&(
+                <div style={{background:W,borderRadius:8,padding:"14px 16px",border:"1px solid "+G200}}>
+                  <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Notes</div>
+                  <div style={{fontSize:13,color:G800,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{selPerson.notes}</div>
+                </div>
+              )}
+            </div>
+            <div style={{padding:"16px 20px",borderTop:"1px solid "+G200,flexShrink:0,background:W}}>
+              <button onClick={function(){setDoneModal(people.find(function(p){return p.id===selPerson.id;})||selPerson);setSelPerson(null);}} style={{width:"100%",background:TEAL,color:W,border:"none",borderRadius:7,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓ Mark Done / Log Next Action</button>
+            </div>
+          </div>
+        </div>
+      )}
       {doneModal&&(
         <div style={{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}} onClick={function(){setDoneModal(null);}}>
           <div onClick={function(e){e.stopPropagation();}} style={{background:W,borderRadius:12,padding:"24px 28px",width:440,maxWidth:"96vw",boxShadow:"0 20px 60px #0003",border:"1px solid "+G200}}>
@@ -2679,11 +2731,11 @@ function App(){
         const data = await loadFromAirtable();
         // Use Airtable data if it has records
         if(data.people && data.people.length>0) {
-          setPeople(data.people);
+          setPeople(data.people.map(function(p){return Object.assign({},p,{relationship:migrateRelationship(p.relationship)});}));
         } else {
           // Try localStorage cache
           const sp=await sGet("voltcrm5-people");
-          if(sp && sp.length>0) setPeople(JSON.parse(typeof sp==="string"?sp:JSON.stringify(sp)));
+          if(sp && sp.length>0) setPeople(JSON.parse(typeof sp==="string"?sp:JSON.stringify(sp)).map(function(p){return Object.assign({},p,{relationship:migrateRelationship(p.relationship)});}));
           // else keep SEED_PEOPLE (already set as default state)
         }
         if(data.companies && data.companies.length>0) {
