@@ -1232,13 +1232,21 @@ function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}
   const[doneNextAction,setDoneNextAction]=useState("");
   const[doneNextDue,setDoneNextDue]=useState("");
   const all=useMemo(()=>{
-    const ps=people.filter(p=>p.nextAction||p.nextDue).map(p=>({...p,_k:"person"}));
-    const cs=companies.filter(c=>c.nextAction||c.nextDue).map(c=>({...c,_k:"company"}));
-    return[...ps,...cs].sort((a,b)=>{
+    const ps=people.filter(function(p){
+      return (p.nextAction||p.nextDue)&&(!ownerFilter||migrateOwners(p.owners,p.owner).includes(ownerFilter));
+    }).map(function(p){return Object.assign({},p,{_k:"person"});});
+    const cs=companies.filter(function(c){
+      if(!c.nextAction&&!c.nextDue)return false;
+      if(!ownerFilter)return true;
+      return people.some(function(p){return p.companyId===c.id&&migrateOwners(p.owners,p.owner).includes(ownerFilter);});
+    }).map(function(c){return Object.assign({},c,{_k:"company"});});
+    var combined=ps.concat(cs);
+    combined.sort(function(a,b){
       if(!a.nextDue&&!b.nextDue)return 0;if(!a.nextDue)return 1;if(!b.nextDue)return -1;
       return new Date(a.nextDue)-new Date(b.nextDue);
     });
-  },[people,companies]);
+    return combined;
+  },[people,companies,ownerFilter]);
   const ov=all.filter(i=>i.nextDue&&new Date(i.nextDue)<now);
   const soon=all.filter(i=>i.nextDue&&new Date(i.nextDue)>=now&&new Date(i.nextDue)<=new Date(Date.now()+7*86400000));
   const later=all.filter(i=>!i.nextDue||new Date(i.nextDue)>new Date(Date.now()+7*86400000));
