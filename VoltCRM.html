@@ -107,7 +107,7 @@ const DANGER="#dc3545",WARN="#e8a020",OK="#198754";
 const REL={Active:OK,Passive:WARN};
 const SC={"Life Sciences":"#00C2C7","Strategy":"#6f42c1","Commercial":"#e8a020","Oncology":"#dc3545","RWE":"#0dcaf0","Market Access":"#6610f2","Operations":"#198754","MedTech":"#fd7e14","Digital Health":"#d63384","Biotech":"#20c997","Regulatory":"#ffc107","Pricing":"#0d6efd","Other":"#6c757d"};
 const SECTORS=Object.keys(SC);
-const TC_MAP={"Key Client":TEAL,"Warm":WARN,"Prospect":G600};
+const TC_MAP={"Active Client":TEAL,"Prospect":G600,"Inactive":G400};
 const OWNER_COLORS={"David":TEAL,"Lauren":"#6f42c1","Brinda":WARN};
 const TEAM=["David","Lauren","Brinda"];
 
@@ -178,13 +178,13 @@ const SEED_PEOPLE=[
   {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),nextAction:"Schedule longlist review call",nextDue:dF(3),relationship:"Active",notes:"Very responsive. Wants weekly updates."},
 ];
 const SEED_COMPANIES=[
-  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openMandates:2,lastContacted:dF(-3),nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Active",notes:"Retained engagement ongoing."},
-  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openMandates:1,lastContacted:dF(-7),nextAction:"Longlist review call",nextDue:dF(3),relationship:"Active",notes:"Global Oncology search."},
-  {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openMandates:0,lastContacted:dF(-45),nextAction:"Introductory call",nextDue:dF(10),relationship:"Passive",notes:"Intro via network."},
-  {id:4,name:"Vertex Pharmaceuticals",type:"Pharma",tier:"Prospect",hq:"Boston",keyContact:"James Carney",openMandates:0,lastContacted:dF(-20),nextAction:"Follow up on pipeline",nextDue:dF(5),relationship:"Active",notes:"Warm intro via Brinda."},
-  {id:5,name:"Huron Consulting",type:"Consulting",tier:"Prospect",hq:"Chicago",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created."},
-  {id:6,name:"ZS Associates",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created."},
-  {id:7,name:"IQVIA",type:"Pharma",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created."},
+  {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openVacancies:2,lastContacted:dF(-3),nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Active",notes:"Retained engagement ongoing."},
+  {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openVacancies:1,lastContacted:dF(-7),nextAction:"Longlist review call",nextDue:dF(3),relationship:"Active",notes:"Global Oncology search."},
+  {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openVacancies:0,lastContacted:dF(-45),nextAction:"Introductory call",nextDue:dF(10),relationship:"Passive",notes:"Intro via network."},
+  {id:4,name:"Vertex Pharmaceuticals",type:"Pharma",tier:"Prospect",hq:"Boston",keyContact:"James Carney",openVacancies:0,lastContacted:dF(-20),nextAction:"Follow up on pipeline",nextDue:dF(5),relationship:"Active",notes:"Warm intro via Brinda."},
+  {id:5,name:"Huron Consulting",type:"Consulting",tier:"Prospect",hq:"Chicago",keyContact:"",openVacancies:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created."},
+  {id:6,name:"ZS Associates",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openVacancies:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created."},
+  {id:7,name:"IQVIA",type:"Pharma",tier:"Prospect",hq:"",keyContact:"",openVacancies:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created."},
 ];
 
 function normalize(s){return(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");}
@@ -214,7 +214,7 @@ function autoLinkCompany(personCompany,companies){
   if(!personCompany?.trim())return{companies,companyId:null};
   const match=companies.find(c=>similarity(personCompany,c.name)>=0.82);
   if(match)return{companies,companyId:match.id};
-  const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created from people record."};
+  const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openVacancies:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created from people record."};
   return{companies:[...companies,newCo],companyId:newCo.id};
 }
 
@@ -809,7 +809,7 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:co.notes?12:0}}>
                     <InfoCard label="Key Contact"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{co.keyContact||"—"}</div></InfoCard>
-                    <InfoCard label="Open Mandates"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{co.openMandates||0}</div></InfoCard>
+                    <InfoCard label="Open Vacancies"><div style={{color:NAVY,fontSize:13,fontWeight:600}}>{co.openVacancies||0}</div></InfoCard>
                   </div>
                   {co.notes&&<div style={{fontSize:13,color:G700,lineHeight:1.6,borderTop:"1px solid "+G200,paddingTop:12}}>{co.notes}</div>}
                 </div>
@@ -968,7 +968,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel,
 }
 
 // ── Company form ──────────────────────────────────────────────
-const BLANKCO={name:"",type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openMandates:"0",lastContacted:today,nextAction:"",nextDue:"",relationship:"Passive",notes:"",owners:[]};
+const BLANKCO={name:"",type:"",tier:"",hq:"",keyContact:"",openVacancies:0,lastContacted:today,nextAction:"",nextDue:"",notes:"",owners:[]};
 function CompanyForm({init,onSave,onClose,companies,isEdit}){
   const[f,setF]=useState({...BLANKCO,...(init||{})});
   const[dupes,setDupes]=useState([]);
@@ -987,12 +987,12 @@ function CompanyForm({init,onSave,onClose,companies,isEdit}){
       {dupes.length>0&&<DupeBanner dupes={dupes} onDismiss={()=>{setDupes([]);setDismissed(true);}}/>}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
         <Fld label="Company Name" span2><Inp value={f.name} onChange={s("name")} placeholder="Charles River Associates"/></Fld>
-        <Fld label="Type"><SelEl value={f.type} onChange={s("type")} options={["Consulting","Pharma","Biotech","MedTech","Other"]}/></Fld>
-        <Fld label="Tier"><SelEl value={f.tier} onChange={s("tier")} options={["Key Client","Warm","Prospect"]}/></Fld>
+        <Fld label="Type"><SelEl value={f.type||""} onChange={s("type")} options={[{v:"",l:"— Select type —"},{v:"Life Sciences Consulting",l:"Life Sciences Consulting"},{v:"Pharma",l:"Pharma"},{v:"Biotech",l:"Biotech"},{v:"CRO",l:"CRO"},{v:"MedTech",l:"MedTech"},{v:"Other",l:"Other"}]}/></Fld>
+        <Fld label="Tier"><SelEl value={f.tier||""} onChange={s("tier")} options={[{v:"",l:"— Select tier —"},{v:"Active Client",l:"Active Client"},{v:"Prospect",l:"Prospect"},{v:"Inactive",l:"Inactive"}]}/></Fld>
         <Fld label="HQ"><Inp value={f.hq} onChange={s("hq")} placeholder="Boston, US"/></Fld>
         <Fld label="Key Contact"><Inp value={f.keyContact} onChange={s("keyContact")} placeholder="Maria Lopez"/></Fld>
-        <Fld label="Open Mandates"><Inp value={f.openMandates} onChange={s("openMandates")} type="number"/></Fld>
-        <Fld label="Relationship"><SelEl value={f.relationship} onChange={s("relationship")} options={["Hot","Warm","Cold","New"]}/></Fld>
+        <Fld label="Open Vacancies"><Inp value={f.openVacancies} onChange={s("openVacancies")} type="number"/></Fld>
+        
         <Fld label="Last Contacted"><Inp type="date" value={f.lastContacted} onChange={s("lastContacted")}/></Fld>
         <Fld label="Next Due"><Inp type="date" value={f.nextDue} onChange={s("nextDue")}/></Fld>
         <Fld label="Next Action" span2><Inp value={f.nextAction} onChange={s("nextAction")} placeholder="Schedule intro call…"/></Fld>
@@ -1008,7 +1008,7 @@ function CompanyForm({init,onSave,onClose,companies,isEdit}){
 }
 
 // ── COMPANIES VIEW ────────────────────────────────────────────
-function CompaniesView({companies,setCompanies,people,setPeople,persist,initialSel,onNavigatePerson,ownerFilter}){
+function CompaniesView({companies,setCompanies,people,setPeople,persist,initialSel,onNavigatePerson,ownerFilter,vacancies}){
   const[search,setSearch]=useState("");
   const[tierF,setTierF]=useState("all");
   const[sel,setSel]=useState(initialSel||null);
@@ -1025,8 +1025,8 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
   const selC=companies.find(c=>c.id===sel);
   const linked=selC?people.filter(p=>p.companyId===selC.id):[];
   const commit=u=>{setCompanies(u);persist("companies",u);};
-  const add=f=>commit([{...f,id:Date.now(),openMandates:Number(f.openMandates)},...companies]);
-  const upd=f=>commit(companies.map(c=>c.id===sel?{...c,...f,openMandates:Number(f.openMandates)}:c));
+  const add=f=>commit([{...f,id:Date.now(),openVacancies:Number(f.openVacancies)},...companies]);
+  const upd=f=>commit(companies.map(c=>c.id===sel?{...c,...f,openVacancies:Number(f.openVacancies)}:c));
   const del=()=>{commit(companies.filter(c=>c.id!==sel));setSel(null);};
 
   return(
@@ -1039,7 +1039,7 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
             <Btn variant="ghost" small onClick={()=>setModal("csv-co")}>⬆ Import CSV</Btn>
           </div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {["all","Key Client","Warm","Prospect"].map(t=>(
+            {["all","Active Client","Prospect","Inactive"].map(t=>(
               <button key={t} onClick={()=>setTierF(t)} style={{background:tierF===t?(TC_MAP[t]||TEAL)+"15":"transparent",color:tierF===t?(TC_MAP[t]||TEAL):G600,border:"1px solid "+(tierF===t?(TC_MAP[t]||TEAL)+"40":G300),borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{t==="all"?"All":t}</button>
             ))}
           </div>
@@ -1091,7 +1091,7 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
               <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
                 <RelDot rel={selC.relationship}/>
                 <Badge label={selC.tier} color={TC_MAP[selC.tier]||G600}/>
-                {selC.openMandates>0&&<Badge label={selC.openMandates+" open mandates"} color={TEAL}/>}
+                {selC.openVacancies>0&&<Badge label={selC.openVacancies+" open vacancys"} color={TEAL}/>}
                 {linked.length>0&&<Badge label={linked.length+" people"} color={G600}/>}
               </div>
             </div>
@@ -1146,7 +1146,7 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
       )}
       {modal==="csv-co"&&<ModalEl title="Import Companies from CSV" onClose={()=>setModal(null)} wide><CompanyCSVImporter companies={companies} setCompanies={setCompanies} persist={persist} onClose={()=>setModal(null)}/></ModalEl>}
       {modal==="add"&&<ModalEl title="Add Company" onClose={()=>{setModal(null);setLinkedInPrefill(null);}}><CompanyForm init={{...BLANKCO,...(linkedInPrefill||{})}} onSave={f=>{add(f);setLinkedInPrefill(null);}} onClose={()=>{setModal(null);setLinkedInPrefill(null);}} companies={companies} isEdit={false}/></ModalEl>}
-      {modal==="edit"&&selC&&<ModalEl title={"Edit — "+selC.name} onClose={()=>setModal(null)}><CompanyForm init={{...selC,openMandates:String(selC.openMandates)}} onSave={upd} onClose={()=>setModal(null)} companies={companies} isEdit={true}/></ModalEl>}
+      {modal==="edit"&&selC&&<ModalEl title={"Edit — "+selC.name} onClose={()=>setModal(null)}><CompanyForm init={{...selC,openVacancies:String(selC.openVacancies)}} onSave={upd} onClose={()=>setModal(null)} companies={companies} isEdit={true}/></ModalEl>}
       {modal==="addperson"&&selC&&(
         <ModalEl title={"Add Person at "+selC.name} onClose={()=>setModal(null)} wide>
           <PersonForm
@@ -1509,7 +1509,7 @@ function MarketMap({people,companies,onNavigate,ownerFilter}){
                       <Badge label={c.tier} color={tc}/>
                       <RelDot rel={c.relationship}/>
                       {pCount>0&&<span style={{fontSize:11,color:TEAL,fontWeight:600}}>{"👥 "+pCount+" people"}</span>}
-                      {c.openMandates>0&&<span style={{fontSize:11,color:OK,fontWeight:600}}>{"📋 "+c.openMandates+" mandates"}</span>}
+                      {c.openVacancies>0&&<span style={{fontSize:11,color:OK,fontWeight:600}}>{"📋 "+c.openVacancies+" vacancys"}</span>}
                     </div>
                     {c.nextDue&&<div style={{marginTop:7}}><DueTag due={c.nextDue}/></div>}
                   </div>
@@ -2284,7 +2284,7 @@ function VacancyForm({init,companies,people,onSave,onClose}){
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:20}}>
             <input type="checkbox" id="excl" checked={f.exclusive||false} onChange={function(e){set("exclusive",e.target.checked);}} style={{width:16,height:16,cursor:"pointer"}}/>
-            <label htmlFor="excl" style={{fontSize:13,color:G700,cursor:"pointer",fontWeight:500}}>Exclusive mandate</label>
+            <label htmlFor="excl" style={{fontSize:13,color:G700,cursor:"pointer",fontWeight:500}}>Exclusive vacancy</label>
           </div>
 
           {/* Fee section */}
@@ -2963,7 +2963,7 @@ function App(){
           {view==="bd"&&<BDTracker people={people} companies={companies} setPeople={setPeople} setCompanies={setCompanies} persist={persist} ownerFilter={ownerFilter}/>}
           {view==="pipeline"&&<BDPipelineView people={people} setPeople={setPeople} persist={persist} ownerFilter={ownerFilter}/>}
           {view==="people"&&<PeopleView people={people} setPeople={setPeople} companies={companies} setCompanies={setCompanies} persist={persist} initialSel={navSel} ownerFilter={ownerFilter}/>}
-          {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}} ownerFilter={ownerFilter}/>}
+          {view==="companies"&&<CompaniesView companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} initialSel={navSel} onNavigatePerson={id=>{handleNavigate("people",id);}} ownerFilter={ownerFilter} vacancies={vacancies}/>}
           {view==="vacancies"&&<VacanciesView vacancies={vacancies} setVacancies={setVacancies} companies={companies} setCompanies={setCompanies} people={people} setPeople={setPeople} persist={persist} ownerFilter={ownerFilter}/>}
           {view==="network"&&<VoltNetworkView network={network} setNetwork={setNetwork} persist={persist} ownerFilter={ownerFilter}/>}
           {view==="map"&&<MarketMap people={people} companies={companies} onNavigate={handleNavigate} ownerFilter={ownerFilter}/>}
