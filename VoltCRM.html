@@ -438,7 +438,7 @@ function CompanyLinkedInPaste({onParsed}){
 }
 
 // ── CSV importer ──────────────────────────────────────────────
-const CSV_MAP={"name":"name","full name":"name","fullname":"name","first name":"firstName","firstname":"firstName","last name":"lastName","lastname":"lastName","surname":"lastName","phone":"phone","phone number":"phone","mobile":"phone","mobile number":"phone","title":"title","job title":"title","position":"title","role":"title","company":"company","employer":"company","organization":"company","location":"location","city":"location","linkedin":"linkedin","linkedin url":"linkedin","url":"linkedin","email":"email","email address":"email","relationship":"relationship","status":"relationship","sectors":"sectors","sector":"sectors","expertise":"sectors","notes":"notes","note":"notes","comments":"notes","seniority":"seniority","level":"seniority","last contacted":"lastContacted","last contact":"lastContacted","next action":"nextAction","action":"nextAction","next due":"nextDue","due date":"nextDue","due":"nextDue","type":"type"};
+const CSV_MAP={"name":"name","full name":"name","fullname":"name","first name":"firstName","firstname":"firstName","last name":"lastName","lastname":"lastName","surname":"lastName","phone":"phone","phone number":"phone","mobile":"phone","mobile phone":"phone","work direct phone":"phone","corporate phone":"phone","home phone":"phone","mobile number":"phone","title":"title","job title":"title","position":"title","role":"title","company":"company","company name":"company","company name for emails":"ignore","employer":"company","organization":"company","organisation":"company","location":"location","city":"location","linkedin":"linkedin","linkedin url":"linkedin","person linkedin url":"linkedin","url":"ignore","company linkedin url":"ignore","facebook url":"ignore","twitter url":"ignore","website":"ignore","email":"email","email address":"email","work email":"email","relationship":"relationship","status":"ignore","email status":"ignore","stage":"ignore","sectors":"sectors","sector":"sectors","expertise":"sectors","departments":"sectors","industry":"ignore","notes":"notes","note":"notes","comments":"notes","keywords":"ignore","seniority":"seniority","level":"seniority","last contacted":"lastContacted","last contact":"lastContacted","next action":"nextAction","action":"nextAction","next due":"nextDue","due date":"nextDue","due":"nextDue","type":"type","country":"ignore","state":"ignore"};
 
 function parseCSV(text){
   const lines=text.trim().split(/\r?\n/);
@@ -466,6 +466,7 @@ function parseCSV(text){
 }
 
 function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
+  const[assignOwner,setAssignOwner]=useState("");
   const[step,setStep]=useState("upload");
   const[raw,setRaw]=useState("");
   const[parsed,setParsed]=useState(null);
@@ -506,7 +507,7 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
     allRows.forEach(r=>{
       if(findDupePeople(r.name,r.company,np).length>0){skipped++;return;}
       const{companies:updCos,companyId}=autoLinkCompany(r.company,nc);
-      nc=updCos;np=[{...r,id:Date.now()+Math.random(),companyId},...np];added++;
+      nc=updCos;np=[Object.assign({},r,{id:Date.now()+Math.random(),companyId,owners:assignOwner?[assignOwner]:[],type:r.type||"contact"}),...np];added++;
     });
     setPeople(np);persist("people",np);setCompanies(nc);persist("companies",nc);
     setResults({added,skipped,total:allRows.length});setStep("done");
@@ -567,6 +568,16 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
       </div>
       <div style={{background:TL,border:"1px solid "+TM,borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:NAVY}}>
         <strong style={{color:TEAL}}>On import:</strong> each person is duplicate-checked, linked to their company (auto-created if needed), and added instantly.
+      </div>
+      <div style={{marginBottom:12,padding:"12px 14px",background:TL,border:"1px solid "+TM,borderRadius:8}}>
+        <div style={{fontSize:11,color:TEAL,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Assign imported contacts to</div>
+        <div style={{display:"flex",gap:8}}>
+          {["","David","Lauren","Brinda"].map(function(o){
+            var col=o?OWNER_COLORS[o]||G400:G400;
+            var active=assignOwner===o;
+            return <button key={o||"none"} onClick={function(){setAssignOwner(o);}} style={{background:active?col+"20":"transparent",color:active?col:G600,border:"1px solid "+(active?col+"60":G300),borderRadius:6,padding:"4px 12px",fontSize:12,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit"}}>{o||"Unassigned"}</button>;
+          })}
+        </div>
       </div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={()=>setStep("map")}>← Back</Btn>
