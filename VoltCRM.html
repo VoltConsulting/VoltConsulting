@@ -1741,6 +1741,97 @@ function BDPipelineView({people,setPeople,persist,ownerFilter}){
   );
 }
 
+// ── Company CSV Importer ───────────────────────────────────────
+const CO_CSV_MAP={"company name":"name","company":"name","name":"name","organisation":"name","organization":"name","type":"type","sector":"type","industry":"type","tier":"tier","hq":"hq","location":"hq","city":"hq","headquarters":"hq","key contact":"keyContact","contact":"keyContact","website":"website","notes":"notes","note":"notes","comments":"notes"};
+
+function CompanyCSVImporter({companies,setCompanies,persist,onClose}){
+  var[raw,setRaw]=useState("");
+  var[parsed,setParsed]=useState(null);
+  var[mapping,setMapping]=useState({});
+  var[results,setResults]=useState(null);
+
+  function handleFile(e){
+    var file=e.target.files[0];
+    if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(ev){var text=ev.target.result;setRaw(text);var p=parseCSV(text);setParsed(p);var auto={};p.headers.forEach(function(h){auto[h]=CO_CSV_MAP[h.toLowerCase().trim()]||"ignore";});setMapping(auto);};
+    reader.readAsText(file);
+  }
+
+  function runImport(){
+    if(!parsed)return;
+    var added=0,dupes=0;
+    var newCos=[...companies];
+    parsed.rows.forEach(function(row){
+      var obj={};
+      Object.entries(mapping).forEach(function(entry){
+        var h=entry[0],f=entry[1];
+        if(!f||f==="ignore")return;
+        var val=(row[h]||"").trim();
+        if(val)obj[f]=val;
+      });
+      if(!obj.name)return;
+      var exists=newCos.find(function(co){return co.name.toLowerCase()===obj.name.toLowerCase();});
+      if(exists){dupes++;return;}
+      newCos.push(Object.assign({},BLANKCO,obj,{id:Date.now()+Math.random(),tier:obj.tier||"Prospect",owners:[]}));
+      added++;
+    });
+    setCompanies(newCos);persist("companies",newCos);
+    setResults({added,skipped:dupes});
+  }
+
+  var CO_FIELDS=["name","type","tier","hq","keyContact","notes","ignore"];
+
+  if(results)return(
+    <div style={{padding:"20px",textAlign:"center"}}>
+      <div style={{fontSize:24,marginBottom:12}}>✓</div>
+      <h3 style={{color:NAVY,marginBottom:16}}>Import complete</h3>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+        <div style={{background:OK+"10",border:"1px solid "+OK+"30",borderRadius:8,padding:"14px",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:OK}}>{results.added}</div><div style={{fontSize:12,color:G600}}>Added</div></div>
+        <div style={{background:WARN+"10",border:"1px solid "+WARN+"30",borderRadius:8,padding:"14px",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:WARN}}>{results.skipped}</div><div style={{fontSize:12,color:G600}}>Skipped (dupes)</div></div>
+      </div>
+      <button onClick={onClose} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 24px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+    </div>
+  );
+
+  return(
+    <div style={{padding:"4px"}}>
+      <div style={{marginBottom:12,fontSize:13,color:G600,lineHeight:1.6}}>Import companies from any CSV. Auto-maps common column names.</div>
+      <label style={{display:"block",background:G50,border:"2px dashed "+G300,borderRadius:8,padding:"16px",textAlign:"center",cursor:"pointer",marginBottom:12}}>
+        <div style={{fontWeight:600,color:NAVY,marginBottom:4}}>Drop a CSV file or click to browse</div>
+        <div style={{fontSize:12,color:G400}}>Company name, type, location, tier, notes</div>
+        <input type="file" accept=".csv,.tsv,.txt" onChange={handleFile} style={{display:"none"}}/>
+      </label>
+      <div style={{marginBottom:8,fontSize:12,color:G400,textAlign:"center"}}>— or paste CSV data directly —</div>
+      <textarea value={raw} onChange={function(e){setRaw(e.target.value);var p=parseCSV(e.target.value);setParsed(p);var auto={};p.headers.forEach(function(h){auto[h]=CO_CSV_MAP[h.toLowerCase().trim()]||"ignore";});setMapping(auto);}} rows={4} placeholder="Paste CSV here..." style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"8px",fontSize:12,outline:"none",fontFamily:"inherit",resize:"vertical",marginBottom:12}}/>
+      {parsed&&parsed.headers.length>0&&(
+        <div style={{marginBottom:12}}>
+          <div style={{fontWeight:600,color:NAVY,fontSize:13,marginBottom:8}}>Map columns ({parsed.rows.length} rows detected)</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"6px 10px",background:G50,borderRadius:"6px 6px 0 0",border:"1px solid "+G200,fontSize:10.5,fontWeight:700,color:G600,textTransform:"uppercase"}}>
+            <span>CSV Column</span><span>Sample</span><span>Map to</span>
+          </div>
+          {parsed.headers.map(function(h){
+            var sample=parsed.rows[0]?parsed.rows[0][h]||"—":"—";
+            return(
+              <div key={h} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"6px 10px",borderBottom:"1px solid "+G100,border:"1px solid "+G200,borderTop:"none",fontSize:12,alignItems:"center"}}>
+                <span style={{fontWeight:600,color:NAVY}}>{h}</span>
+                <span style={{color:G500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sample}</span>
+                <select value={mapping[h]||"ignore"} onChange={function(e){setMapping(function(m){var n=Object.assign({},m);n[h]=e.target.value;return n;});}} style={{fontSize:11,border:"1px solid "+G300,borderRadius:4,padding:"2px 4px",outline:"none",fontFamily:"inherit"}}>
+                  {CO_FIELDS.map(function(f){return <option key={f} value={f}>{f==="ignore"?"— ignore —":f}</option>;})}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {parsed&&parsed.rows.length>0&&(
+        <button onClick={runImport} style={{width:"100%",background:TEAL,color:W,border:"none",borderRadius:6,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Import {parsed.rows.length} Companies</button>
+      )}
+    </div>
+  );
+}
+
+
 // ── Global search ─────────────────────────────────────────────
 function GlobalSearch({people,companies,onNavigate}){
   const[q,setQ]=useState("");
@@ -2752,10 +2843,10 @@ function App(){
           // else keep SEED_PEOPLE (already set as default state)
         }
         if(data.companies && data.companies.length>0) {
-          setCompanies(data.companies);
+          setCompanies(data.companies.map(function(co){return Object.assign({},co,{relationship:migrateRelationship(co.relationship||"")});}));
         } else {
           const sc=await sGet("voltcrm5-companies");
-          if(sc && sc.length>0) setCompanies(JSON.parse(typeof sc==="string"?sc:JSON.stringify(sc)));
+          if(sc && sc.length>0) setCompanies(JSON.parse(typeof sc==="string"?sc:JSON.stringify(sc)).map(function(co){return Object.assign({},co,{relationship:migrateRelationship(co.relationship||"")});}));
           // else keep SEED_COMPANIES
         }
         const snet=await sGet("voltcrm5-network");
@@ -2900,95 +2991,4 @@ function App(){
     root.render(<App />);
   </script>
 </body>
-</html
-// ── Company CSV Importer ───────────────────────────────────────
-const CO_CSV_MAP={"company name":"name","company":"name","name":"name","organisation":"name","organization":"name","type":"type","sector":"type","industry":"type","tier":"tier","hq":"hq","location":"hq","city":"hq","headquarters":"hq","key contact":"keyContact","contact":"keyContact","website":"website","notes":"notes","note":"notes","comments":"notes"};
-
-function CompanyCSVImporter({companies,setCompanies,persist,onClose}){
-  var[raw,setRaw]=useState("");
-  var[parsed,setParsed]=useState(null);
-  var[mapping,setMapping]=useState({});
-  var[results,setResults]=useState(null);
-
-  function handleFile(e){
-    var file=e.target.files[0];
-    if(!file)return;
-    var reader=new FileReader();
-    reader.onload=function(ev){var text=ev.target.result;setRaw(text);var p=parseCSV(text);setParsed(p);var auto={};p.headers.forEach(function(h){auto[h]=CO_CSV_MAP[h.toLowerCase().trim()]||"ignore";});setMapping(auto);};
-    reader.readAsText(file);
-  }
-
-  function runImport(){
-    if(!parsed)return;
-    var added=0,dupes=0;
-    var newCos=[...companies];
-    parsed.rows.forEach(function(row){
-      var obj={};
-      Object.entries(mapping).forEach(function(entry){
-        var h=entry[0],f=entry[1];
-        if(!f||f==="ignore")return;
-        var val=(row[h]||"").trim();
-        if(val)obj[f]=val;
-      });
-      if(!obj.name)return;
-      var exists=newCos.find(function(co){return co.name.toLowerCase()===obj.name.toLowerCase();});
-      if(exists){dupes++;return;}
-      newCos.push(Object.assign({},BLANKCO,obj,{id:Date.now()+Math.random(),tier:obj.tier||"Prospect",owners:[]}));
-      added++;
-    });
-    setCompanies(newCos);persist("companies",newCos);
-    setResults({added,skipped:dupes});
-  }
-
-  var CO_FIELDS=["name","type","tier","hq","keyContact","notes","ignore"];
-
-  if(results)return(
-    <div style={{padding:"20px",textAlign:"center"}}>
-      <div style={{fontSize:24,marginBottom:12}}>✓</div>
-      <h3 style={{color:NAVY,marginBottom:16}}>Import complete</h3>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
-        <div style={{background:OK+"10",border:"1px solid "+OK+"30",borderRadius:8,padding:"14px",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:OK}}>{results.added}</div><div style={{fontSize:12,color:G600}}>Added</div></div>
-        <div style={{background:WARN+"10",border:"1px solid "+WARN+"30",borderRadius:8,padding:"14px",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:WARN}}>{results.skipped}</div><div style={{fontSize:12,color:G600}}>Skipped (dupes)</div></div>
-      </div>
-      <button onClick={onClose} style={{background:TEAL,color:W,border:"none",borderRadius:6,padding:"8px 24px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
-    </div>
-  );
-
-  return(
-    <div style={{padding:"4px"}}>
-      <div style={{marginBottom:12,fontSize:13,color:G600,lineHeight:1.6}}>Import companies from any CSV. Auto-maps common column names.</div>
-      <label style={{display:"block",background:G50,border:"2px dashed "+G300,borderRadius:8,padding:"16px",textAlign:"center",cursor:"pointer",marginBottom:12}}>
-        <div style={{fontWeight:600,color:NAVY,marginBottom:4}}>Drop a CSV file or click to browse</div>
-        <div style={{fontSize:12,color:G400}}>Company name, type, location, tier, notes</div>
-        <input type="file" accept=".csv,.tsv,.txt" onChange={handleFile} style={{display:"none"}}/>
-      </label>
-      <div style={{marginBottom:8,fontSize:12,color:G400,textAlign:"center"}}>— or paste CSV data directly —</div>
-      <textarea value={raw} onChange={function(e){setRaw(e.target.value);var p=parseCSV(e.target.value);setParsed(p);var auto={};p.headers.forEach(function(h){auto[h]=CO_CSV_MAP[h.toLowerCase().trim()]||"ignore";});setMapping(auto);}} rows={4} placeholder="Paste CSV here..." style={{width:"100%",border:"1px solid "+G300,borderRadius:6,padding:"8px",fontSize:12,outline:"none",fontFamily:"inherit",resize:"vertical",marginBottom:12}}/>
-      {parsed&&parsed.headers.length>0&&(
-        <div style={{marginBottom:12}}>
-          <div style={{fontWeight:600,color:NAVY,fontSize:13,marginBottom:8}}>Map columns ({parsed.rows.length} rows detected)</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"6px 10px",background:G50,borderRadius:"6px 6px 0 0",border:"1px solid "+G200,fontSize:10.5,fontWeight:700,color:G600,textTransform:"uppercase"}}>
-            <span>CSV Column</span><span>Sample</span><span>Map to</span>
-          </div>
-          {parsed.headers.map(function(h){
-            var sample=parsed.rows[0]?parsed.rows[0][h]||"—":"—";
-            return(
-              <div key={h} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"6px 10px",borderBottom:"1px solid "+G100,border:"1px solid "+G200,borderTop:"none",fontSize:12,alignItems:"center"}}>
-                <span style={{fontWeight:600,color:NAVY}}>{h}</span>
-                <span style={{color:G500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sample}</span>
-                <select value={mapping[h]||"ignore"} onChange={function(e){setMapping(function(m){var n=Object.assign({},m);n[h]=e.target.value;return n;});}} style={{fontSize:11,border:"1px solid "+G300,borderRadius:4,padding:"2px 4px",outline:"none",fontFamily:"inherit"}}>
-                  {CO_FIELDS.map(function(f){return <option key={f} value={f}>{f==="ignore"?"— ignore —":f}</option>;})}
-                </select>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {parsed&&parsed.rows.length>0&&(
-        <button onClick={runImport} style={{width:"100%",background:TEAL,color:W,border:"none",borderRadius:6,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Import {parsed.rows.length} Companies</button>
-      )}
-    </div>
-  );
-}
-
->
+</html>
