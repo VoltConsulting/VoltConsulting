@@ -112,6 +112,19 @@ const OWNER_COLORS={"David":TEAL,"Lauren":"#6f42c1","Brinda":WARN};
 const TEAM=["David","Lauren","Brinda"];
 
 // Migrate old single owner string to array
+function splitName(fullName){
+  if(!fullName||!fullName.trim())return{firstName:"",lastName:""};
+  var parts=fullName.trim().split(" ");
+  if(parts.length===1)return{firstName:parts[0],lastName:""};
+  return{firstName:parts[0],lastName:parts.slice(1).join(" ")};
+}
+
+function migratePerson(p){
+  if(p.firstName||p.lastName)return p;
+  var split=splitName(p.name||"");
+  return Object.assign({},p,{firstName:split.firstName,lastName:split.lastName});
+}
+
 function migrateRelationship(rel){
   if(!rel)return"";
   var r=rel.toLowerCase();
@@ -829,7 +842,7 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
 }
 
 // ── Person form ───────────────────────────────────────────────
-const BLANKP={type:"candidate",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"",notes:"",owners:[],bdStage:"",activityLog:[]};
+const BLANKP={type:"candidate",firstName:"",lastName:"",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"",notes:"",owners:[],bdStage:"",activityLog:[]};
 function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
   const[f,setF]=useState({...BLANKP,...(init||{}),...(prefill||{})});
   const[dupes,setDupes]=useState([]);
@@ -848,7 +861,8 @@ function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
       {dupes.length>0&&<div style={{gridColumn:"span 2"}}><DupeBanner dupes={dupes} onDismiss={()=>{setDupes([]);setDismissed(true);}}/></div>}
       <Fld label="Type"><SelEl value={f.type} onChange={set("type")} options={[{v:"",l:"— Select type —"},{v:"contact",l:"Contact"},{v:"candidate",l:"Candidate"},{v:"bd-target",l:"BD Target"},{v:"client",l:"Client"}]}/></Fld>
       <Fld label="Status"><SelEl value={f.relationship} onChange={set("relationship")} options={[{v:"",l:"— Select status —"},{v:"Active",l:"Active"},{v:"Passive",l:"Passive"}]}/></Fld>
-      <Fld label="Full Name"><Inp value={f.name} onChange={set("name")} placeholder="Dr. Sarah Chen"/></Fld>
+      <Fld label="First Name"><Inp value={f.firstName||""} onChange={function(v){setF(function(p){var n=Object.assign({},p);n.firstName=v;n.name=(v+" "+(p.lastName||"")).trim();return n;});}}/></Fld>
+      <Fld label="Last Name"><Inp value={f.lastName||""} onChange={function(v){setF(function(p){var n=Object.assign({},p);n.lastName=v;n.name=((p.firstName||"")+" "+v).trim();return n;});}}/></Fld>
       <Fld label="Title"><Inp value={f.title} onChange={set("title")} placeholder="VP Strategy"/></Fld>
       <Fld label="Company"><Inp value={f.company} onChange={set("company")} placeholder="Charles River Associates"/></Fld>
       <Fld label="Location"><Inp value={f.location} onChange={set("location")} placeholder="London, UK"/></Fld>
@@ -1130,6 +1144,7 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
           <div style={{fontSize:13}}>Select a company to view details</div>
         </div>
       )}
+      {modal==="csv-co"&&<ModalEl title="Import Companies from CSV" onClose={()=>setModal(null)} wide><CompanyCSVImporter companies={companies} setCompanies={setCompanies} persist={persist} onClose={()=>setModal(null)}/></ModalEl>}
       {modal==="add"&&<ModalEl title="Add Company" onClose={()=>{setModal(null);setLinkedInPrefill(null);}}><CompanyForm init={{...BLANKCO,...(linkedInPrefill||{})}} onSave={f=>{add(f);setLinkedInPrefill(null);}} onClose={()=>{setModal(null);setLinkedInPrefill(null);}} companies={companies} isEdit={false}/></ModalEl>}
       {modal==="edit"&&selC&&<ModalEl title={"Edit — "+selC.name} onClose={()=>setModal(null)}><CompanyForm init={{...selC,openMandates:String(selC.openMandates)}} onSave={upd} onClose={()=>setModal(null)} companies={companies} isEdit={true}/></ModalEl>}
       {modal==="addperson"&&selC&&(
@@ -1230,7 +1245,7 @@ function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}
           <div onClick={function(e){e.stopPropagation();}} style={{width:480,maxWidth:"95vw",height:"100%",background:W,boxShadow:"-4px 0 24px #0002",overflowY:"auto",display:"flex",flexDirection:"column"}}>
             <div style={{padding:"16px 20px",borderBottom:"1px solid "+G200,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,background:W,position:"sticky",top:0,zIndex:1}}>
               <div>
-                <div style={{fontWeight:800,fontSize:18,color:NAVY}}>{selPerson.name}</div>
+                <div style={{fontWeight:800,fontSize:18,color:NAVY}}>{selPerson.firstName||selPerson.name} {selPerson.lastName||""}</div>
                 <div style={{fontSize:13,color:G600}}>{selPerson.title}{selPerson.company?" · "+selPerson.company:""}</div>
               </div>
               <button onClick={function(){setSelPerson(null);}} style={{background:"none",border:"none",color:G400,fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
@@ -2729,11 +2744,11 @@ function App(){
         const data = await loadFromAirtable();
         // Use Airtable data if it has records
         if(data.people && data.people.length>0) {
-          setPeople(data.people.map(function(p){return Object.assign({},p,{relationship:migrateRelationship(p.relationship)});}));
+          setPeople(data.people.map(function(p){return migratePerson(Object.assign({},p,{relationship:migrateRelationship(p.relationship)}));}));
         } else {
           // Try localStorage cache
           const sp=await sGet("voltcrm5-people");
-          if(sp && sp.length>0) setPeople(JSON.parse(typeof sp==="string"?sp:JSON.stringify(sp)).map(function(p){return Object.assign({},p,{relationship:migrateRelationship(p.relationship)});}));
+          if(sp && sp.length>0) setPeople(JSON.parse(typeof sp==="string"?sp:JSON.stringify(sp)).map(function(p){return migratePerson(Object.assign({},p,{relationship:migrateRelationship(p.relationship)}));}));
           // else keep SEED_PEOPLE (already set as default state)
         }
         if(data.companies && data.companies.length>0) {
@@ -2866,10 +2881,15 @@ function App(){
 
       {/* Sync status indicator */}
       <div style={{position:"fixed",bottom:18,right:20,zIndex:500,pointerEvents:"none"}}>
-        {saveState==="saving"&&<div style={{background:G50,border:"1px solid "+G300,borderRadius:20,padding:"5px 16px",fontSize:12,color:G600,fontWeight:600}}>⟳ Syncing to Airtable…</div>}
-        {saveState==="saved"&&<div style={{background:OK+"15",border:"1px solid "+OK,borderRadius:20,padding:"5px 16px",fontSize:12,color:OK,fontWeight:600}}>✓ Synced to Airtable</div>}
-        {!saveState&&syncStatus==="offline"&&<div style={{background:"#fff8e1",border:"1px solid "+WARN,borderRadius:20,padding:"5px 16px",fontSize:12,color:WARN,fontWeight:600}}>⚠ Offline — saved locally</div>}
-        {!saveState&&syncStatus==="loading"&&<div style={{background:G50,border:"1px solid "+G300,borderRadius:20,padding:"5px 16px",fontSize:12,color:G600,fontWeight:600}}>⟳ Loading from Airtable…</div>}
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {saveState==="saving"&&<div style={{background:G50,border:"1px solid "+G300,borderRadius:20,padding:"4px 14px",fontSize:11,color:G600,fontWeight:600}}>⟳ Syncing…</div>}
+          {saveState==="saved"&&<div style={{background:OK+"15",border:"1px solid "+OK,borderRadius:20,padding:"4px 14px",fontSize:11,color:OK,fontWeight:600}}>✓ Saved</div>}
+          {saveState==="error"&&<div style={{background:DANGER+"15",border:"1px solid "+DANGER,borderRadius:20,padding:"4px 14px",fontSize:11,color:DANGER,fontWeight:600}}>✗ Save failed</div>}
+          {!saveState&&syncStatus==="ok"&&<div style={{background:OK+"10",border:"1px solid "+OK+"40",borderRadius:20,padding:"4px 14px",fontSize:11,color:OK,fontWeight:600}}>● Airtable connected</div>}
+          {!saveState&&syncStatus==="offline"&&<div style={{background:WARN+"15",border:"1px solid "+WARN,borderRadius:20,padding:"4px 14px",fontSize:11,color:WARN,fontWeight:600}}>⚠ Offline — local only</div>}
+          {!saveState&&syncStatus==="loading"&&<div style={{background:G50,border:"1px solid "+G300,borderRadius:20,padding:"4px 14px",fontSize:11,color:G600,fontWeight:600}}>⟳ Connecting…</div>}
+          {!saveState&&syncStatus==="error"&&<div style={{background:DANGER+"15",border:"1px solid "+DANGER,borderRadius:20,padding:"4px 14px",fontSize:11,color:DANGER,fontWeight:600}}>✗ Airtable error</div>}
+        </div>
       </div>
     </div>
   );
