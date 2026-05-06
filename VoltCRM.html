@@ -2991,21 +2991,101 @@ function App(){
 
   const persist=useCallback(async(key,data)=>{
     setSaveState("saving");
-    // Always save to localStorage immediately
+    // Always save to localStorage immediately - this never fails
     await sSet("voltcrm5-"+key, data);
-    // Then sync to Airtable
+    // Queue for Airtable sync
+    try {
+      var queueRaw=localStorage.getItem("volt_sync_queue");
+      var queue=queueRaw?JSON.parse(queueRaw):{};
+      queue[key]={data:data,ts:Date.now()};
+      localStorage.setItem("volt_sync_queue",JSON.stringify(queue));
+    } catch(e){}
+    // Try Airtable sync
     try {
       if(key==="people") await saveToAirtable("PEOPLE", data);
       else if(key==="companies") await saveToAirtable("COMPANIES", data);
       else if(key==="network") await saveToAirtable("NETWORK", data);
       else if(key==="vacancies") await saveToAirtable("VACANCIES", data);
+      // Success - remove from queue
+      try {
+        var q2Raw=localStorage.getItem("volt_sync_queue");
+        var q2=q2Raw?JSON.parse(q2Raw):{};
+        delete q2[key];
+        localStorage.setItem("volt_sync_queue",JSON.stringify(q2));
+      } catch(e){}
       setSyncStatus("ok");
+      setSaveState("saved");
     } catch(e) {
-      console.warn("Airtable save failed:", e.message);
+      console.warn("Airtable save failed, queued for retry:", e.message);
       setSyncStatus("offline");
+      setSaveState("error");
     }
-    setSaveState("saved");
     setTimeout(()=>setSaveState(null),2500);
+  },[]);
+
+  // ── Retry engine - flush queue when online ──────────────────
+  useEffect(function(){
+    var retryInterval=setInterval(async function(){
+      try {
+        var queueRaw=localStorage.getItem("volt_sync_queue");
+        if(!queueRaw)return;
+        var queue=JSON.parse(queueRaw);
+        var keys=Object.keys(queue);
+        if(!keys.length)return;
+        // Check we have a token
+        var token=localStorage.getItem("volt_at_token");
+        if(!token)return;
+        console.log("Retrying Airtable sync for:",keys);
+        var allOk=true;
+        for(var i=0;i<keys.length;i++){
+          var key=keys[i];
+          var entry=queue[key];
+          try {
+            if(key==="people") await saveToAirtable("PEOPLE",entry.data);
+            else if(key==="companies") await saveToAirtable("COMPANIES",entry.data);
+            else if(key==="network") await saveToAirtable("NETWORK",entry.data);
+            else if(key==="vacancies") await saveToAirtable("VACANCIES",entry.data);
+            var q2=JSON.parse(localStorage.getItem("volt_sync_queue")||"{}");
+            delete q2[key];
+            localStorage.setItem("volt_sync_queue",JSON.stringify(q2));
+            setSyncStatus("ok");
+            console.log("Retry success for:",key);
+          } catch(e){
+            allOk=false;
+            console.warn("Retry failed for:",key,e.message);
+          }
+        }
+        if(allOk)setSyncStatus("ok");
+      } catch(e){}
+    },30000);
+    // Also flush queue on startup
+    setTimeout(async function(){
+      try {
+        var queueRaw=localStorage.getItem("volt_sync_queue");
+        if(!queueRaw)return;
+        var queue=JSON.parse(queueRaw);
+        var keys=Object.keys(queue);
+        if(!keys.length)return;
+        var token=localStorage.getItem("volt_at_token");
+        if(!token)return;
+        console.log("Flushing queued saves on startup:",keys);
+        for(var i=0;i<keys.length;i++){
+          var key=keys[i];
+          var entry=queue[key];
+          try {
+            if(key==="people") await saveToAirtable("PEOPLE",entry.data);
+            else if(key==="companies") await saveToAirtable("COMPANIES",entry.data);
+            else if(key==="network") await saveToAirtable("NETWORK",entry.data);
+            else if(key==="vacancies") await saveToAirtable("VACANCIES",entry.data);
+            var q2=JSON.parse(localStorage.getItem("volt_sync_queue")||"{}");
+            delete q2[key];
+            localStorage.setItem("volt_sync_queue",JSON.stringify(q2));
+            setSyncStatus("ok");
+          } catch(e){}
+        }
+      } catch(e){}
+    },3000);
+    return function(){clearInterval(retryInterval);};
   },[]);
 
   const handleNavigate=(targetView,id)=>{setView(targetView);setNavSel(id);setTimeout(()=>setNavSel(null),500);};
