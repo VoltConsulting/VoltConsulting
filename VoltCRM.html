@@ -86,7 +86,33 @@ async function saveToAirtable(name, data) {
   // Get or create record ID
   const rec = await getOrCreateRecord(name);
   const recId = rec.id || localStorage.getItem("at_id_" + name);
-  await atPatch(AT_URL + "/" + recId, {fields:{Notes: JSON.stringify(data)}});
+  const payload = JSON.stringify(data);
+  
+  // Warn if payload is large
+  if(payload.length > 50000) {
+    console.warn("Large payload for", name, ":", payload.length, "chars");
+  }
+  
+  // Try with timeout - wrap fetch in a race with a timeout promise
+  async function tryPatch() {
+    var timeoutPromise = new Promise(function(_, reject) {
+      setTimeout(function(){ reject(new Error("Airtable timeout")); }, 25000);
+    });
+    var patchPromise = atPatch(AT_URL + "/" + recId, {fields:{Notes: payload}});
+    return Promise.race([patchPromise, timeoutPromise]);
+  }
+  
+  // First attempt
+  try {
+    await tryPatch();
+    return;
+  } catch(e) {
+    console.warn("Airtable save attempt 1 failed:", e.message, "- retrying in 2s");
+  }
+  
+  // Wait 2 seconds then retry once
+  await new Promise(function(r){ setTimeout(r, 2000); });
+  await tryPatch();
 }
 
 // Simple localStorage shim for CRM internal cache
@@ -3091,7 +3117,7 @@ function App(){
         if(!queueRaw)return;
         var queue=JSON.parse(queueRaw);
         var keys=Object.keys(queue);
-        if(!keys.length)return;
+        if(!keys.length){console.log("No queued saves on startup");return;}
         var token=localStorage.getItem("volt_at_token");
         if(!token)return;
         console.log("Flushing queued saves on startup:",keys);
@@ -3107,10 +3133,13 @@ function App(){
             delete q2[key];
             localStorage.setItem("volt_sync_queue",JSON.stringify(q2));
             setSyncStatus("ok");
+            // Reload data from localStorage so UI reflects the flushed data
+            if(key==="people"){var sp=await sGet("voltcrm5-people");if(sp&&sp.length>0)setPeople(JSON.parse(typeof sp==="string"?sp:JSON.stringify(sp)).map(function(p){return migratePerson(Object.assign({},p,{relationship:migrateRelationship(p.relationship||"")}));}));}
+            if(key==="companies"){var sc=await sGet("voltcrm5-companies");if(sc&&sc.length>0)setCompanies(JSON.parse(typeof sc==="string"?sc:JSON.stringify(sc)).map(function(co){return Object.assign({},co,{relationship:migrateRelationship(co.relationship||"")});}));}
           } catch(e){}
         }
       } catch(e){}
-    },3000);
+    },8000);
     return function(){clearInterval(retryInterval);};
   },[]);
 
