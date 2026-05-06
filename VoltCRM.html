@@ -612,14 +612,39 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
 
 
 // ── Inline-editable overview tab ─────────────────────────────
+function CopyBtn({value}){
+  var[copied,setCopied]=useState(false);
+  function doCopy(){
+    if(!value)return;
+    navigator.clipboard.writeText(value).then(function(){
+      setCopied(true);
+      setTimeout(function(){setCopied(false);},1500);
+    });
+  }
+  return(
+    <button onClick={doCopy} style={{background:copied?OK+"15":"transparent",color:copied?OK:G400,border:"1px solid "+(copied?OK+"40":G200),borderRadius:5,padding:"3px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",flexShrink:0,transition:"all 0.2s"}}>
+      {copied?"✓ Copied":"Copy"}
+    </button>
+  );
+}
+
+
 function InlineField({label,value,onChange,type="text",href,linkLabel}){
   const[editing,setEditing]=useState(false);
   const[draft,setDraft]=useState(value||"");
+  const[copied,setCopied]=useState(false);
   const inputRef=useRef(null);
   useEffect(()=>{if(editing&&inputRef.current)inputRef.current.focus();},[editing]);
 
   const commit=()=>{onChange(draft);setEditing(false);};
   const cancel=()=>{setDraft(value||"");setEditing(false);};
+  const copyVal=function(){
+    if(!value)return;
+    navigator.clipboard.writeText(value).then(function(){
+      setCopied(true);
+      setTimeout(function(){setCopied(false);},1500);
+    });
+  };
 
   return(
     <div style={{borderBottom:"1px solid "+G100,paddingBottom:10,marginBottom:10}}>
@@ -636,11 +661,12 @@ function InlineField({label,value,onChange,type="text",href,linkLabel}){
         <div style={{display:"flex",alignItems:"center",gap:8,minHeight:24}}>
           {value?(
             href
-              ?<a href={href} target="_blank" rel="noreferrer" style={{color:TEAL,fontSize:13,fontWeight:600,textDecoration:"none",flex:1}}>{linkLabel||value}</a>
+              ?<a href={href.startsWith("http")||href.startsWith("mailto")||href.startsWith("tel")?href:"https://"+href} target={href.startsWith("mailto")||href.startsWith("tel")?"_self":"_blank"} rel="noreferrer" style={{color:TEAL,fontSize:13,fontWeight:600,textDecoration:"none",flex:1}}>{linkLabel||value}</a>
               :<span style={{color:NAVY,fontSize:13,fontWeight:600,flex:1}}>{value}</span>
           ):(
             <span style={{color:G300,fontSize:13,fontStyle:"italic",flex:1}}>Click to add…</span>
           )}
+          {value&&<button onClick={copyVal} style={{background:copied?OK+"15":"transparent",color:copied?OK:G400,border:"1px solid "+(copied?OK+"40":G200),borderRadius:5,padding:"3px 8px",fontSize:10,cursor:"pointer",fontFamily:"inherit",flexShrink:0,transition:"all 0.2s"}}>{copied?"✓ Copied":"Copy"}</button>}
           <button onClick={()=>{setDraft(value||"");setEditing(true);}}
             style={{background:"transparent",border:"1px solid "+G200,borderRadius:5,padding:"3px 8px",fontSize:11,color:G400,cursor:"pointer",fontFamily:"inherit",flexShrink:0,opacity:0.7}}>
             ✏
@@ -1332,9 +1358,9 @@ function BDTracker({people,companies,setPeople,setCompanies,persist,ownerFilter}
               <div style={{background:G50,borderRadius:8,padding:"14px 16px",marginBottom:14,border:"1px solid "+G200}}>
                 <div style={{fontSize:11,color:G600,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Contact Details</div>
                 <div style={{display:"grid",gap:8}}>
-                  {selPerson.email&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:G400,minWidth:60}}>Email</span><a href={"mailto:"+selPerson.email} style={{fontSize:13,color:TEAL,textDecoration:"none",fontWeight:500}}>{selPerson.email}</a></div>}
-                  {selPerson.phone&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:G400,minWidth:60}}>Phone</span><a href={"tel:"+selPerson.phone} style={{fontSize:13,color:TEAL,textDecoration:"none",fontWeight:500}}>{selPerson.phone}</a></div>}
-                  {selPerson.linkedin&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:G400,minWidth:60}}>LinkedIn</span><a href={selPerson.linkedin.startsWith("http")?selPerson.linkedin:"https://"+selPerson.linkedin} target="_blank" style={{fontSize:13,color:TEAL,textDecoration:"none",fontWeight:500}}>View profile</a></div>}
+                  {selPerson.email&&<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontSize:11,color:G400,minWidth:60}}>Email</span><a href={"mailto:"+selPerson.email} style={{fontSize:13,color:TEAL,textDecoration:"none",fontWeight:500,flex:1}}>{selPerson.email}</a><CopyBtn value={selPerson.email}/></div>}
+                  {selPerson.phone&&<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontSize:11,color:G400,minWidth:60}}>Phone</span><span style={{fontSize:13,color:NAVY,fontWeight:500,flex:1}}>{selPerson.phone}</span><CopyBtn value={selPerson.phone}/></div>}
+                  {selPerson.linkedin&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:G400,minWidth:60}}>LinkedIn</span><a href={selPerson.linkedin.startsWith("http")?selPerson.linkedin:"https://"+selPerson.linkedin} target="_blank" style={{fontSize:13,color:TEAL,textDecoration:"none",fontWeight:500}}>View profile ↗</a></div>}
                   {selPerson.location&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:G400,minWidth:60}}>Location</span><span style={{fontSize:13,color:NAVY}}>{selPerson.location}</span></div>}
                 </div>
               </div>
