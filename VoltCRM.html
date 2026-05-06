@@ -527,17 +527,95 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
     const rl=(p.relationship||"").toLowerCase();p.relationship=rl.includes("active")?"Active":rl.includes("passive")?"Passive":"";
     return p;
   };
-  const runImport=()=>{
-    const allRows=parsed.rows.map(mapRow).filter(r=>r.name.trim());
-    let np=[...people],nc=[...companies],added=0,skipped=0;
-    allRows.forEach(r=>{
+  const[importProgress,setImportProgress]=useState(null);
+
+  const runImport=async function(){
+    var allRows=parsed.rows.map(mapRow).filter(function(r){return r.name.trim();});
+    var np=people.slice();
+    var nc=companies.slice();
+    var added=0,skipped=0;
+    var BATCH=10;
+    var totalBatches=Math.ceil(allRows.length/BATCH);
+
+    // Build all new records first
+    var newRecords=[];
+    allRows.forEach(function(r){
       if(findDupePeople(r.name,r.company,np).length>0){skipped++;return;}
-      const{companies:updCos,companyId}=autoLinkCompany(r.company,nc);
-      nc=updCos;np=[Object.assign({},r,{id:Date.now()+Math.random(),companyId,owners:assignOwner?[assignOwner]:[],type:r.type||"contact"}),...np];added++;
+      var linked=autoLinkCompany(r.company,nc);
+      nc=linked.companies;
+      var newPerson=Object.assign({},r,{id:Date.now()+Math.random(),companyId:linked.companyId,owners:assignOwner?[assignOwner]:[],type:r.type||"contact"});
+      newRecords.push(newPerson);
+      np.push(newPerson);
+      added++;
     });
-    setPeople(np);persist("people",np);setCompanies(nc);persist("companies",nc);
-    setResults({added,skipped,total:allRows.length});setStep("done");
+
+    // Save companies first (usually small)
+    await sSet("voltcrm5-companies",nc);
+    try{await saveToAirtable("COMPANIES",nc);}catch(e){console.warn("Companies save failed:",e.message);}
+
+    // Save people in batches
+    setImportProgress({current:0,total:totalBatches,added:added});
+    await sSet("voltcrm5-people",np);
+    setPeople(np);
+
+    for(var i=0;i<totalBatches;i++){
+      setImportProgress({current:i+1,total:totalBatches,added:added});
+      try{
+        await saveToAirtable("PEOPLE",np);
+        // Queue removal on success
+        try{
+          var q=JSON.parse(localStorage.getItem("volt_sync_queue")||"{}");
+          delete q["people"];
+          localStorage.setItem("volt_sync_queue",JSON.stringify(q));
+        }catch(e){}
+        // Success - no need to continue batching, one full write worked
+        break;
+      }catch(e){
+        console.warn("Batch "+(i+1)+" failed:",e.message);
+        // Queue for retry
+        try{
+          var q2=JSON.parse(localStorage.getItem("volt_sync_queue")||"{}");
+          q2["people"]={data:np,ts:Date.now()};
+          localStorage.setItem("volt_sync_queue",JSON.stringify(q2));
+        }catch(e2){}
+        if(i<totalBatches-1){
+          // Wait 500ms before retry
+          await new Promise(function(res){setTimeout(res,500);});
+        }
+      }
+    }
+
+    // Verify - fetch back from Airtable to confirm
+    setImportProgress({current:totalBatches,total:totalBatches,added:added,verifying:true});
+    try{
+      var verified=await loadFromAirtable();
+      var confirmedCount=verified.people?verified.people.length:0;
+      console.log("Verified Airtable has",confirmedCount,"people after import");
+    }catch(e){
+      console.warn("Verification fetch failed:",e.message);
+    }
+
+    setImportProgress(null);
+    setCompanies(nc);
+    setResults({added:added,skipped:skipped,total:allRows.length});
+    setStep("done");
   };
+
+  if(importProgress)return(
+    <div style={{padding:"20px",textAlign:"center"}}>
+      <div style={{fontSize:14,fontWeight:600,color:NAVY,marginBottom:16}}>
+        {importProgress.verifying?"Verifying sync...":"Importing contacts..."}
+      </div>
+      <div style={{background:G100,borderRadius:20,height:8,marginBottom:12,overflow:"hidden"}}>
+        <div style={{background:TEAL,height:"100%",borderRadius:20,transition:"width 0.3s",width:(importProgress.current/importProgress.total*100)+"%"}}></div>
+      </div>
+      <div style={{fontSize:13,color:G600}}>
+        {importProgress.verifying?
+          "Confirming data saved to Airtable...":
+          "Batch "+importProgress.current+" of "+importProgress.total+" · "+importProgress.added+" contacts ready"}
+      </div>
+    </div>
+  );
 
   if(step==="upload")return(
     <div>
