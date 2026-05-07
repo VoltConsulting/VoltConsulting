@@ -1290,7 +1290,7 @@ function CompanyCSVImporter({companies,setCompanies,persist,onClose}){
             return(
               <div key={h} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",padding:"6px 10px",borderBottom:"1px solid "+G100,border:"1px solid "+G200,borderTop:"none",fontSize:12,alignItems:"center"}}>
                 <span style={{fontWeight:600,color:NAVY}}>{h}</span>
-                <span style={{color:G500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sample}</span>
+                <span style={{color:G600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sample}</span>
                 <select value={mapping[h]||"ignore"} onChange={function(e){setMapping(function(m){var n=Object.assign({},m);n[h]=e.target.value;return n;});}} style={{fontSize:11,border:"1px solid "+G300,borderRadius:4,padding:"2px 4px",outline:"none",fontFamily:"inherit"}}>
                   {CO_FIELDS.map(function(f){return <option key={f} value={f}>{f==="ignore"?"— ignore —":f}</option>;})}
                 </select>
