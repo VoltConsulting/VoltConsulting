@@ -676,7 +676,6 @@ function CSVImporter({people,companies,setPeople,setCompanies,persist,onClose}){
               <div style={{fontWeight:600,color:NAVY,fontSize:13}}>{p.name||"(no name)"}</div>
               <div style={{fontSize:12,color:G600}}>{[p.title,p.company,p.location].filter(Boolean).join(" · ")}</div>
             </div>
-            <RelDot rel={p.relationship}/>
           </div>
         ))}
       </div>
@@ -956,8 +955,8 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
               <h2 style={{fontSize:20,fontWeight:700,color:NAVY,margin:0}}>{selP.name}</h2>
               <div style={{color:G600,fontSize:13,marginTop:2}}>{[selP.title,selP.company].filter(Boolean).join(" · ")}</div>
               <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-                <RelDot rel={selP.relationship}/>
-                {selP.type&&<Badge label={selP.type==="candidate"?"Candidate":selP.type==="bd-target"?"BD Target":selP.type==="client"?"Client":"Client Contact"} color={selP.type==="contact"?"#6f42c1":TEAL}/>}
+                {selP.relationship&&<RelDot rel={selP.relationship}/>}
+                {selP.type&&<Badge label={selP.type==="candidate"?"Candidate":selP.type==="bd-target"?"BD Target":selP.type==="client"?"Client":selP.type==="contact"?"Contact":""} color={selP.type==="contact"?"#6f42c1":TEAL}/>}
                 {selP.seniority&&<Badge label={selP.seniority} color={G600}/>}
               </div>
             </div>
@@ -1013,7 +1012,6 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
                     </div>
                     <div style={{display:"flex",gap:6}}>
                       <Badge label={co.tier} color={TC_MAP[co.tier]||G600}/>
-                      <RelDot rel={co.relationship}/>
                     </div>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:co.notes?12:0}}>
@@ -1352,7 +1350,6 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",justifyContent:"space-between"}}>
                       <div style={{fontWeight:700,color:NAVY,fontSize:13.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:120}}>{c.name}</div>
-                      <RelDot rel={c.relationship}/>
                     </div>
                     <div style={{fontSize:11.5,color:G600}}>{c.type}{c.hq?" · "+c.hq:""}</div>
                     <div style={{marginTop:4,display:"flex",gap:8}}>
@@ -1387,7 +1384,6 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
               <h2 style={{fontSize:22,fontWeight:700,color:NAVY,margin:0}}>{selC.name}</h2>
               <div style={{color:G600,fontSize:14,marginTop:3}}>{selC.type}{selC.hq?" · "+selC.hq:""}</div>
               <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
-                <RelDot rel={selC.relationship}/>
                 <Badge label={selC.tier} color={TC_MAP[selC.tier]||G600}/>
                 {selC.openVacancies>0&&<Badge label={selC.openVacancies+" open vacancys"} color={TEAL}/>}
                 {linked.length>0&&<Badge label={linked.length+" people"} color={G600}/>}
@@ -1813,7 +1809,6 @@ function MarketMap({people,companies,onNavigate,ownerFilter}){
                     <div style={{fontSize:12,color:G600,marginBottom:8}}>{c.type}{c.hq?" · "+c.hq:""}</div>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                       <Badge label={c.tier} color={tc}/>
-                      <RelDot rel={c.relationship}/>
                       {pCount>0&&<span style={{fontSize:11,color:TEAL,fontWeight:600}}>{"👥 "+pCount+" people"}</span>}
                       {c.openVacancies>0&&<span style={{fontSize:11,color:OK,fontWeight:600}}>{"📋 "+c.openVacancies+" vacancys"}</span>}
                     </div>
