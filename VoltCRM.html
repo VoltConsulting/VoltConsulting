@@ -251,7 +251,7 @@ function autoLinkCompany(personCompany,companies){
   if(!personCompany||!personCompany.trim())return{companies,companyId:null};
   const match=companies.find(c=>similarity(personCompany,c.name)>=0.82);
   if(match)return{companies,companyId:match.id};
-  const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openVacancies:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"Passive",notes:"Auto-created from people record."};
+  const newCo={id:Date.now()+Math.random(),name:personCompany,type:"Consulting",tier:"Prospect",hq:"",keyContact:"",openVacancies:0,lastContacted:"",nextAction:"",nextDue:"",relationship:"",notes:"Auto-created from people record."};
   return{companies:[...companies,newCo],companyId:newCo.id};
 }
 
@@ -263,7 +263,7 @@ const Av=({name="?",size=36,color=TEAL})=>{
 const Badge=({label,color=TEAL})=>(
   <span style={{background:color+"12",color,border:"1px solid "+color+"35",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{label}</span>
 );
-const RelDot=({rel})=>(
+const RelDot=({rel})=>(!rel?null:
   <span style={{display:"inline-flex",alignItems:"center",gap:5}}>
     <span style={{width:7,height:7,borderRadius:"50%",background:REL[rel]||G400,display:"inline-block"}}/>
     <span style={{fontSize:11,color:REL[rel]||G600,fontWeight:600}}>{rel}</span>
@@ -957,8 +957,8 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
               <div style={{color:G600,fontSize:13,marginTop:2}}>{[selP.title,selP.company].filter(Boolean).join(" · ")}</div>
               <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
                 <RelDot rel={selP.relationship}/>
-                <Badge label={selP.type==="candidate"?"Candidate":"Client Contact"} color={selP.type==="contact"?"#6f42c1":TEAL}/>
-                <Badge label={selP.seniority} color={G600}/>
+                {selP.type&&<Badge label={selP.type==="candidate"?"Candidate":selP.type==="bd-target"?"BD Target":selP.type==="client"?"Client":"Client Contact"} color={selP.type==="contact"?"#6f42c1":TEAL}/>}
+                {selP.seniority&&<Badge label={selP.seniority} color={G600}/>}
               </div>
             </div>
           </div>
@@ -1051,7 +1051,7 @@ function PersonDetail({selP,people,companies,setPeople,persist,onDelete,onEdit,s
 }
 
 // ── Person form ───────────────────────────────────────────────
-const BLANKP={type:"candidate",firstName:"",lastName:"",name:"",title:"",company:"",location:"",seniority:"Manager / Principal",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"",notes:"",owners:[],bdStage:"",activityLog:[]};
+const BLANKP={type:"",firstName:"",lastName:"",name:"",title:"",company:"",location:"",seniority:"",sectors:[],linkedin:"",email:"",phone:"",lastContacted:today,nextAction:"",nextDue:"",relationship:"",notes:"",owners:[],bdStage:"",activityLog:[]};
 function PersonForm({init,onSave,onClose,people,isEdit,prefill}){
   const[f,setF]=useState({...BLANKP,...(init||{}),...(prefill||{})});
   const[dupes,setDupes]=useState([]);
