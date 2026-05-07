@@ -23,7 +23,7 @@
 let AT_TOKEN  = localStorage.getItem("volt_at_token") || "";
 let AT_BASE   = localStorage.getItem("volt_at_base")  || "";
 let AT_TABLE  = localStorage.getItem("volt_at_table") || "";
-const AT_URL    = "https://api.airtable.com/v0/" + AT_BASE + "/" + AT_TABLE;
+var AT_URL    = "https://api.airtable.com/v0/" + AT_BASE + "/" + AT_TABLE;
 
 async function atGet(url) {
   const r = await fetch(url, {headers:{"Authorization":"Bearer "+AT_TOKEN}});
@@ -134,19 +134,19 @@ window.storage = {
 };
 
 
-const LOGO_SRC = "https://voltconsulting.solutions/VC%20Logo%20NEW%20Blue%20Black.png";
+var LOGO_SRC = "https://voltconsulting.solutions/VC%20Logo%20NEW%20Blue%20Black.png";
 
-const TEAL="#00C2C7",NAVY="#0D1B2A",TL="#e6fafa",TM="#b3f0f1";
-const W="#fff",G50="#f8f9fa",G100="#f1f3f5",G200="#e9ecef",G300="#dee2e6";
-const G400="#ced4da",G600="#6c757d",G700="#495057",G800="#343a40",G900="#212529";
-const DANGER="#dc3545",WARN="#e8a020",OK="#198754";
-const REL={Active:OK,Passive:WARN};
-const SC={"Life Sciences":"#00C2C7","Strategy":"#6f42c1","Commercial":"#e8a020","Oncology":"#dc3545","RWE":"#0dcaf0","Market Access":"#6610f2","Operations":"#198754","MedTech":"#fd7e14","Digital Health":"#d63384","Biotech":"#20c997","Regulatory":"#ffc107","Pricing":"#0d6efd","Other":"#6c757d"};
-const SECTORS=Object.keys(SC);
-const TC_MAP={"Active Client":TEAL,"Prospect":G600,"Inactive":G400};
-const OWNER_COLORS={"David":TEAL,"Lauren":"#6f42c1","Brinda":WARN};
-const VAC_TYPE_COLORS={"Retained":"#7c3aed","Contingent":TEAL,"VoltTEAMbuild":WARN};
-const TEAM=["David","Lauren","Brinda"];
+var TEAL="#00C2C7",NAVY="#0D1B2A",TL="#e6fafa",TM="#b3f0f1";
+var W="#fff",G50="#f8f9fa",G100="#f1f3f5",G200="#e9ecef",G300="#dee2e6";
+var G400="#ced4da",G600="#6c757d",G700="#495057",G800="#343a40",G900="#212529";
+var DANGER="#dc3545",WARN="#e8a020",OK="#198754";
+var REL={Active:OK,Passive:WARN};
+var SC={"Life Sciences":"#00C2C7","Strategy":"#6f42c1","Commercial":"#e8a020","Oncology":"#dc3545","RWE":"#0dcaf0","Market Access":"#6610f2","Operations":"#198754","MedTech":"#fd7e14","Digital Health":"#d63384","Biotech":"#20c997","Regulatory":"#ffc107","Pricing":"#0d6efd","Other":"#6c757d"};
+var SECTORS=Object.keys(SC);
+var TC_MAP={"Active Client":TEAL,"Prospect":G600,"Inactive":G400};
+var OWNER_COLORS={"David":TEAL,"Lauren":"#6f42c1","Brinda":WARN};
+var VAC_TYPE_COLORS={"Retained":"#7c3aed","Contingent":TEAL,"VoltTEAMbuild":WARN};
+var TEAM=["David","Lauren","Brinda"];
 
 // Migrate old single owner string to array
 function splitName(fullName){
@@ -204,17 +204,17 @@ function OwnerPicker({owners,onChange,label}){
 async function sGet(k){try{const r=await window.storage.get(k);return r?JSON.parse(r.value):null;}catch(e){return null;}}
 async function sSet(k,v){try{await window.storage.set(k,JSON.stringify(v));}catch(e){}}
 
-const today=new Date().toISOString().slice(0,10);
-const dF=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
+var today=new Date().toISOString().slice(0,10);
+var dF=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
 
-const SEED_PEOPLE=[
+var SEED_PEOPLE=[
   {id:1,type:"candidate",name:"Dr. Sarah Chen",title:"VP Strategy",company:"Huron Consulting",companyId:5,location:"London",seniority:"VP / Director",sectors:["Life Sciences","Strategy"],linkedin:"",email:"",phone:"",lastContacted:dF(-5),nextAction:"Follow up re: CRA opportunity",nextDue:dF(2),relationship:"Active",notes:"Strong BCG background. Open to right move."},
   {id:2,type:"candidate",name:"James Okafor",title:"Principal",company:"ZS Associates",companyId:6,location:"Boston",seniority:"Manager / Principal",sectors:["Commercial","Oncology"],linkedin:"",email:"",phone:"",lastContacted:dF(-30),nextAction:"Check in — placement anniversary",nextDue:dF(7),relationship:"Active",notes:"Placed at CRA Jan 2025. Great referral source."},
   {id:3,type:"candidate",name:"Priya Mehta",title:"Associate Director",company:"IQVIA",companyId:7,location:"New York",seniority:"Manager / Principal",sectors:["RWE","Market Access"],linkedin:"",email:"",phone:"",lastContacted:dF(-14),nextAction:"Send Roche JD",nextDue:dF(1),relationship:"Active",notes:"6-12 month horizon. Wants boutique."},
   {id:4,type:"contact",name:"Maria Lopez",title:"Chief People Officer",company:"Charles River Associates",companyId:1,location:"Boston",seniority:"C-Suite / Partner",sectors:["Strategy","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-3),nextAction:"Send shortlist for Energy role",nextDue:dF(1),relationship:"Active",notes:"Key decision maker. Prefers WhatsApp."},
   {id:5,type:"contact",name:"Anne Fischer",title:"Head of Talent",company:"Roche",companyId:2,location:"Basel",seniority:"VP / Director",sectors:["Oncology","Life Sciences"],linkedin:"",email:"",phone:"",lastContacted:dF(-7),nextAction:"Schedule longlist review call",nextDue:dF(3),relationship:"Active",notes:"Very responsive. Wants weekly updates."},
 ];
-const SEED_COMPANIES=[
+var SEED_COMPANIES=[
   {id:1,name:"Charles River Associates",type:"Consulting",tier:"Key Client",hq:"Boston",keyContact:"Maria Lopez",openVacancies:2,lastContacted:dF(-3),nextAction:"Debrief after shortlist",nextDue:dF(1),relationship:"Active",notes:"Retained engagement ongoing."},
   {id:2,name:"Roche",type:"Pharma",tier:"Key Client",hq:"Basel",keyContact:"Anne Fischer",openVacancies:1,lastContacted:dF(-7),nextAction:"Longlist review call",nextDue:dF(3),relationship:"Active",notes:"Global Oncology search."},
   {id:3,name:"Analysis Group",type:"Consulting",tier:"Prospect",hq:"Boston",keyContact:"Derek Wu",openVacancies:0,lastContacted:dF(-45),nextAction:"Introductory call",nextDue:dF(10),relationship:"Passive",notes:"Intro via network."},
@@ -474,7 +474,7 @@ function CompanyLinkedInPaste({onParsed}){
 }
 
 // ── CSV importer ──────────────────────────────────────────────
-const CSV_MAP={"name":"name","full name":"name","fullname":"name","first name":"firstName","firstname":"firstName","last name":"lastName","lastname":"lastName","surname":"lastName","phone":"phone","phone number":"phone","mobile":"phone","mobile phone":"phone","work direct phone":"phone","corporate phone":"phone","home phone":"phone","mobile number":"phone","title":"title","job title":"title","position":"title","role":"title","company":"company","company name":"company","company name for emails":"ignore","employer":"company","organization":"company","organisation":"company","location":"location","city":"location","linkedin":"linkedin","linkedin url":"linkedin","person linkedin url":"linkedin","url":"ignore","company linkedin url":"ignore","facebook url":"ignore","twitter url":"ignore","website":"ignore","email":"email","email address":"email","work email":"email","relationship":"relationship","status":"ignore","email status":"ignore","stage":"ignore","sectors":"sectors","sector":"sectors","expertise":"sectors","departments":"sectors","industry":"ignore","notes":"notes","note":"notes","comments":"notes","keywords":"ignore","seniority":"seniority","level":"seniority","last contacted":"lastContacted","last contact":"lastContacted","next action":"nextAction","action":"nextAction","next due":"nextDue","due date":"nextDue","due":"nextDue","type":"type","country":"ignore","state":"ignore"};
+var CSV_MAP={"name":"name","full name":"name","fullname":"name","first name":"firstName","firstname":"firstName","last name":"lastName","lastname":"lastName","surname":"lastName","phone":"phone","phone number":"phone","mobile":"phone","mobile phone":"phone","work direct phone":"phone","corporate phone":"phone","home phone":"phone","mobile number":"phone","title":"title","job title":"title","position":"title","role":"title","company":"company","company name":"company","company name for emails":"ignore","employer":"company","organization":"company","organisation":"company","location":"location","city":"location","linkedin":"linkedin","linkedin url":"linkedin","person linkedin url":"linkedin","url":"ignore","company linkedin url":"ignore","facebook url":"ignore","twitter url":"ignore","website":"ignore","email":"email","email address":"email","work email":"email","relationship":"relationship","status":"ignore","email status":"ignore","stage":"ignore","sectors":"sectors","sector":"sectors","expertise":"sectors","departments":"sectors","industry":"ignore","notes":"notes","note":"notes","comments":"notes","keywords":"ignore","seniority":"seniority","level":"seniority","last contacted":"lastContacted","last contact":"lastContacted","next action":"nextAction","action":"nextAction","next due":"nextDue","due date":"nextDue","due":"nextDue","type":"type","country":"ignore","state":"ignore"};
 
 function parseCSV(text){
   const lines=text.trim().split(/\r?\n/);
@@ -1255,7 +1255,7 @@ function CompanyCSVImporter({companies,setCompanies,persist,onClose}){
     setResults({added,skipped:dupes});
   }
 
-  var CO_FIELDS=["name","type","tier","hq","keyContact","notes","ignore"];
+  var CO_FIELDS=["name","type","tier","hq","keyContact","website","notes","ignore"];
 
   if(results)return(
     <div style={{padding:"20px",textAlign:"center"}}>
