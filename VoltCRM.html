@@ -3095,16 +3095,16 @@ function App(){
         if(data.people && data.people.length>0) {
           setPeople(data.people.map(function(p){return migratePerson(Object.assign({},p,{relationship:migrateRelationship(p.relationship)}));}));
         } else {
-          // Try localStorage cache
+          // Try localStorage cache - strip stale _recId so records get fresh Airtable rows
           const sp=await sGet("voltcrm5-people");
-          if(sp && sp.length>0) setPeople(JSON.parse(typeof sp==="string"?sp:JSON.stringify(sp)).map(function(p){return migratePerson(Object.assign({},p,{relationship:migrateRelationship(p.relationship)}));}));
+          if(sp && sp.length>0) setPeople(JSON.parse(typeof sp==="string"?sp:JSON.stringify(sp)).map(function(p){var q=migratePerson(Object.assign({},p,{relationship:migrateRelationship(p.relationship)}));delete q._recId;return q;}));
           // else keep SEED_PEOPLE (already set as default state)
         }
         if(data.companies && data.companies.length>0) {
           setCompanies(data.companies.map(function(co){return Object.assign({},co,{relationship:migrateRelationship(co.relationship||"")});}));
         } else {
           const sc=await sGet("voltcrm5-companies");
-          if(sc && sc.length>0) setCompanies(JSON.parse(typeof sc==="string"?sc:JSON.stringify(sc)).map(function(co){return Object.assign({},co,{relationship:migrateRelationship(co.relationship||"")});}));
+          if(sc && sc.length>0) setCompanies(JSON.parse(typeof sc==="string"?sc:JSON.stringify(sc)).map(function(co){var q=Object.assign({},co,{relationship:migrateRelationship(co.relationship||"")});delete q._recId;return q;}));
           // else keep SEED_COMPANIES
         }
         const snet=await sGet("voltcrm5-network");
