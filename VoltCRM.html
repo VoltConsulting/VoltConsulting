@@ -35,6 +35,11 @@ async function atPost(url, body) {
   if(!r.ok) throw new Error("AT " + r.status + " " + await r.text());
   return r.json();
 }
+async function atDelete(recId) {
+  if(!recId) return;
+  const r = await fetch(AT_URL+"/"+recId, {method:"DELETE",headers:{"Authorization":"Bearer "+AT_TOKEN}});
+  if(!r.ok) console.warn("AT DELETE failed", r.status);
+}
 async function atPatch(url, body) {
   const r = await fetch(url, {method:"PATCH",headers:{"Authorization":"Bearer "+AT_TOKEN,"Content-Type":"application/json"},body:JSON.stringify(body)});
   if(!r.ok) throw new Error("AT " + r.status + " " + await r.text());
@@ -75,21 +80,49 @@ async function loadFromAirtable() {
 }
 
 async function saveToAirtable(name, data) {
-  const recType = name === "people" ? "PERSON"
-                : name === "companies" ? "COMPANY"
-                : name === "network" ? "NETWORK"
+  const _n = (name||"").toLowerCase();
+  const recType = _n === "people" ? "PERSON"
+                : _n === "companies" ? "COMPANY"
+                : _n === "network" ? "NETWORK"
                 : "VACANCY";
-  const promises = (data || []).map(async function(item) {
-    const nameField = item.name || item.title || ("Record " + (item.id || ""));
-    const fields = { Name: nameField, RecordType: recType, Data: JSON.stringify(item) };
-    if(item._recId) {
-      await atPatch(AT_URL + "/" + item._recId, { fields });
-    } else {
-      const res = await atPost(AT_URL, { records: [{ fields }] });
-      item._recId = res.records[0].id;
-    }
-  });
-  await Promise.all(promises);
+  var items = data || [];
+  // Split into new (no _recId) and existing (has _recId)
+  var toCreate = items.filter(function(x){ return !x._recId; });
+  var toUpdate = items.filter(function(x){ return !!x._recId; });
+
+  // Helper: chunk array into groups of n
+  function chunk(arr, n) {
+    var out = [];
+    for(var i=0; i<arr.length; i+=n) out.push(arr.slice(i,i+n));
+    return out;
+  }
+  // Helper: delay
+  function delay(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+
+  // CREATE in batches of 10
+  var createBatches = chunk(toCreate, 10);
+  for(var ci=0; ci<createBatches.length; ci++) {
+    var batch = createBatches[ci];
+    var records = batch.map(function(item){
+      var nameField = item.name || item.title || ("Record " + (item.id || ""));
+      return { fields: { Name: nameField, RecordType: recType, Data: JSON.stringify(item) } };
+    });
+    var res = await atPost(AT_URL, { records: records });
+    res.records.forEach(function(r, idx){ batch[idx]._recId = r.id; });
+    if(ci < createBatches.length - 1) await delay(250);
+  }
+
+  // UPDATE in batches of 10
+  var updateBatches = chunk(toUpdate, 10);
+  for(var ui=0; ui<updateBatches.length; ui++) {
+    var ubatch = updateBatches[ui];
+    var urecords = ubatch.map(function(item){
+      var nameField = item.name || item.title || ("Record " + (item.id || ""));
+      return { id: item._recId, fields: { Name: nameField, RecordType: recType, Data: JSON.stringify(item) } };
+    });
+    await atPatch(AT_URL, { records: urecords });
+    if(ui < updateBatches.length - 1) await delay(250);
+  }
 }
 
 // Simple localStorage shim for CRM internal cache
@@ -1081,7 +1114,7 @@ function PeopleView({people,setPeople,companies,setCompanies,persist,initialSel,
   const commitBoth=(np,nc)=>{setPeople(np);persist("people",np);setCompanies(nc);persist("companies",nc);};
   const addPerson=f=>{const{companies:nc,companyId}=autoLinkCompany(f.company,companies);commitBoth([{...f,id:Date.now(),companyId},...people],nc);};
   const updPerson=f=>{const{companies:nc,companyId}=autoLinkCompany(f.company,companies);commitBoth(people.map(p=>p.id===sel?{...p,...f,companyId}:p),nc);};
-  const delPerson=()=>{const u=people.filter(p=>p.id!==sel);setPeople(u);persist("people",u);setSel(null);};
+  const delPerson=()=>{var dp=people.find(function(p){return p.id===sel;});if(dp&&dp._recId){atDelete(dp._recId).catch(function(e){console.warn("Delete from Airtable failed",e);});}var u=people.filter(p=>p.id!==sel);setPeople(u);persist("people",u);setSel(null);};
 
   const filterBtn=(v,l,c,cur,set)=>(
     <button key={v} onClick={()=>set(v)} style={{background:cur===v?c+"15":"transparent",color:cur===v?c:G600,border:"1px solid "+(cur===v?c+"40":G300),borderRadius:20,padding:"4px 13px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
@@ -1292,7 +1325,7 @@ function CompaniesView({companies,setCompanies,people,setPeople,persist,initialS
   const commit=u=>{setCompanies(u);persist("companies",u);};
   const add=f=>commit([{...f,id:Date.now(),openVacancies:Number(f.openVacancies)},...companies]);
   const upd=f=>commit(companies.map(c=>c.id===sel?{...c,...f,openVacancies:Number(f.openVacancies)}:c));
-  const del=()=>{commit(companies.filter(c=>c.id!==sel));setSel(null);};
+  const del=()=>{var dc=companies.find(function(x){return x.id===sel;});if(dc&&dc._recId){atDelete(dc._recId).catch(function(e){console.warn("Delete from Airtable failed",e);});}commit(companies.filter(c=>c.id!==sel));setSel(null);};
 
   return(
     <div style={{display:"flex",height:"100%",minHeight:0}}>
@@ -2118,6 +2151,8 @@ function VoltNetworkView({network,setNetwork,persist,ownerFilter}){
 
   function deleteMember(id){
     if(!window.confirm("Remove this member from VoltNETWORK?"))return;
+    var dm=(network||[]).find(function(m){return m.id===id;});
+    if(dm&&dm._recId){atDelete(dm._recId).catch(function(e){console.warn("Network atDelete failed",e);});}
     var updated=(network||[]).filter(function(m){return m.id!==id;});
     setNetwork(updated);persist("network",updated);setSel(null);
   }
@@ -2595,6 +2630,8 @@ function VacanciesView({vacancies,setVacancies,companies,setCompanies,people,set
 
   function deleteVacancy(id){
     if(!window.confirm("Delete this vacancy?"))return;
+    var dv=(vacancies||[]).find(function(v){return v.id===id;});
+    if(dv&&dv._recId){atDelete(dv._recId).catch(function(e){console.warn("Vacancy atDelete failed",e);});}
     var updated=(vacancies||[]).filter(function(v){return v.id!==id;});
     setVacancies(updated);persist("vacancies",updated);setSel(null);
   }
@@ -3074,13 +3111,7 @@ function App(){
         const svac=await sGet("voltcrm5-vacancies");
         if(svac && svac.length>0) setVacancies(JSON.parse(typeof svac==="string"?svac:JSON.stringify(svac)));
         setSyncStatus("ok");
-        // If Airtable was empty, push seed data up so all users see it
-        if((!data.people||data.people.length===0)&&(!data.companies||data.companies.length===0)){
-          try {
-            await saveToAirtable("PEOPLE", SEED_PEOPLE);
-            await saveToAirtable("COMPANIES", SEED_COMPANIES);
-          } catch(e3){ console.warn("Seed push failed:", e3.message); }
-        }
+        // Airtable empty - start with blank state, no seed data pushed
       } catch(e) {
         console.warn("Airtable load failed, using local cache:", e.message);
         try {
