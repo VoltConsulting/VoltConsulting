@@ -3112,7 +3112,23 @@ function App(){
         const svac=await sGet("voltcrm5-vacancies");
         if(svac && svac.length>0) setVacancies(JSON.parse(typeof svac==="string"?svac:JSON.stringify(svac)));
         setSyncStatus("ok");
-        // Airtable empty - start with blank state, no seed data pushed
+        // If Airtable was empty, do one clean push from localStorage and store _recIds
+        if((!data.people||data.people.length===0)&&(!data.companies||data.companies.length===0)){
+          var sp2=await sGet("voltcrm5-people");
+          var sc2=await sGet("voltcrm5-companies");
+          if(sp2&&sp2.length>0){
+            var freshP=JSON.parse(typeof sp2==="string"?sp2:JSON.stringify(sp2)).map(function(p){var q=migratePerson(Object.assign({},p,{relationship:migrateRelationship(p.relationship)}));delete q._recId;return q;});
+            await saveToAirtable("PEOPLE",freshP);
+            setPeople(freshP);
+            await sSet("voltcrm5-people",freshP);
+          }
+          if(sc2&&sc2.length>0){
+            var freshC=JSON.parse(typeof sc2==="string"?sc2:JSON.stringify(sc2)).map(function(co){var q=Object.assign({},co,{relationship:migrateRelationship(co.relationship||"")});delete q._recId;return q;});
+            await saveToAirtable("COMPANIES",freshC);
+            setCompanies(freshC);
+            await sSet("voltcrm5-companies",freshC);
+          }
+        }
       } catch(e) {
         console.warn("Airtable load failed, using local cache:", e.message);
         try {
