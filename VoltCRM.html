@@ -1217,7 +1217,7 @@ function CompanyForm({init,onSave,onClose,companies,isEdit}){
 }
 
 // ── COMPANIES VIEW ────────────────────────────────────────────
-CO_CSV_MAP={"company name":"name","company":"name","name":"name","organisation":"name","organization":"name","type":"type","sector":"type","industry":"type","tier":"tier","hq":"hq","location":"hq","city":"hq","headquarters":"hq","key contact":"keyContact","contact":"keyContact","website":"website","notes":"notes","note":"notes","comments":"notes"};
+var CO_CSV_MAP={"company name":"name","company":"name","name":"name","organisation":"name","organization":"name","type":"type","sector":"type","industry":"type","tier":"tier","hq":"hq","location":"hq","city":"hq","headquarters":"hq","key contact":"keyContact","contact":"keyContact","website":"website","notes":"notes","note":"notes","comments":"notes"};
 
 function CompanyCSVImporter({companies,setCompanies,persist,onClose}){
   var[raw,setRaw]=useState("");
@@ -2048,7 +2048,8 @@ function BDPipelineView({people,setPeople,persist,ownerFilter}){
 }
 
 // ── Company CSV Importer ───────────────────────────────────────
-const // ── Global search ─────────────────────────────────────────────
+
+// ── Global search ─────────────────────────────────────────────
 function GlobalSearch({people,companies,onNavigate}){
   const[q,setQ]=useState("");
   const[open,setOpen]=useState(false);
