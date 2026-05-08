@@ -26,8 +26,8 @@ const {
 // ── Airtable sync (simple JSON blob approach) ─────────────────
 // Credentials stored in browser localStorage — never in the file
 let AT_TOKEN = localStorage.getItem("volt_at_token") || "";
-let AT_BASE = localStorage.getItem("volt_at_base") || "";
-let AT_TABLE = localStorage.getItem("volt_at_table") || "";
+let AT_BASE = localStorage.getItem("volt_at_base") || "appD0JD8AUdtR6thY";
+let AT_TABLE = localStorage.getItem("volt_at_table") || "tblUL48Km1j2m8sRU";
 var AT_URL = "https://api.airtable.com/v0/" + AT_BASE + "/" + AT_TABLE;
 async function atGet(url) {
   const r = await fetch(url, {
