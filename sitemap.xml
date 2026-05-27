@@ -1,116 +1,128 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://voltconsulting.solutions/</loc>
-    <lastmod>2026-03-16</lastmod>
+    <loc>https://voltconsulting.solutions/index.html</loc>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/executive-search.html</loc>
-    <lastmod>2026-03-16</lastmod>
-    <changefreq>weekly</changefreq>
+    <lastmod>2026-05-27</lastmod>
+    <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/consulting-firms.html</loc>
-    <lastmod>2026-03-16</lastmod>
-    <changefreq>weekly</changefreq>
+    <lastmod>2026-05-27</lastmod>
+    <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/careers.html</loc>
-    <lastmod>2026-03-16</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://voltconsulting.solutions/pharma-executive-search-switzerland.html</loc>
-    <lastmod>2026-03-16</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://voltconsulting.solutions/pharma-executive-search-europe.html</loc>
-    <lastmod>2026-03-16</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/voltintel-index.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/voltintel-c001.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/voltintel-c002.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/voltintel-c003.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/voltintel-c004.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/voltintel-c005.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://voltconsulting.solutions/voltintel-c006.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://voltconsulting.solutions/voltintel-p001.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <loc>https://voltconsulting.solutions/voltintel-c007.html</loc>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://voltconsulting.solutions/voltintel-p002.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <loc>https://voltconsulting.solutions/voltintel-c008.html</loc>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://voltconsulting.solutions/voltintel-p003.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <loc>https://voltconsulting.solutions/voltintel-c009.html</loc>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://voltconsulting.solutions/voltintel-p004.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <loc>https://voltconsulting.solutions/voltintel-c010.html</loc>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://voltconsulting.solutions/voltintel-p005.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <loc>https://voltconsulting.solutions/voltintel-c011.html</loc>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://voltconsulting.solutions/voltintel-p006.html</loc>
-    <lastmod>2026-04-23</lastmod>
+    <loc>https://voltconsulting.solutions/voltintel-c012.html</loc>
+    <lastmod>2026-05-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://voltconsulting.solutions/voltintel-c013.html</loc>
+    <lastmod>2026-05-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://voltconsulting.solutions/voltintel-c014.html</loc>
+    <lastmod>2026-05-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://voltconsulting.solutions/voltintel-c015.html</loc>
+    <lastmod>2026-05-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://voltconsulting.solutions/voltintel-c016.html</loc>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
