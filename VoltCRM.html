@@ -5990,7 +5990,22 @@ function ActivityLogModal({
         fontFamily: "inherit",
         fontWeight: active ? 700 : 400
       }
-    }, a.icon, " ", a.label);
+    }, a.icon === "in" ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 18,
+        height: 18,
+        background: "#0A66C2",
+        color: "#fff",
+        borderRadius: 3,
+        fontSize: 10,
+        fontWeight: 700,
+        marginRight: 6,
+        verticalAlign: "middle"
+      }
+    }, "in") : /*#__PURE__*/React.createElement("span", null, a.icon, " "), a.label);
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 14
@@ -6384,7 +6399,20 @@ function BDPipelineView({
           gap: 4,
           alignItems: "center"
         }
-      }, /*#__PURE__*/React.createElement("span", null, lastAct.icon), /*#__PURE__*/React.createElement("span", {
+      }, lastAct.icon === "in" ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 15,
+          height: 15,
+          background: "#0A66C2",
+          color: "#fff",
+          borderRadius: 3,
+          fontSize: 9,
+          fontWeight: 700
+        }
+      }, "in") : /*#__PURE__*/React.createElement("span", null, lastAct.icon), /*#__PURE__*/React.createElement("span", {
         style: {
           overflow: "hidden",
           textOverflow: "ellipsis",
