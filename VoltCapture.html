@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoltCapture</title>
+<style>
+  :root{ --teal:#00C2C7; --navy:#0D1B2A; --li:#0A66C2; --line:#d4e4e5; --ink:#0D1B2A; --muted:#5b6b72; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{ font-family:'Segoe UI',Calibri,system-ui,sans-serif; background:#eef1f3; color:var(--ink); }
+  #root{ width:340px; margin:0 auto; }
+  .card{ background:#fff; border-radius:12px; border:1px solid var(--line); overflow:hidden; box-shadow:0 12px 40px rgba(13,27,42,.25); }
+  .head{ background:var(--navy); padding:11px 15px; display:flex; align-items:center; justify-content:space-between; }
+  .brand{ display:flex; align-items:center; gap:8px; }
+  .vlogo{ width:22px; height:22px; border-radius:5px; background:var(--teal); color:var(--navy); font-weight:700; display:flex; align-items:center; justify-content:center; font-size:13px; }
+  .htitle{ color:#fff; font-size:14px; font-weight:600; }
+  .libadge{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:var(--li); color:#fff; border-radius:3px; font-size:10px; font-weight:700; }
+  .who{ color:#cfe9ea; font-size:11px; cursor:pointer; text-decoration:underline; }
+  .body{ padding:14px 15px; }
+  label{ display:block; font-size:11px; font-weight:600; color:var(--muted); margin:0 0 4px 1px; }
+  .field{ margin-bottom:11px; }
+  input,textarea{ width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px; font-family:inherit; color:var(--ink); background:#fbfdfd; outline:none; }
+  input:focus,textarea:focus{ border-color:var(--teal); background:#fff; }
+  textarea{ resize:none; height:40px; }
+  .two{ display:flex; gap:9px; }
+  .two .field{ flex:1; }
+  .btnrow{ display:flex; gap:5px; }
+  .chip{ flex:1; text-align:center; font-size:12px; padding:6px 0; border-radius:6px; border:1px solid var(--line); background:#fbfdfd; color:var(--muted); cursor:pointer; user-select:none; }
+  .chip.sel-li{ border:1.5px solid var(--li); background:#e8f1fb; color:var(--li); font-weight:700; }
+  .chip.sel-teal{ border:1.5px solid var(--teal); background:#e1f7f7; color:#0a6b6e; font-weight:700; }
+  .who-row .chip.sel-d{ background:var(--teal); color:#fff; border-color:transparent; font-weight:700; }
+  .who-row .chip.sel-l{ background:#6f42c1; color:#fff; border-color:transparent; font-weight:700; }
+  .who-row .chip.sel-b{ background:#e8a020; color:#fff; border-color:transparent; font-weight:700; }
+  .hint{ font-size:10.5px; color:#9aa7ad; margin-top:4px; }
+  .save{ width:100%; margin-top:12px; background:var(--teal); color:var(--navy); border:none; border-radius:9px; padding:11px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .save:hover{ background:#00aeb3; }
+  .save:disabled{ opacity:.5; cursor:default; }
+  .foot{ font-size:10.5px; color:#9aa7ad; text-align:center; margin-top:8px; }
+  .toast{ text-align:center; font-size:12.5px; padding:7px; border-radius:7px; margin-top:10px; }
+  .toast.ok{ background:#e1f7f7; color:#0a6b6e; }
+  .toast.err{ background:#fdeaea; color:#a23; }
+  .found{ font-size:11px; color:var(--li); background:#e8f1fb; border-radius:6px; padding:5px 8px; margin-top:-4px; margin-bottom:10px; }
+  .setup{ padding:16px; }
+  .setup p{ font-size:12.5px; color:var(--muted); line-height:1.5; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script>
+var AT_TOKEN = localStorage.getItem("volt_at_token") || "";
+var AT_BASE = localStorage.getItem("volt_at_base") || "appD0JD8AUdtR6thY";
+var AT_TABLE = localStorage.getItem("volt_at_table") || "tblUL48Km1j2m8sRU";
+var AT_URL = "https://api.airtable.com/v0/" + AT_BASE + "/" + AT_TABLE;
+var TEAM = ["David", "Lauren", "Brinda"];
+var STAGES = [1, 2, 3, 4, 5];
+
+function todayStr() {
+  var d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function stampStr() {
+  return new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function dueStr(days) {
+  var d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function ordinal(n) {
+  var s = ["th", "st", "nd", "rd"];
+  var v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+async function atGet(url) {
+  var res = await fetch(url, { headers: { "Authorization": "Bearer " + AT_TOKEN } });
+  if (!res.ok) throw new Error("Read failed (" + res.status + ")");
+  return res.json();
+}
+async function atPost(body) {
+  var res = await fetch(AT_URL, { method: "POST", headers: { "Authorization": "Bearer " + AT_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error("Save failed (" + res.status + ")");
+  return res.json();
+}
+async function atPatch(body) {
+  var res = await fetch(AT_URL, { method: "PATCH", headers: { "Authorization": "Bearer " + AT_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error("Update failed (" + res.status + ")");
+  return res.json();
+}
+
+async function findPersonByName(name) {
+  var target = (name || "").trim().toLowerCase();
+  if (!target) return null;
+  var url = AT_URL + "?filterByFormula=" + encodeURIComponent("{RecordType}='PERSON'") + "&pageSize=100";
+  var offset = "";
+  do {
+    var full = url + (offset ? "&offset=" + offset : "");
+    var data = await atGet(full);
+    for (var i = 0; i < data.records.length; i++) {
+      var rec = data.records[i];
+      try {
+        var p = JSON.parse(rec.fields.Data || "{}");
+        if ((p.name || "").trim().toLowerCase() === target) {
+          p._recId = rec.id;
+          return p;
+        }
+      } catch (e) {}
+    }
+    offset = data.offset || "";
+  } while (offset);
+  return null;
+}
+
+var e = React.createElement;
+
+function App() {
+  var me0 = localStorage.getItem("voltcapture_me") || "";
+  var meState = React.useState(me0);
+  var me = meState[0], setMe = meState[1];
+
+  if (!AT_TOKEN) {
+    return e("div", { className: "card" },
+      e("div", { className: "head" }, e("div", { className: "brand" }, e("div", { className: "vlogo" }, "V"), e("span", { className: "htitle" }, "VoltCapture"))),
+      e("div", { className: "setup" },
+        e("p", null, "This needs to run from the same place as your CRM so it can use your saved login."),
+        e("p", null, "Open your VoltCRM once in this browser and log in, then reopen VoltCapture. It will pick up the connection automatically.")
+      )
+    );
+  }
+  if (!me) {
+    return e("div", { className: "card" },
+      e("div", { className: "head" }, e("div", { className: "brand" }, e("div", { className: "vlogo" }, "V"), e("span", { className: "htitle" }, "VoltCapture"))),
+      e("div", { className: "setup" },
+        e("p", null, "Who are you? Follow-ups you log will go to your own tab."),
+        e("div", { className: "btnrow who-row", style: { marginTop: 10 } }, TEAM.map(function (t, i) {
+          return e("div", { key: t, className: "chip " + ["sel-d", "sel-l", "sel-b"][i], onClick: function () { localStorage.setItem("voltcapture_me", t); setMe(t); } }, t);
+        }))
+      )
+    );
+  }
+  return e(Capture, { me: me, setMe: setMe });
+}
+
+function Capture(props) {
+  var me = props.me;
+  var f = React.useState({ name: "", company: "", title: "", linkedin: "", note: "" });
+  var form = f[0], setForm = f[1];
+  var st = React.useState(2), stage = st[0], setStage = st[1];
+  var ch = React.useState(5), chase = ch[0], setChase = ch[1];
+  var cu = React.useState(""), customDate = cu[0], setCustomDate = cu[1];
+  var sv = React.useState(false), saving = sv[0], setSaving = sv[1];
+  var ts = React.useState(null), toast = ts[0], setToast = ts[1];
+  var fd = React.useState(null), found = fd[0], setFound = fd[1];
+  var nameRef = React.useRef(null);
+
+  function upd(k) { return function (ev) { setForm(Object.assign({}, form, { [k]: ev.target.value })); }; }
+
+  async function checkName() {
+    if (!form.name.trim()) { setFound(null); return; }
+    try {
+      var p = await findPersonByName(form.name);
+      if (p) {
+        setFound(p);
+        var next = (p.linkedinStage || 0) + 1;
+        if (next > 5) next = 5;
+        setStage(next);
+      } else {
+        setFound(null);
+        setStage(1);
+      }
+    } catch (er) { setFound(null); }
+  }
+
+  async function save() {
+    if (!form.name.trim() || !form.company.trim()) {
+      setToast({ t: "err", m: "Name and company are needed" });
+      return;
+    }
+    setSaving(true);
+    setToast(null);
+    try {
+      var due = chase === -1 ? (customDate || "") : dueStr(chase);
+      var entry = { id: Date.now(), type: "linkedin", icon: "in", label: "LinkedIn message", note: form.note.trim(), date: stampStr(), by: me };
+      var existing = found;
+      if (!existing) {
+        existing = await findPersonByName(form.name);
+      }
+      if (existing) {
+        var log = [entry].concat(existing.activityLog || []);
+        existing.activityLog = log;
+        existing.linkedinStage = stage;
+        existing.lastContacted = todayStr();
+        existing.nextAction = "LinkedIn " + ordinal(stage) + " message follow-up";
+        existing.nextDue = due;
+        existing.owners = [me];
+        if (!existing.bdStage) existing.bdStage = "Target";
+        if (form.title.trim() && !existing.title) existing.title = form.title.trim();
+        if (form.linkedin.trim() && !existing.linkedin) existing.linkedin = form.linkedin.trim();
+        if (form.note.trim()) existing.notes = (form.note.trim() + "\n" + (existing.notes || "")).trim();
+        await atPatch({ records: [{ id: existing._recId, fields: { Name: existing.name, RecordType: "PERSON", Data: JSON.stringify(existing) } }] });
+        setToast({ t: "ok", m: "Updated " + existing.name + " · LinkedIn " + ordinal(stage) });
+      } else {
+        var person = {
+          id: Date.now() + Math.random(),
+          type: "Contact",
+          name: form.name.trim(),
+          firstName: "", lastName: "",
+          title: form.title.trim(),
+          company: form.company.trim(),
+          location: "", seniority: "", sectors: [],
+          linkedin: form.linkedin.trim(),
+          email: "", phone: "",
+          lastContacted: todayStr(),
+          nextAction: "LinkedIn " + ordinal(stage) + " message follow-up",
+          nextDue: due,
+          relationship: "",
+          notes: form.note.trim(),
+          owners: [me],
+          bdStage: "Target",
+          linkedinStage: stage,
+          emailStage: 0,
+          callCount: 0,
+          activityLog: [entry]
+        };
+        await atPost({ records: [{ fields: { Name: person.name, RecordType: "PERSON", Data: JSON.stringify(person) } }] });
+        setToast({ t: "ok", m: "Saved " + person.name + " to BD pipeline" });
+      }
+      setForm({ name: "", company: "", title: "", linkedin: "", note: "" });
+      setStage(1);
+      setChase(5);
+      setCustomDate("");
+      setFound(null);
+      if (nameRef.current) nameRef.current.focus();
+    } catch (er) {
+      setToast({ t: "err", m: er.message || "Something went wrong" });
+    }
+    setSaving(false);
+  }
+
+  function onKey(ev) {
+    if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) save();
+  }
+
+  return e("div", { className: "card", onKeyDown: onKey },
+    e("div", { className: "head" },
+      e("div", { className: "brand" },
+        e("div", { className: "vlogo" }, "V"),
+        e("span", { className: "htitle" }, "VoltCapture"),
+        e("span", { className: "libadge" }, "in")
+      ),
+      e("span", { className: "who", onClick: function () { localStorage.removeItem("voltcapture_me"); props.setMe(""); } }, me)
+    ),
+    e("div", { className: "body" },
+      e("div", { className: "field" },
+        e("label", null, "Name"),
+        e("input", { ref: nameRef, value: form.name, onChange: upd("name"), onBlur: checkName, placeholder: "Full name", autoFocus: true })
+      ),
+      found ? e("div", { className: "found" }, "Found: " + found.name + (found.company ? " · " + found.company : "") + " · last LinkedIn " + (found.linkedinStage ? ordinal(found.linkedinStage) : "none")) : null,
+      e("div", { className: "two" },
+        e("div", { className: "field" }, e("label", null, "Company"), e("input", { value: form.company, onChange: upd("company"), placeholder: "Company" })),
+        e("div", { className: "field" }, e("label", null, "Title"), e("input", { value: form.title, onChange: upd("title"), placeholder: "optional" }))
+      ),
+      e("div", { className: "field" },
+        e("label", null, "LinkedIn URL"),
+        e("input", { value: form.linkedin, onChange: upd("linkedin"), placeholder: "paste to link back to the thread" })
+      ),
+      e("div", { className: "field" },
+        e("label", null, "Message stage"),
+        e("div", { className: "btnrow" }, STAGES.map(function (n) {
+          return e("div", { key: n, className: "chip " + (stage === n ? "sel-li" : ""), onClick: function () { setStage(n); } }, ordinal(n));
+        })),
+        found ? e("div", { className: "hint" }, "Last logged: " + (found.linkedinStage ? ordinal(found.linkedinStage) : "none") + " · suggested " + ordinal(stage)) : null
+      ),
+      e("div", { className: "field" },
+        e("label", null, "Note (optional)"),
+        e("textarea", { value: form.note, onChange: upd("note"), placeholder: "Any specific detail" })
+      ),
+      e("div", { className: "field" },
+        e("label", null, "Follow up in"),
+        e("div", { className: "btnrow" },
+          e("div", { className: "chip " + (chase === 5 ? "sel-teal" : ""), onClick: function () { setChase(5); } }, "5 days"),
+          e("div", { className: "chip " + (chase === 7 ? "sel-teal" : ""), onClick: function () { setChase(7); } }, "1 week"),
+          e("div", { className: "chip " + (chase === 14 ? "sel-teal" : ""), onClick: function () { setChase(14); } }, "2 weeks"),
+          e("div", { className: "chip " + (chase === -1 ? "sel-teal" : ""), onClick: function () { setChase(-1); } }, "Custom")
+        ),
+        chase === -1 ? e("input", { type: "date", value: customDate, onChange: function (ev) { setCustomDate(ev.target.value); }, style: { marginTop: 6 } }) : null
+      ),
+      e("div", { className: "field" },
+        e("label", null, "Goes to follow-ups for"),
+        e("div", { className: "btnrow who-row" }, TEAM.map(function (t, i) {
+          return e("div", { key: t, className: "chip " + (me === t ? ["sel-d", "sel-l", "sel-b"][i] : ""), onClick: function () { localStorage.setItem("voltcapture_me", t); props.setMe(t); } }, t);
+        }))
+      ),
+      e("button", { className: "save", onClick: save, disabled: saving }, saving ? "Saving..." : "Save to VoltCRM"),
+      toast ? e("div", { className: "toast " + toast.t }, toast.m) : e("div", { className: "foot" }, "Stamps date and time · clears for the next")
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(e(App));
+</script>
+</body>
+</html>
