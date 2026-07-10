@@ -25,7 +25,16 @@ const {
 
 // ── Airtable sync (simple JSON blob approach) ─────────────────
 // Credentials stored in browser localStorage — never in the file
-let AT_TOKEN = localStorage.getItem("volt_at_token") || "";
+(function () {
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var tok = params.get("tok");
+    var base = params.get("base");
+    if (tok) localStorage.setItem("volt_at_token", tok);
+    if (base) localStorage.setItem("volt_at_base", base);
+    if (tok || base) window.history.replaceState({}, document.title, window.location.pathname);
+  } catch (e) {}
+})();let AT_TOKEN = localStorage.getItem("volt_at_token") || "";
 let AT_BASE = localStorage.getItem("volt_at_base") || "appD0JD8AUdtR6thY";
 let AT_TABLE = localStorage.getItem("volt_at_table") || "tblUL48Km1j2m8sRU";
 var AT_URL = "https://api.airtable.com/v0/" + AT_BASE + "/" + AT_TABLE;
