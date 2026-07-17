@@ -137,10 +137,61 @@ async function loadFromAirtable() {
     vacancies
   };
 }
+var _saveLocks = {};
 async function saveToAirtable(name, data) {
   const _n = (name || "").toLowerCase();
   const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : "VACANCY";
+  // ── SAVE LOCK ────────────────────────────────────────────────
+  // Prevent two saves of the same record type running at once. Without
+  // this, a brand-new person (no _recId yet) can be sent to Airtable by
+  // one save while a second overlapping save still sees them as new and
+  // creates them again, producing multiple cards from one entry. We wait
+  // for any in-flight save of this type to finish first.
+  while (_saveLocks[recType]) {
+    await new Promise(function (r) { setTimeout(r, 60); });
+  }
+  _saveLocks[recType] = true;
+  try {
+    return await _saveToAirtableInner(name, data, recType);
+  } finally {
+    _saveLocks[recType] = false;
+  }
+}
+async function _saveToAirtableInner(name, data, recType) {
   var items = data || [];
+
+  // ── DUPLICATE GUARD ──────────────────────────────────────────
+  // Before creating anything, fetch existing records of this type from
+  // Airtable and build a name -> recordId map. Any "new" item (no _recId)
+  // whose name already exists in Airtable is matched to that existing
+  // record and UPDATED instead of created. This makes it impossible for a
+  // retry or slow save to create the same person twice.
+  var existingByName = {};
+  try {
+    var offset = "";
+    do {
+      var listUrl = AT_URL + "?pageSize=100&filterByFormula=" + encodeURIComponent("{RecordType}='" + recType + "'") + (offset ? "&offset=" + offset : "");
+      var page = await atGet(listUrl);
+      (page.records || []).forEach(function (r) {
+        var nm = ((r.fields && r.fields.Name) || "").trim().toLowerCase();
+        if (nm && !existingByName[nm]) existingByName[nm] = r.id;
+      });
+      offset = page.offset || "";
+    } while (offset);
+  } catch (e) {
+    // If the existence check fails (e.g. rate limit), do NOT proceed to
+    // blind-create, that is exactly what caused duplicates. Throw so the
+    // save is treated as failed and left in the queue to retry cleanly.
+    throw new Error("Dedup check failed, aborting save to avoid duplicates: " + e.message);
+  }
+  // Reconcile: give any ID-less item the existing recId if its name matches.
+  items.forEach(function (x) {
+    if (!x._recId) {
+      var key = ((x.name || x.title || "") + "").trim().toLowerCase();
+      if (key && existingByName[key]) x._recId = existingByName[key];
+    }
+  });
+
   // Split into new (no _recId) and existing (has _recId)
   var toCreate = items.filter(function (x) {
     return !x._recId;
@@ -10311,6 +10362,11 @@ function App() {
     // Try Airtable sync
     try {
       if (key === "people") await saveToAirtable("PEOPLE", data);else if (key === "companies") await saveToAirtable("COMPANIES", data);else if (key === "network") await saveToAirtable("NETWORK", data);else if (key === "vacancies") await saveToAirtable("VACANCIES", data);
+      // saveToAirtable stamps _recId onto items in `data`; persist that back
+      // to localStorage so any later retry updates instead of re-creating.
+      try {
+        await sSet("voltcrm5-" + key, data);
+      } catch (e) {}
       // Success - remove from queue
       try {
         var q2Raw = localStorage.getItem("volt_sync_queue");
@@ -10346,7 +10402,14 @@ function App() {
           var key = keys[i];
           var entry = queue[key];
           try {
-            if (key === "people") await saveToAirtable("PEOPLE", entry.data);else if (key === "companies") await saveToAirtable("COMPANIES", entry.data);else if (key === "network") await saveToAirtable("NETWORK", entry.data);else if (key === "vacancies") await saveToAirtable("VACANCIES", entry.data);
+            // Use the freshest data from localStorage (which carries _recId
+            // after a successful save) rather than the stale queued copy.
+            // The stale copy has no _recId on new records and would re-create
+            // them on every retry, producing duplicate cards.
+            var freshRaw = await sGet("voltcrm5-" + key);
+            var freshData = freshRaw || entry.data;
+            if (key === "people") await saveToAirtable("PEOPLE", freshData);else if (key === "companies") await saveToAirtable("COMPANIES", freshData);else if (key === "network") await saveToAirtable("NETWORK", freshData);else if (key === "vacancies") await saveToAirtable("VACANCIES", freshData);
+            try { await sSet("voltcrm5-" + key, freshData); } catch (e) {}
             var q2 = JSON.parse(localStorage.getItem("volt_sync_queue") || "{}");
             delete q2[key];
             localStorage.setItem("volt_sync_queue", JSON.stringify(q2));
@@ -10378,7 +10441,10 @@ function App() {
           var key = keys[i];
           var entry = queue[key];
           try {
-            if (key === "people") await saveToAirtable("PEOPLE", entry.data);else if (key === "companies") await saveToAirtable("COMPANIES", entry.data);else if (key === "network") await saveToAirtable("NETWORK", entry.data);else if (key === "vacancies") await saveToAirtable("VACANCIES", entry.data);
+            var freshRaw0 = await sGet("voltcrm5-" + key);
+            var freshData0 = freshRaw0 || entry.data;
+            if (key === "people") await saveToAirtable("PEOPLE", freshData0);else if (key === "companies") await saveToAirtable("COMPANIES", freshData0);else if (key === "network") await saveToAirtable("NETWORK", freshData0);else if (key === "vacancies") await saveToAirtable("VACANCIES", freshData0);
+            try { await sSet("voltcrm5-" + key, freshData0); } catch (e) {}
             var q2 = JSON.parse(localStorage.getItem("volt_sync_queue") || "{}");
             delete q2[key];
             localStorage.setItem("volt_sync_queue", JSON.stringify(q2));
