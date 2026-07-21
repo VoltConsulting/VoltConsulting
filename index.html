@@ -224,6 +224,13 @@ footer{background:var(--black);padding:52px 5% 28px}
 section{position:relative}
 section > *:not(.watermark){position:relative;z-index:1}
 
+.nav-dropdown{position:relative}
+.nav-dropdown>a::after{content:' \25be';font-size:.6rem;opacity:.6}
+.dropdown-menu{display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.10);min-width:230px;padding:6px 0;z-index:200}
+.dropdown-menu a{display:block;padding:12px 18px;font-size:1rem;font-weight:600;color:#111827;text-decoration:none;white-space:nowrap}
+.dropdown-menu a:hover{background:#e8fbfc;color:#1ab8bf}
+.nav-dropdown:hover .dropdown-menu{display:block}
+.nav-dropdown>a{padding-bottom:8px;margin-bottom:-8px}
 </style>
 <script type="application/ld+json">
 {
@@ -324,7 +331,15 @@ section > *:not(.watermark){position:relative;z-index:1}
     <ul class="nav-links" id="navLinks">
       <li><a href="#about">About</a></li>
       <li><a href="executive-search.html">Executive Search</a></li>
-      <li><a href="consulting-firms.html">Consulting Firms</a></li>
+      <li class="nav-dropdown">
+        <a href="consulting-firms.html">Consulting Firms</a>
+        <div class="dropdown-menu">
+          <a href="consulting-firms.html">For Consulting Firms</a>
+          <a href="what-to-expect.html#client-experience" style="color:#1ab8bf">What to Expect as a Client</a>
+          <a href="for-consultants.html" style="border-top:1px solid #e5e7eb">For Consulting Professionals</a>
+          <a href="what-to-expect.html#candidate-experience" style="color:#1ab8bf">What to Expect as a Candidate</a>
+        </div>
+      </li>
       <li><a href="#voltnetwork">VoltNETWORK</a></li>
       <li><a href="#team">Team</a></li>
       <li><a href="voltintel-index.html">VoltINTEL</a></li>
