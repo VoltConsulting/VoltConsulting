@@ -354,6 +354,11 @@ var SC = {
 };
 var SECTORS = Object.keys(SC);
 var HEADLINE_SECTORS = ["Life Sciences Consulting", "Energy Consulting", "Pharma Services", "Pharma", "Biotech", "MedTech", "Investor / VC", "Other"];
+var SENIORITY_GROUPS = [
+  { group: "Consulting", items: ["Analyst", "Consultant", "Senior Consultant", "Manager", "Principal", "Engagement Manager", "Director", "Associate Partner", "Partner", "Managing Director"] },
+  { group: "Pharma / Client", items: ["Head of", "VP", "SVP", "C-Suite", "CEO", "CSO", "CMO", "CCO", "COO", "CFO", "Founder / Owner"] }
+];
+var SENIORITY = SENIORITY_GROUPS.reduce(function (a, g) { return a.concat(g.items); }, []);
 var TC_MAP = {
   "Active Client": TEAL,
   "Prospect": G600,
@@ -1287,7 +1292,7 @@ function LinkedInPaste({
           max_tokens: 1000,
           messages: [{
             role: "user",
-            content: "Extract the PRIMARY person's details from this LinkedIn profile page text. LinkedIn pages often contain duplicated text and noise - ignore it and focus on the main person at the top.\n\nThe text may be messy with repeated words/phrases - that is normal, work with it.\n\nReturn ONLY a valid JSON object, absolutely nothing else, no backticks, no explanation.\n\nJSON fields:\n- name: their full name (string)\n- title: their current job title (string)\n- company: their current employer (string)\n- location: city and country (string)\n- seniority: exactly one of [Analyst / Consultant, Manager / Principal, VP / Director, C-Suite / Partner]\n- sectors: array of relevant tags from [Life Sciences, Strategy, Commercial, Oncology, RWE, Market Access, Operations, MedTech, Digital Health, Biotech, Regulatory, Pricing, Other]\n- linkedin: their LinkedIn profile URL if visible, else empty string\n\nProfile text:\n" + text.slice(0, 5000)
+            content: "Extract the PRIMARY person's details from this LinkedIn profile page text. LinkedIn pages often contain duplicated text and noise - ignore it and focus on the main person at the top.\n\nThe text may be messy with repeated words/phrases - that is normal, work with it.\n\nReturn ONLY a valid JSON object, absolutely nothing else, no backticks, no explanation.\n\nJSON fields:\n- name: their full name (string)\n- title: their current job title (string)\n- company: their current employer (string)\n- location: city and country (string)\n- seniority: exactly one of [Analyst, Consultant, Senior Consultant, Manager, Principal, Engagement Manager, Director, Associate Partner, Partner, Managing Director]\n- sectors: array of relevant tags from [Life Sciences, Strategy, Commercial, Oncology, RWE, Market Access, Operations, MedTech, Digital Health, Biotech, Regulatory, Pricing, Other]\n- linkedin: their LinkedIn profile URL if visible, else empty string\n\nProfile text:\n" + text.slice(0, 5000)
           }]
         })
       });
@@ -3205,11 +3210,28 @@ function PersonForm({
   })), /*#__PURE__*/React.createElement(Fld, {
     label: "Seniority",
     span2: true
-  }, /*#__PURE__*/React.createElement(SelEl, {
+  }, /*#__PURE__*/React.createElement("select", {
     value: f.seniority,
-    onChange: set("seniority"),
-    options: ["Analyst / Consultant", "Manager / Principal", "VP / Director", "C-Suite / Partner"]
-  })), /*#__PURE__*/React.createElement(Fld, {
+    onChange: e => set("seniority")(e.target.value),
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      color: G900,
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      width: "100%",
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select seniority"), SENIORITY_GROUPS.map(g => /*#__PURE__*/React.createElement("optgroup", {
+    key: g.group,
+    label: g.group
+  }, g.items.map(o => /*#__PURE__*/React.createElement("option", {
+    key: o,
+    value: o
+  }, o)))))), /*#__PURE__*/React.createElement(Fld, {
     label: "Headline Sector",
     span2: true
   }, /*#__PURE__*/React.createElement(SelEl, {
@@ -5476,7 +5498,7 @@ function MarketMap({
       marginBottom: 6
     }
   }, "Seniority"), /*#__PURE__*/React.createElement(FilterBtn, {
-    options: ["All", "C-Suite / Partner", "VP / Director", "Manager / Principal", "Analyst / Consultant"],
+    options: ["All"].concat(SENIORITY.slice().reverse()),
     value: seniorityF,
     onChange: setSeniorityF
   })), mapView === "people" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
