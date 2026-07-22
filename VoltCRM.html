@@ -317,12 +317,33 @@ var REL = {
   Passive: WARN
 };
 var SC = {
+  "Corporate / Growth Strategy": "#6f42c1",
+  "Portfolio & Pipeline Strategy": "#7c5ce0",
+  "BD / Licensing / M&A": "#5a2ea6",
+  "Due Diligence": "#8e6ff0",
+  "Commercial Strategy": "#e8a020",
+  "Marketing / Brand": "#f0b84a",
+  "Launch / Commercialisation": "#d98c00",
+  "Sales / SFE": "#c47e12",
+  "Market Access": "#6610f2",
+  "Pricing & Reimbursement": "#0d6efd",
+  "HEOR": "#0dcaf0",
+  "RWE": "#3dd5f3",
+  "Value & Evidence / Payer": "#17a2b8",
+  "Medical Affairs": "#20c997",
+  "Regulatory Affairs": "#ffc107",
+  "Clinical Development / R&D": "#198754",
+  "Quality / Compliance": "#2fa36b",
+  "Data & Analytics": "#fd7e14",
+  "Digital Health / Transformation": "#d63384",
+  "Operations / Supply Chain": "#556270",
+  "Org & Operating Model": "#7a8794",
+  "Competitive Intelligence": "#b5179e",
+  "Patient Insights & Research": "#e05780",
   "Life Sciences": "#00C2C7",
   "Strategy": "#6f42c1",
   "Commercial": "#e8a020",
   "Oncology": "#dc3545",
-  "RWE": "#0dcaf0",
-  "Market Access": "#6610f2",
   "Operations": "#198754",
   "MedTech": "#fd7e14",
   "Digital Health": "#d63384",
@@ -332,6 +353,7 @@ var SC = {
   "Other": "#6c757d"
 };
 var SECTORS = Object.keys(SC);
+var HEADLINE_SECTORS = ["Life Sciences Consulting", "Energy Consulting", "Pharma Services", "Pharma", "Biotech", "MedTech", "Investor / VC", "Other"];
 var TC_MAP = {
   "Active Client": TEAL,
   "Prospect": G600,
@@ -2527,6 +2549,14 @@ function OverviewTab({
       fontWeight: 600
     }
   }, selP.seniority || "—")), /*#__PURE__*/React.createElement(InfoCard, {
+    label: "Headline Sector"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: NAVY,
+      fontSize: 13,
+      fontWeight: 600
+    }
+  }, selP.headlineSector || "—")), /*#__PURE__*/React.createElement(InfoCard, {
     label: "Last Contacted"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3030,6 +3060,7 @@ const BLANKP = {
   company: "",
   location: "",
   seniority: "",
+  headlineSector: "",
   sectors: [],
   linkedin: "",
   email: "",
@@ -3178,6 +3209,13 @@ function PersonForm({
     value: f.seniority,
     onChange: set("seniority"),
     options: ["Analyst / Consultant", "Manager / Principal", "VP / Director", "C-Suite / Partner"]
+  })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Headline Sector",
+    span2: true
+  }, /*#__PURE__*/React.createElement(SelEl, {
+    value: f.headlineSector || "",
+    onChange: set("headlineSector"),
+    options: HEADLINE_SECTORS
   })), /*#__PURE__*/React.createElement(Fld, {
     label: "Sectors",
     span2: true
