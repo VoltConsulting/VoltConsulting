@@ -160,35 +160,23 @@ async function saveToAirtable(name, data) {
 async function _saveToAirtableInner(name, data, recType) {
   var items = data || [];
 
-  // ── DUPLICATE GUARD ──────────────────────────────────────────
-  // Before creating anything, fetch existing records of this type from
-  // Airtable and build a name -> recordId map. Any "new" item (no _recId)
-  // whose name already exists in Airtable is matched to that existing
-  // record and UPDATED instead of created. This makes it impossible for a
-  // retry or slow save to create the same person twice.
-  var existingByName = {};
-  try {
-    var offset = "";
-    do {
-      var listUrl = AT_URL + "?pageSize=100&filterByFormula=" + encodeURIComponent("{RecordType}='" + recType + "'") + (offset ? "&offset=" + offset : "");
-      var page = await atGet(listUrl);
-      (page.records || []).forEach(function (r) {
-        var nm = ((r.fields && r.fields.Name) || "").trim().toLowerCase();
-        if (nm && !existingByName[nm]) existingByName[nm] = r.id;
-      });
-      offset = page.offset || "";
-    } while (offset);
-  } catch (e) {
-    // If the existence check fails (e.g. rate limit), do NOT proceed to
-    // blind-create, that is exactly what caused duplicates. Throw so the
-    // save is treated as failed and left in the queue to retry cleanly.
-    throw new Error("Dedup check failed, aborting save to avoid duplicates: " + e.message);
-  }
-  // Reconcile: give any ID-less item the existing recId if its name matches.
+  // ── DUPLICATE GUARD (in-memory, ZERO extra API calls) ────────
+  // The previous version re-fetched the entire table from Airtable on
+  // every save to check for duplicate names. With hundreds of records
+  // that was 6+ API calls per save and was exhausting the monthly limit.
+  // Instead we dedup against the data array itself (which already holds
+  // the full current dataset in memory): if two items share the same
+  // name and only one has a _recId, give the ID-less one that _recId so
+  // it updates instead of creating a second copy. No network calls.
+  var idByName = {};
+  items.forEach(function (x) {
+    var key = ((x.name || x.title || "") + "").trim().toLowerCase();
+    if (key && x._recId && !idByName[key]) idByName[key] = x._recId;
+  });
   items.forEach(function (x) {
     if (!x._recId) {
       var key = ((x.name || x.title || "") + "").trim().toLowerCase();
-      if (key && existingByName[key]) x._recId = existingByName[key];
+      if (key && idByName[key]) x._recId = idByName[key];
     }
   });
 
