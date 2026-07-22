@@ -17,6 +17,11 @@
   .htitle{ color:#fff; font-size:14px; font-weight:600; }
   .libadge{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:var(--li); color:#fff; border-radius:3px; font-size:10px; font-weight:700; }
   .who{ color:#cfe9ea; font-size:11px; cursor:pointer; text-decoration:underline; }
+  .tabs{ display:flex; border-bottom:1px solid var(--line); }
+  .tabbtn{ flex:1; text-align:center; font-size:12.5px; padding:9px 0; color:#8a97a0; cursor:pointer; font-weight:500; }
+  .tabsel{ color:var(--navy); border-bottom:2px solid var(--teal); }
+  .sel{ width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px; font-family:inherit; color:var(--ink); background:#fbfdfd; outline:none; }
+  .sel:focus{ border-color:var(--teal); background:#fff; }
   .body{ padding:14px 15px; }
   label{ display:block; font-size:11px; font-weight:600; color:var(--muted); margin:0 0 4px 1px; }
   .field{ margin-bottom:11px; }
@@ -57,6 +62,8 @@ var AT_TABLE = localStorage.getItem("volt_at_table") || "tblUL48Km1j2m8sRU";
 var AT_URL = "https://api.airtable.com/v0/" + AT_BASE + "/" + AT_TABLE;
 var TEAM = ["David", "Lauren", "Brinda"];
 var STAGES = [1, 2, 3, 4, 5];
+var HEADLINE_SECTORS = ["Life Sciences Consulting", "Energy Consulting", "Pharma Services", "Pharma", "Biotech", "MedTech", "Investor / VC", "Other"];
+var DISCIPLINES = ["Strategy", "Commercial", "Market Access", "Pricing", "HEOR/RWE", "Medical Affairs", "Regulatory", "Clinical/R&D", "BD/Licensing", "Data & Analytics", "Digital Health", "Operations", "Other"];
 
 function todayStr() {
   var d = new Date();
@@ -147,9 +154,12 @@ function App() {
 
 function Capture(props) {
   var me = props.me;
+  var tb = React.useState("bd"), tab = tb[0], setTab = tb[1];
   var f = React.useState({ name: "", company: "", title: "", linkedin: "", note: "" });
   var form = f[0], setForm = f[1];
-  var st = React.useState(2), stage = st[0], setStage = st[1];
+  var hs = React.useState(""), headline = hs[0], setHeadline = hs[1];
+  var dc = React.useState(""), disc = dc[0], setDisc = dc[1];
+  var st = React.useState(0), stage = st[0], setStage = st[1];
   var ch = React.useState(5), chase = ch[0], setChase = ch[1];
   var cu = React.useState(""), customDate = cu[0], setCustomDate = cu[1];
   var sv = React.useState(false), saving = sv[0], setSaving = sv[1];
@@ -159,20 +169,31 @@ function Capture(props) {
 
   function upd(k) { return function (ev) { setForm(Object.assign({}, form, { [k]: ev.target.value })); }; }
 
+  function resetForm() {
+    setForm({ name: "", company: "", title: "", linkedin: "", note: "" });
+    setHeadline(""); setDisc(""); setStage(0); setChase(5); setCustomDate(""); setFound(null);
+    if (nameRef.current) nameRef.current.focus();
+  }
+
   async function checkName() {
     if (!form.name.trim()) { setFound(null); return; }
     try {
       var p = await findPersonByName(form.name);
       if (p) {
         setFound(p);
-        var next = (p.linkedinStage || 0) + 1;
-        if (next > 5) next = 5;
-        setStage(next);
-      } else {
-        setFound(null);
-        setStage(1);
-      }
+        if (tab === "bd") { var next = (p.linkedinStage || 0) + 1; if (next > 5) next = 5; setStage(next); }
+        if (p.headlineSector && !headline) setHeadline(p.headlineSector);
+      } else { setFound(null); if (tab === "bd") setStage(0); }
     } catch (er) { setFound(null); }
+  }
+
+  function applyCommon(rec) {
+    if (headline) rec.headlineSector = headline;
+    if (disc) { var s = rec.sectors || []; if (s.indexOf(disc) === -1) s.push(disc); rec.sectors = s; }
+    if (form.title.trim() && !rec.title) rec.title = form.title.trim();
+    if (form.linkedin.trim() && !rec.linkedin) rec.linkedin = form.linkedin.trim();
+    if (form.note.trim()) rec.notes = (form.note.trim() + "\n" + (rec.notes || "")).trim();
+    rec.lastContacted = todayStr();
   }
 
   async function save() {
@@ -180,69 +201,67 @@ function Capture(props) {
       setToast({ t: "err", m: "Name and company are needed" });
       return;
     }
-    setSaving(true);
-    setToast(null);
+    setSaving(true); setToast(null);
     try {
+      var existing = found || await findPersonByName(form.name);
       var due = chase === -1 ? (customDate || "") : dueStr(chase);
-      var entry = { id: Date.now(), type: "linkedin", icon: "in", label: "LinkedIn message", note: form.note.trim(), date: stampStr(), by: me };
-      var existing = found;
-      if (!existing) {
-        existing = await findPersonByName(form.name);
-      }
-      if (existing) {
-        var log = [entry].concat(existing.activityLog || []);
-        existing.activityLog = log;
-        existing.linkedinStage = stage;
-        existing.lastContacted = todayStr();
-        existing.nextAction = "LinkedIn " + ordinal(stage) + " message follow-up";
-        existing.nextDue = due;
-        existing.owners = [me];
-        if (!existing.bdStage) existing.bdStage = "Target";
-        if (form.title.trim() && !existing.title) existing.title = form.title.trim();
-        if (form.linkedin.trim() && !existing.linkedin) existing.linkedin = form.linkedin.trim();
-        if (form.note.trim()) existing.notes = (form.note.trim() + "\n" + (existing.notes || "")).trim();
-        await atPatch({ records: [{ id: existing._recId, fields: { Name: existing.name, RecordType: "PERSON", Data: JSON.stringify(existing) } }] });
-        setToast({ t: "ok", m: "Updated " + existing.name + " · LinkedIn " + ordinal(stage) });
+
+      if (tab === "bd") {
+        var entry = { id: Date.now(), type: "linkedin", icon: "in", label: "LinkedIn message", note: form.note.trim(), date: stampStr(), by: me };
+        if (existing) {
+          applyCommon(existing);
+          existing.owners = [me];
+          if (!existing.bdStage) existing.bdStage = "Target";
+          if (stage > 0) { existing.activityLog = [entry].concat(existing.activityLog || []); existing.linkedinStage = stage; }
+          if (chase !== 0) { existing.nextAction = (stage > 0 ? "LinkedIn " + ordinal(stage) + " message follow-up" : "Follow up"); existing.nextDue = due; }
+          await atPatch({ records: [{ id: existing._recId, fields: { Name: existing.name, RecordType: "PERSON", Data: JSON.stringify(existing) } }] });
+          setToast({ t: "ok", m: "Updated " + existing.name + (stage > 0 ? " · LinkedIn " + ordinal(stage) : "") });
+        } else {
+          var p1 = newPerson();
+          p1.owners = [me]; p1.bdStage = "Target";
+          if (stage > 0) { p1.linkedinStage = stage; p1.activityLog = [entry]; }
+          if (chase !== 0) { p1.nextAction = (stage > 0 ? "LinkedIn " + ordinal(stage) + " message follow-up" : "Follow up"); p1.nextDue = due; }
+          await atPost({ records: [{ fields: { Name: p1.name, RecordType: "PERSON", Data: JSON.stringify(p1) } }] });
+          setToast({ t: "ok", m: "Saved " + p1.name + " to BD pipeline" });
+        }
       } else {
-        var person = {
-          id: Date.now() + Math.random(),
-          type: "Contact",
-          name: form.name.trim(),
-          firstName: "", lastName: "",
-          title: form.title.trim(),
-          company: form.company.trim(),
-          location: "", seniority: "", sectors: [],
-          linkedin: form.linkedin.trim(),
-          email: "", phone: "",
-          lastContacted: todayStr(),
-          nextAction: "LinkedIn " + ordinal(stage) + " message follow-up",
-          nextDue: due,
-          relationship: "",
-          notes: form.note.trim(),
-          owners: [me],
-          bdStage: "Target",
-          linkedinStage: stage,
-          emailStage: 0,
-          callCount: 0,
-          activityLog: [entry]
-        };
-        await atPost({ records: [{ fields: { Name: person.name, RecordType: "PERSON", Data: JSON.stringify(person) } }] });
-        setToast({ t: "ok", m: "Saved " + person.name + " to BD pipeline" });
+        if (existing) {
+          applyCommon(existing);
+          if (!existing.owners || !existing.owners.length) existing.owners = [me];
+          await atPatch({ records: [{ id: existing._recId, fields: { Name: existing.name, RecordType: "PERSON", Data: JSON.stringify(existing) } }] });
+          setToast({ t: "ok", m: "Updated contact " + existing.name });
+        } else {
+          var p2 = newPerson();
+          p2.owners = [me];
+          await atPost({ records: [{ fields: { Name: p2.name, RecordType: "PERSON", Data: JSON.stringify(p2) } }] });
+          setToast({ t: "ok", m: "Added contact " + p2.name });
+        }
       }
-      setForm({ name: "", company: "", title: "", linkedin: "", note: "" });
-      setStage(1);
-      setChase(5);
-      setCustomDate("");
-      setFound(null);
-      if (nameRef.current) nameRef.current.focus();
+      resetForm();
     } catch (er) {
       setToast({ t: "err", m: er.message || "Something went wrong" });
     }
     setSaving(false);
   }
 
-  function onKey(ev) {
-    if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) save();
+  function newPerson() {
+    var p = {
+      id: Date.now() + Math.random(), type: "Contact",
+      name: form.name.trim(), firstName: "", lastName: "",
+      title: form.title.trim(), company: form.company.trim(),
+      location: "", seniority: "", headlineSector: headline || "",
+      sectors: disc ? [disc] : [], linkedin: form.linkedin.trim(),
+      email: "", phone: "", lastContacted: todayStr(),
+      nextAction: "", nextDue: "", relationship: "", notes: form.note.trim(),
+      owners: [me], bdStage: "", linkedinStage: 0, emailStage: 0, callCount: 0, activityLog: []
+    };
+    return p;
+  }
+
+  function onKey(ev) { if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) save(); }
+
+  function tabBtn(id, label) {
+    return e("div", { className: "tabbtn " + (tab === id ? "tabsel" : ""), onClick: function () { setTab(id); setToast(null); } }, label);
   }
 
   return e("div", { className: "card", onKeyDown: onKey },
@@ -250,16 +269,17 @@ function Capture(props) {
       e("div", { className: "brand" },
         e("div", { className: "vlogo" }, "V"),
         e("span", { className: "htitle" }, "VoltCapture"),
-        e("span", { className: "libadge" }, "in")
+        tab === "bd" ? e("span", { className: "libadge" }, "in") : null
       ),
       e("span", { className: "who", onClick: function () { localStorage.removeItem("voltcapture_me"); props.setMe(""); } }, me)
     ),
+    e("div", { className: "tabs" }, tabBtn("bd", "BD Target"), tabBtn("contact", "Contact")),
     e("div", { className: "body" },
       e("div", { className: "field" },
         e("label", null, "Name"),
         e("input", { ref: nameRef, value: form.name, onChange: upd("name"), onBlur: checkName, placeholder: "Full name", autoFocus: true })
       ),
-      found ? e("div", { className: "found" }, "Found: " + found.name + (found.company ? " · " + found.company : "") + " · last LinkedIn " + (found.linkedinStage ? ordinal(found.linkedinStage) : "none")) : null,
+      found ? e("div", { className: "found" }, "Found: " + found.name + (found.company ? " · " + found.company : "") + (tab === "bd" ? " · last LinkedIn " + (found.linkedinStage ? ordinal(found.linkedinStage) : "none") : "")) : null,
       e("div", { className: "two" },
         e("div", { className: "field" }, e("label", null, "Company"), e("input", { value: form.company, onChange: upd("company"), placeholder: "Company" })),
         e("div", { className: "field" }, e("label", null, "Title"), e("input", { value: form.title, onChange: upd("title"), placeholder: "optional" }))
@@ -269,34 +289,49 @@ function Capture(props) {
         e("input", { value: form.linkedin, onChange: upd("linkedin"), placeholder: "paste to link back to the thread" })
       ),
       e("div", { className: "field" },
-        e("label", null, "Message stage"),
-        e("div", { className: "btnrow" }, STAGES.map(function (n) {
-          return e("div", { key: n, className: "chip " + (stage === n ? "sel-li" : ""), onClick: function () { setStage(n); } }, ordinal(n));
-        })),
-        found ? e("div", { className: "hint" }, "Last logged: " + (found.linkedinStage ? ordinal(found.linkedinStage) : "none") + " · suggested " + ordinal(stage)) : null
+        e("label", null, "Sector"),
+        e("select", { value: headline, onChange: function (ev) { setHeadline(ev.target.value); }, className: "sel" },
+          e("option", { value: "" }, "Select sector"),
+          HEADLINE_SECTORS.map(function (s) { return e("option", { key: s, value: s }, s); })
+        )
       ),
+      headline === "Life Sciences Consulting" ? e("div", { className: "field" },
+        e("label", null, "Discipline"),
+        e("select", { value: disc, onChange: function (ev) { setDisc(ev.target.value); }, className: "sel" },
+          e("option", { value: "" }, "Select discipline"),
+          DISCIPLINES.map(function (s) { return e("option", { key: s, value: s }, s); })
+        )
+      ) : null,
+      tab === "bd" ? e("div", { className: "field" },
+        e("label", null, "Message stage (optional)"),
+        e("div", { className: "btnrow" }, STAGES.map(function (n) {
+          return e("div", { key: n, className: "chip " + (stage === n ? "sel-li" : ""), onClick: function () { setStage(stage === n ? 0 : n); } }, ordinal(n));
+        })),
+        found && found.linkedinStage ? e("div", { className: "hint" }, "Last logged: " + ordinal(found.linkedinStage)) : null
+      ) : null,
       e("div", { className: "field" },
         e("label", null, "Note (optional)"),
         e("textarea", { value: form.note, onChange: upd("note"), placeholder: "Any specific detail" })
       ),
-      e("div", { className: "field" },
-        e("label", null, "Follow up in"),
+      tab === "bd" ? e("div", { className: "field" },
+        e("label", null, "Follow up in (optional)"),
         e("div", { className: "btnrow" },
           e("div", { className: "chip " + (chase === 5 ? "sel-teal" : ""), onClick: function () { setChase(5); } }, "5 days"),
           e("div", { className: "chip " + (chase === 7 ? "sel-teal" : ""), onClick: function () { setChase(7); } }, "1 week"),
           e("div", { className: "chip " + (chase === 14 ? "sel-teal" : ""), onClick: function () { setChase(14); } }, "2 weeks"),
+          e("div", { className: "chip " + (chase === 0 ? "sel-teal" : ""), onClick: function () { setChase(0); } }, "None"),
           e("div", { className: "chip " + (chase === -1 ? "sel-teal" : ""), onClick: function () { setChase(-1); } }, "Custom")
         ),
         chase === -1 ? e("input", { type: "date", value: customDate, onChange: function (ev) { setCustomDate(ev.target.value); }, style: { marginTop: 6 } }) : null
-      ),
+      ) : null,
       e("div", { className: "field" },
         e("label", null, "Goes to follow-ups for"),
         e("div", { className: "btnrow who-row" }, TEAM.map(function (t, i) {
           return e("div", { key: t, className: "chip " + (me === t ? ["sel-d", "sel-l", "sel-b"][i] : ""), onClick: function () { localStorage.setItem("voltcapture_me", t); props.setMe(t); } }, t);
         }))
       ),
-      e("button", { className: "save", onClick: save, disabled: saving }, saving ? "Saving..." : "Save to VoltCRM"),
-      toast ? e("div", { className: "toast " + toast.t }, toast.m) : e("div", { className: "foot" }, "Stamps date and time · clears for the next")
+      e("button", { className: "save", onClick: save, disabled: saving }, saving ? "Saving..." : (tab === "bd" ? "Save as BD Target" : "Add to CRM")),
+      toast ? e("div", { className: "toast " + toast.t }, toast.m) : e("div", { className: "foot" }, tab === "bd" ? "Stamps date and time · clears for the next" : "Adds contact · no pipeline or follow-up")
     )
   );
 }
