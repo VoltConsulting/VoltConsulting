@@ -6544,6 +6544,19 @@ function BDPipelineView({
     setPeople(updated);
     persist("people", updated);
   }
+  function deletePerson(person) {
+    if (!window.confirm("Delete " + person.name + " entirely from the CRM? This can't be undone.")) return;
+    if (person._recId) {
+      atDelete(person._recId).catch(function (e) {
+        console.warn("Delete from Airtable failed", e);
+      });
+    }
+    const updated = people.filter(function (p) {
+      return p.id !== person.id;
+    });
+    setPeople(updated);
+    persist("people", updated);
+  }
   const filterCompanyObj = companyFilter && companies ? companies.find(c => c.id === companyFilter) : null;
 
   // Only show contacts (Lauren's BD targets) - type contact or people with a bdStage set
@@ -6753,6 +6766,13 @@ function BDPipelineView({
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 6
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
           fontWeight: 700,
           color: NAVY,
           fontSize: 13,
@@ -6761,7 +6781,23 @@ function BDPipelineView({
           overflow: "hidden",
           textOverflow: "ellipsis"
         }
-      }, p.name), /*#__PURE__*/React.createElement("div", {
+      }, p.name), /*#__PURE__*/React.createElement("button", {
+        onClick: function () {
+          deletePerson(p);
+        },
+        title: "Delete contact entirely",
+        style: {
+          background: "none",
+          border: "none",
+          color: G400,
+          fontSize: 14,
+          lineHeight: 1,
+          cursor: "pointer",
+          padding: "0 2px",
+          fontFamily: "inherit",
+          flexShrink: 0
+        }
+      }, "\u00D7")), /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 11,
           color: G600,
@@ -6841,7 +6877,11 @@ function BDPipelineView({
       }, "Log Activity")), /*#__PURE__*/React.createElement("select", {
         value: p.bdStage || "Target",
         onChange: function (e) {
-          setStage(p, e.target.value);
+          if (e.target.value === "__remove") {
+            setStage(p, "");
+          } else {
+            setStage(p, e.target.value);
+          }
         },
         style: {
           width: "100%",
@@ -6855,12 +6895,15 @@ function BDPipelineView({
           color: G700,
           background: W
         }
-      }, BD_STAGES.map(function (s) {
+      }, [/*#__PURE__*/React.createElement("option", {
+        key: "__remove",
+        value: "__remove"
+      }, "— Remove from pipeline —")].concat(BD_STAGES.map(function (s) {
         return /*#__PURE__*/React.createElement("option", {
           key: s,
           value: s
         }, s);
-      })));
+      }))));
     })));
   }))));
 }
