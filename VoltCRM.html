@@ -362,7 +362,7 @@ var SENIORITY = SENIORITY_GROUPS.reduce(function (a, g) { return a.concat(g.item
 var TC_MAP = {
   "Active Client": TEAL,
   "Prospect": G600,
-  "Inactive": G400
+  "Previous Client": G400
 };
 var PILLARS = ["Consulting Firm", "Pharmaceutical Firm", "Pharma Services Firm"];
 var PILLAR_COLORS = {
@@ -3600,6 +3600,7 @@ const BLANKCO = {
   name: "",
   type: "",
   pillar: "",
+  disciplines: [],
   tier: "",
   hq: "",
   keyContact: "",
@@ -3672,6 +3673,12 @@ function CompanyForm({
       l: p
     })))
   })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Disciplines",
+    span2: true
+  }, /*#__PURE__*/React.createElement(SectorPicker, {
+    selected: f.disciplines || [],
+    onChange: s("disciplines")
+  })), /*#__PURE__*/React.createElement(Fld, {
     label: "Type"
   }, /*#__PURE__*/React.createElement(SelEl, {
     value: f.type || "",
@@ -3713,8 +3720,8 @@ function CompanyForm({
       v: "Prospect",
       l: "Prospect"
     }, {
-      v: "Inactive",
-      l: "Inactive"
+      v: "Previous Client",
+      l: "Previous Client"
     }]
   })), /*#__PURE__*/React.createElement(Fld, {
     label: "HQ"
@@ -4204,7 +4211,7 @@ function CompaniesView({
       gap: 5,
       flexWrap: "wrap"
     }
-  }, ["all", "Active Client", "Prospect", "Inactive"].map(t => /*#__PURE__*/React.createElement("button", {
+  }, ["all", "Active Client", "Prospect", "Previous Client"].map(t => /*#__PURE__*/React.createElement("button", {
     key: t,
     onClick: () => setTierF(t),
     style: {
@@ -5384,6 +5391,7 @@ function MarketMap({
   const [relF, setRelF] = useState("All");
   const [typeF, setTypeF] = useState("All");
   const [tierF, setTierF] = useState("All");
+  const [disciplineF, setDisciplineF] = useState("All");
   const [mapView, setMapView] = useState("people"); // people | companies
   const [pillarF, setPillarF] = useState("Consulting Firm"); // Consulting Firm | Pharmaceutical Firm | Pharma Services Firm | Unassigned | All
   const quickTagPillar = (companyId, pillar) => {
@@ -5421,12 +5429,21 @@ function MarketMap({
     return true;
   }), [people, sectorF, seniorityF, relF, typeF]);
   const ownerCompanies = useMemo(() => companies.filter(c => !ownerFilter || migrateOwners(c.owners, c.owner).includes(ownerFilter)), [companies, ownerFilter]);
-  const filteredCompanies = useMemo(() => ownerCompanies.filter(c => {
+  const preDisciplineCompanies = useMemo(() => ownerCompanies.filter(c => {
     if (pillarF === "Unassigned" && c.pillar) return false;
     if (pillarF !== "All" && pillarF !== "Unassigned" && c.pillar !== pillarF) return false;
     if (tierF !== "All" && c.tier !== tierF) return false;
     return true;
   }), [ownerCompanies, pillarF, tierF]);
+  const availableDisciplines = useMemo(() => {
+    const s = new Set();
+    preDisciplineCompanies.forEach(c => (c.disciplines || []).forEach(d => s.add(d)));
+    return Array.from(s).sort();
+  }, [preDisciplineCompanies]);
+  const filteredCompanies = useMemo(() => preDisciplineCompanies.filter(c => {
+    if (disciplineF !== "All" && !(c.disciplines || []).includes(disciplineF)) return false;
+    return true;
+  }), [preDisciplineCompanies, disciplineF]);
   const pillarCounts = useMemo(() => {
     const counts = {};
     PILLARS.forEach(p => counts[p] = 0);
@@ -5574,7 +5591,7 @@ function MarketMap({
       marginBottom: 6
     }
   }, "Tier"), /*#__PURE__*/React.createElement(FilterBtn, {
-    options: ["All", "Active Client", "Prospect", "Inactive"],
+    options: ["All", "Active Client", "Prospect", "Previous Client"],
     value: tierF,
     onChange: setTierF,
     colorMap: TC_MAP
@@ -5896,19 +5913,9 @@ function MarketMap({
     }, /*#__PURE__*/React.createElement(DueTag, {
       due: p.nextDue
     })));
-  }))), mapView === "companies" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }))), mapView === "companies" && /*#__PURE__*/React.createElement("div", null, availableDisciplines.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 16,
-      marginBottom: 24
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: W,
-      border: "1px solid " + G200,
-      borderRadius: 10,
-      padding: "18px"
+      marginBottom: 20
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5917,108 +5924,33 @@ function MarketMap({
       fontWeight: 700,
       textTransform: "uppercase",
       letterSpacing: "0.07em",
-      marginBottom: 12
+      marginBottom: 10
     }
-  }, "By Tier — " + pillarF), ["Active Client", "Prospect", "Inactive"].map(tier => {
-    const count = filteredCompanies.filter(c => c.tier === tier).length,
-      pct = filteredCompanies.length ? Math.round(count / filteredCompanies.length * 100) : 0,
-      c = TC_MAP[tier] || G600;
-    return /*#__PURE__*/React.createElement("div", {
-      key: tier,
-      style: {
-        marginBottom: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        marginBottom: 5,
-        fontSize: 12,
-        color: G700
-      }
-    }, /*#__PURE__*/React.createElement("span", null, tier), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontWeight: 700,
-        color: c
-      }
-    }, count)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        height: 6,
-        background: G200,
-        borderRadius: 3
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        height: "100%",
-        width: pct + "%",
-        background: c,
-        borderRadius: 3,
-        transition: "width 0.4s"
-      }
-    })));
-  })), /*#__PURE__*/React.createElement("div", {
+  }, "Filter by discipline"), /*#__PURE__*/React.createElement("div", {
     style: {
-      background: W,
-      border: "1px solid " + G200,
-      borderRadius: 10,
-      padding: "18px"
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap"
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: G600,
-      fontWeight: 700,
-      textTransform: "uppercase",
-      letterSpacing: "0.07em",
-      marginBottom: 12
-    }
-  }, "By Type — " + pillarF), (() => {
-    const types = [...new Set(filteredCompanies.map(c => c.type).filter(Boolean))];
-    return types.length === 0 ? [/*#__PURE__*/React.createElement("div", {
-      key: "none",
+  }, ["All"].concat(availableDisciplines).map(d => {
+    const on = disciplineF === d;
+    const c = d === "All" ? G600 : SC[d] || G600;
+    return /*#__PURE__*/React.createElement("button", {
+      key: d,
+      onClick: () => setDisciplineF(d),
       style: {
-        color: G400,
-        fontSize: 12
+        background: on ? c + "15" : W,
+        color: on ? c : G600,
+        border: "1px solid " + (on ? c + "50" : G300),
+        borderRadius: 20,
+        padding: "5px 12px",
+        fontSize: 11.5,
+        fontWeight: on ? 700 : 400,
+        cursor: "pointer",
+        fontFamily: "inherit"
       }
-    }, "No types set for this pillar yet")] : types.map(type => {
-      const count = filteredCompanies.filter(c => c.type === type).length,
-        pct = filteredCompanies.length ? Math.round(count / filteredCompanies.length * 100) : 0,
-        c = SC[type] || G600;
-      return /*#__PURE__*/React.createElement("div", {
-        key: type,
-        style: {
-          marginBottom: 12
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: 5,
-          fontSize: 12,
-          color: G700
-        }
-      }, /*#__PURE__*/React.createElement("span", null, type), /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontWeight: 700,
-          color: c
-        }
-      }, count)), /*#__PURE__*/React.createElement("div", {
-        style: {
-          height: 6,
-          background: G200,
-          borderRadius: 3
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          height: "100%",
-          width: pct + "%",
-          background: c,
-          borderRadius: 3,
-          transition: "width 0.4s"
-        }
-      })));
-    });
-  })()), /*#__PURE__*/React.createElement("div", {
+    }, d);
+  }))), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: G600,
@@ -6043,6 +5975,18 @@ function MarketMap({
     const nearestDue = dueDates[0];
     const isOverdue = nearestDue && new Date(nearestDue) < new Date();
     const isUnassigned = !c.pillar;
+    const disciplineTags = (c.disciplines || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 4,
+        flexWrap: "wrap",
+        marginTop: 6
+      }
+    }, c.disciplines.slice(0, 3).map(d => /*#__PURE__*/React.createElement(Badge, {
+      key: d,
+      label: d,
+      color: SC[d] || G600
+    })));
     const momentumBadge = pCount > 0 && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 11,
@@ -6185,8 +6129,8 @@ function MarketMap({
     }, /*#__PURE__*/React.createElement(Badge, {
       label: c.tier,
       color: tc
-    }), momentumBadge, vacancyBadge), dueFlag, tagButtons, actionsRow);
-  }))))));
+    }), momentumBadge, vacancyBadge), disciplineTags, dueFlag, tagButtons, actionsRow);
+  })))));
 }
 
 // ── BD Pipeline ───────────────────────────────────────────────
