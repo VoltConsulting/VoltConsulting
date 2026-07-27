@@ -6544,19 +6544,6 @@ function BDPipelineView({
     setPeople(updated);
     persist("people", updated);
   }
-  function deletePerson(person) {
-    if (!window.confirm("Delete " + person.name + " entirely from the CRM? This can't be undone.")) return;
-    if (person._recId) {
-      atDelete(person._recId).catch(function (e) {
-        console.warn("Delete from Airtable failed", e);
-      });
-    }
-    const updated = people.filter(function (p) {
-      return p.id !== person.id;
-    });
-    setPeople(updated);
-    persist("people", updated);
-  }
   const filterCompanyObj = companyFilter && companies ? companies.find(c => c.id === companyFilter) : null;
 
   // Only show contacts (Lauren's BD targets) - type contact or people with a bdStage set
@@ -6783,9 +6770,9 @@ function BDPipelineView({
         }
       }, p.name), /*#__PURE__*/React.createElement("button", {
         onClick: function () {
-          deletePerson(p);
+          setStage(p, "");
         },
-        title: "Delete contact entirely",
+        title: "Remove from pipeline (keeps the contact)",
         style: {
           background: "none",
           border: "none",
