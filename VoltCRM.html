@@ -5392,6 +5392,7 @@ function MarketMap({
   const [typeF, setTypeF] = useState("All");
   const [tierF, setTierF] = useState("All");
   const [disciplineF, setDisciplineF] = useState("All");
+  const [companySort, setCompanySort] = useState("az"); // az | recent
   const [mapView, setMapView] = useState("people"); // people | companies
   const [pillarF, setPillarF] = useState("Consulting Firm"); // Consulting Firm | Pharmaceutical Firm | Pharma Services Firm | Unassigned | All
   const quickTagPillar = (companyId, pillar) => {
@@ -5465,6 +5466,20 @@ function MarketMap({
     });
     return map;
   }, [people]);
+  const sortedCompanies = useMemo(() => {
+    const arr = [...filteredCompanies];
+    if (companySort === "recent") {
+      const lastActivity = c => {
+        const dates = [c.lastContacted].concat((companyPeopleMap[c.id] || []).map(p => p.lastContacted)).filter(Boolean);
+        if (!dates.length) return 0;
+        return Math.max(...dates.map(d => new Date(d).getTime() || 0));
+      };
+      arr.sort((a, b) => lastActivity(b) - lastActivity(a));
+    } else {
+      arr.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    }
+    return arr;
+  }, [filteredCompanies, companySort, companyPeopleMap]);
   const pillarSummary = useMemo(() => {
     const ids = new Set(filteredCompanies.map(c => c.id));
     const relevantPeople = people.filter(p => p.companyId && ids.has(p.companyId));
@@ -5952,20 +5967,52 @@ function MarketMap({
     }, d);
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
       fontSize: 11,
       color: G600,
       fontWeight: 700,
       textTransform: "uppercase",
-      letterSpacing: "0.07em",
-      marginBottom: 12
+      letterSpacing: "0.07em"
     }
   }, "All companies — " + filteredCompanies.length + " results"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4,
+      background: G100,
+      borderRadius: 20,
+      padding: 3
+    }
+  }, [["az", "A–Z"], ["recent", "Most recent activity"]].map(([key, label]) => {
+    const on = companySort === key;
+    return /*#__PURE__*/React.createElement("button", {
+      key: key,
+      onClick: () => setCompanySort(key),
+      style: {
+        background: on ? W : "transparent",
+        color: on ? NAVY : G600,
+        border: "none",
+        borderRadius: 16,
+        padding: "5px 12px",
+        fontSize: 11.5,
+        fontWeight: on ? 700 : 500,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        boxShadow: on ? "0 1px 3px #0002" : "none"
+      }
+    }, label);
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))",
       gap: 10
     }
-  }, filteredCompanies.map(c => {
+  }, sortedCompanies.map(c => {
     const tc = TC_MAP[c.tier] || G400;
     const cp = companyPeopleMap[c.id] || [];
     const pCount = cp.length;
@@ -6130,7 +6177,7 @@ function MarketMap({
       label: c.tier,
       color: tc
     }), momentumBadge, vacancyBadge), disciplineTags, dueFlag, tagButtons, actionsRow);
-  })))));
+  }))))));
 }
 
 // ── BD Pipeline ───────────────────────────────────────────────
