@@ -364,6 +364,12 @@ var TC_MAP = {
   "Prospect": G600,
   "Inactive": G400
 };
+var PILLARS = ["Consulting Firm", "Pharmaceutical Firm", "Pharma Services Firm"];
+var PILLAR_COLORS = {
+  "Consulting Firm": "#6f42c1",
+  "Pharmaceutical Firm": TEAL,
+  "Pharma Services Firm": WARN
+};
 var OWNER_COLORS = {
   "David": TEAL,
   "Lauren": "#6f42c1",
@@ -3593,6 +3599,7 @@ function PeopleView({
 const BLANKCO = {
   name: "",
   type: "",
+  pillar: "",
   tier: "",
   hq: "",
   keyContact: "",
@@ -3651,6 +3658,19 @@ function CompanyForm({
     value: f.name,
     onChange: s("name"),
     placeholder: "Charles River Associates"
+  })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Pillar",
+    span2: true
+  }, /*#__PURE__*/React.createElement(SelEl, {
+    value: f.pillar || "",
+    onChange: s("pillar"),
+    options: [{
+      v: "",
+      l: "— Select pillar —"
+    }].concat(PILLARS.map(p => ({
+      v: p,
+      l: p
+    })))
   })), /*#__PURE__*/React.createElement(Fld, {
     label: "Type"
   }, /*#__PURE__*/React.createElement(SelEl, {
@@ -4255,7 +4275,14 @@ function CompaniesView({
         fontSize: 11.5,
         color: G600
       }
-    }, c.type, c.hq ? " · " + c.hq : ""), /*#__PURE__*/React.createElement("div", {
+    }, c.type, c.hq ? " · " + c.hq : ""), c.pillar && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: PILLAR_COLORS[c.pillar] || G600,
+        marginTop: 2
+      }
+    }, c.pillar), /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 4,
         display: "flex",
@@ -5344,15 +5371,41 @@ function BDTracker({
 // ── MARKET MAP ────────────────────────────────────────────────
 function MarketMap({
   people,
+  setPeople,
   companies,
+  setCompanies,
+  persist,
   onNavigate,
+  onJumpToPipeline,
   ownerFilter
 }) {
   const [sectorF, setSectorF] = useState("All");
   const [seniorityF, setSeniorityF] = useState("All");
   const [relF, setRelF] = useState("All");
   const [typeF, setTypeF] = useState("All");
+  const [tierF, setTierF] = useState("All");
   const [mapView, setMapView] = useState("people"); // people | companies
+  const [pillarF, setPillarF] = useState("Consulting Firm"); // Consulting Firm | Pharmaceutical Firm | Pharma Services Firm | Unassigned | All
+  const quickTagPillar = (companyId, pillar) => {
+    const updated = companies.map(c => c.id === companyId ? {
+      ...c,
+      pillar
+    } : c);
+    setCompanies(updated);
+    persist("companies", updated);
+  };
+  const quickStartBD = companyId => {
+    const target = people.find(p => p.companyId === companyId && (!p.bdStage || !p.bdStage.trim()));
+    if (target) {
+      const updated = people.map(p => p.id === target.id ? {
+        ...p,
+        bdStage: "Target"
+      } : p);
+      setPeople(updated);
+      persist("people", updated);
+    }
+    onJumpToPipeline && onJumpToPipeline(companyId);
+  };
 
   const allSectors = useMemo(() => {
     const s = new Set();
@@ -5367,10 +5420,46 @@ function MarketMap({
     if (typeF !== "All" && p.type !== typeF) return false;
     return true;
   }), [people, sectorF, seniorityF, relF, typeF]);
-  const filteredCompanies = useMemo(() => companies.filter(c => {
-    if (relF !== "All" && c.relationship !== relF) return false;
+  const ownerCompanies = useMemo(() => companies.filter(c => !ownerFilter || migrateOwners(c.owners, c.owner).includes(ownerFilter)), [companies, ownerFilter]);
+  const filteredCompanies = useMemo(() => ownerCompanies.filter(c => {
+    if (pillarF === "Unassigned" && c.pillar) return false;
+    if (pillarF !== "All" && pillarF !== "Unassigned" && c.pillar !== pillarF) return false;
+    if (tierF !== "All" && c.tier !== tierF) return false;
     return true;
-  }), [companies, relF]);
+  }), [ownerCompanies, pillarF, tierF]);
+  const pillarCounts = useMemo(() => {
+    const counts = {};
+    PILLARS.forEach(p => counts[p] = 0);
+    let unassigned = 0;
+    ownerCompanies.forEach(c => {
+      if (c.pillar && PILLARS.includes(c.pillar)) counts[c.pillar]++;else unassigned++;
+    });
+    return {
+      counts,
+      unassigned
+    };
+  }, [ownerCompanies]);
+  const companyPeopleMap = useMemo(() => {
+    const map = {};
+    people.forEach(p => {
+      if (!p.companyId) return;
+      if (!map[p.companyId]) map[p.companyId] = [];
+      map[p.companyId].push(p);
+    });
+    return map;
+  }, [people]);
+  const pillarSummary = useMemo(() => {
+    const ids = new Set(filteredCompanies.map(c => c.id));
+    const relevantPeople = people.filter(p => p.companyId && ids.has(p.companyId));
+    const activeCount = relevantPeople.filter(p => p.bdStage && p.bdStage.trim() !== "").length;
+    const overdueCount = relevantPeople.filter(p => p.bdStage && p.bdStage.trim() !== "" && p.nextDue && new Date(p.nextDue) < new Date()).length;
+    return {
+      companies: filteredCompanies.length,
+      contacts: relevantPeople.length,
+      active: activeCount,
+      overdue: overdueCount
+    };
+  }, [filteredCompanies, people]);
   const sectorGroups = useMemo(() => {
     const map = {};
     filteredPeople.forEach(p => (p.sectors || []).forEach(s => {
@@ -5380,7 +5469,7 @@ function MarketMap({
     return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
   }, [filteredPeople]);
   const total = people.length + companies.length;
-  const hotCount = [...people, ...companies].filter(x => x.relationship === "Hot").length;
+  const hotCount = people.filter(p => p.relationship === "Active").length;
   const FilterBtn = ({
     options,
     value,
@@ -5461,7 +5550,7 @@ function MarketMap({
       fontFamily: "inherit",
       textTransform: "capitalize"
     }
-  }, v)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, v)))), mapView === "people" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: G400,
@@ -5471,10 +5560,24 @@ function MarketMap({
       marginBottom: 6
     }
   }, "Relationship"), /*#__PURE__*/React.createElement(FilterBtn, {
-    options: ["All", "Hot", "Warm", "Cold", "New"],
+    options: ["All", "Active", "Passive"],
     value: relF,
     onChange: setRelF,
     colorMap: REL
+  })), mapView === "companies" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: G400,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.07em",
+      marginBottom: 6
+    }
+  }, "Tier"), /*#__PURE__*/React.createElement(FilterBtn, {
+    options: ["All", "Active Client", "Prospect", "Inactive"],
+    value: tierF,
+    onChange: setTierF,
+    colorMap: TC_MAP
   })), mapView === "people" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
@@ -5514,20 +5617,80 @@ function MarketMap({
     options: allSectors.slice(0, 8),
     value: sectorF,
     onChange: setSectorF
-  })))), /*#__PURE__*/React.createElement("div", {
+  })))), mapView === "companies" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: W,
+      borderBottom: "1px solid " + G200,
+      padding: "0 28px 14px",
+      flexShrink: 0,
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, PILLARS.concat(["Unassigned", "All"]).map(p => {
+    const active = pillarF === p;
+    const color = PILLAR_COLORS[p] || G600;
+    const count = p === "All" ? ownerCompanies.length : p === "Unassigned" ? pillarCounts.unassigned : pillarCounts.counts[p];
+    return /*#__PURE__*/React.createElement("button", {
+      key: p,
+      onClick: () => setPillarF(p),
+      style: {
+        background: active ? color : W,
+        color: active ? W : G700,
+        border: "1px solid " + (active ? color : G300),
+        borderRadius: 8,
+        padding: "8px 16px",
+        fontSize: 12.5,
+        fontWeight: 700,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        display: "flex",
+        alignItems: "center",
+        gap: 7
+      }
+    }, p, /*#__PURE__*/React.createElement("span", {
+      style: {
+        background: active ? "#ffffff30" : color + "18",
+        color: active ? W : color,
+        borderRadius: 10,
+        padding: "1px 7px",
+        fontSize: 11,
+        fontWeight: 800
+      }
+    }, count));
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflowY: "auto",
       padding: "24px 28px"
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, mapView === "companies" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: G700,
+      marginBottom: 18,
+      background: G100,
+      border: "1px solid " + G200,
+      borderRadius: 8,
+      padding: "10px 14px"
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: NAVY
+    }
+  }, pillarSummary.companies + " " + (pillarF === "All" ? "companies" : pillarF === "Unassigned" ? "unassigned companies" : pillarF.toLowerCase() + (pillarSummary.companies === 1 ? "" : "s"))), " · " + pillarSummary.contacts + " contacts · " + pillarSummary.active + " active in BD" + (pillarSummary.overdue > 0 ? " · " : ""), pillarSummary.overdue > 0 && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: DANGER,
+      fontWeight: 700
+    }
+  }, pillarSummary.overdue + " overdue")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(4,1fr)",
       gap: 12,
       marginBottom: 28
     }
-  }, [["Total People", people.length, TEAL], ["Companies", companies.length, "#6f42c1"], ["Hot relationships", hotCount, DANGER], ["Sectors covered", [...new Set(people.flatMap(p => p.sectors || []))].length, WARN]].map(([l, v, c]) => /*#__PURE__*/React.createElement("div", {
+  }, (mapView === "companies" ? [["Consulting Firms", pillarCounts.counts["Consulting Firm"], PILLAR_COLORS["Consulting Firm"]], ["Pharmaceutical Firms", pillarCounts.counts["Pharmaceutical Firm"], PILLAR_COLORS["Pharmaceutical Firm"]], ["Pharma Services Firms", pillarCounts.counts["Pharma Services Firm"], PILLAR_COLORS["Pharma Services Firm"]], ["Unassigned", pillarCounts.unassigned, DANGER]] : [["Total People", people.length, TEAL], ["Companies", companies.length, "#6f42c1"], ["Active relationships", hotCount, DANGER], ["Sectors covered", [...new Set(people.flatMap(p => p.sectors || []))].length, WARN]]).map(([l, v, c]) => /*#__PURE__*/React.createElement("div", {
     key: l,
     style: {
       background: W,
@@ -5756,9 +5919,9 @@ function MarketMap({
       letterSpacing: "0.07em",
       marginBottom: 12
     }
-  }, "By Tier"), ["Key Client", "Warm", "Prospect"].map(tier => {
-    const count = companies.filter(c => c.tier === tier).length,
-      pct = companies.length ? Math.round(count / companies.length * 100) : 0,
+  }, "By Tier — " + pillarF), ["Active Client", "Prospect", "Inactive"].map(tier => {
+    const count = filteredCompanies.filter(c => c.tier === tier).length,
+      pct = filteredCompanies.length ? Math.round(count / filteredCompanies.length * 100) : 0,
       c = TC_MAP[tier] || G600;
     return /*#__PURE__*/React.createElement("div", {
       key: tier,
@@ -5809,44 +5972,53 @@ function MarketMap({
       letterSpacing: "0.07em",
       marginBottom: 12
     }
-  }, "Relationship Heat"), ["Hot", "Warm", "Cold", "New"].map(rel => {
-    const count = companies.filter(c => c.relationship === rel).length,
-      pct = companies.length ? Math.round(count / companies.length * 100) : 0;
-    return /*#__PURE__*/React.createElement("div", {
-      key: rel,
+  }, "By Type — " + pillarF), (() => {
+    const types = [...new Set(filteredCompanies.map(c => c.type).filter(Boolean))];
+    return types.length === 0 ? [/*#__PURE__*/React.createElement("div", {
+      key: "none",
       style: {
-        marginBottom: 12
+        color: G400,
+        fontSize: 12
       }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        marginBottom: 5
-      }
-    }, /*#__PURE__*/React.createElement(RelDot, {
-      rel: rel
-    }), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12,
-        fontWeight: 700,
-        color: G700
-      }
-    }, count)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        height: 6,
-        background: G200,
-        borderRadius: 3
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        height: "100%",
-        width: pct + "%",
-        background: REL[rel],
-        borderRadius: 3,
-        transition: "width 0.4s"
-      }
-    })));
-  }))), /*#__PURE__*/React.createElement("div", {
+    }, "No types set for this pillar yet")] : types.map(type => {
+      const count = filteredCompanies.filter(c => c.type === type).length,
+        pct = filteredCompanies.length ? Math.round(count / filteredCompanies.length * 100) : 0,
+        c = SC[type] || G600;
+      return /*#__PURE__*/React.createElement("div", {
+        key: type,
+        style: {
+          marginBottom: 12
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 5,
+          fontSize: 12,
+          color: G700
+        }
+      }, /*#__PURE__*/React.createElement("span", null, type), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: 700,
+          color: c
+        }
+      }, count)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          height: 6,
+          background: G200,
+          borderRadius: 3
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          height: "100%",
+          width: pct + "%",
+          background: c,
+          borderRadius: 3,
+          transition: "width 0.4s"
+        }
+      })));
+    });
+  })()), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: G600,
@@ -5862,8 +6034,113 @@ function MarketMap({
       gap: 10
     }
   }, filteredCompanies.map(c => {
-    const tc = TC_MAP[c.tier] || G400,
-      pCount = people.filter(p => p.companyId === c.id).length;
+    const tc = TC_MAP[c.tier] || G400;
+    const cp = companyPeopleMap[c.id] || [];
+    const pCount = cp.length;
+    const activeContacts = cp.filter(p => p.bdStage && p.bdStage.trim() !== "");
+    const activeCount = activeContacts.length;
+    const dueDates = activeContacts.map(p => p.nextDue).filter(Boolean).sort();
+    const nearestDue = dueDates[0];
+    const isOverdue = nearestDue && new Date(nearestDue) < new Date();
+    const isUnassigned = !c.pillar;
+    const momentumBadge = pCount > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        background: TEAL + "18",
+        color: "#00918f",
+        borderRadius: 8,
+        padding: "2px 8px"
+      }
+    }, pCount + " contacts · " + activeCount + " active");
+    const vacancyBadge = c.openVacancies > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: OK,
+        fontWeight: 600
+      }
+    }, "📋 " + c.openVacancies + " vacancys");
+    const dueFlagInner = nearestDue && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10.5,
+        fontWeight: 700,
+        borderRadius: 8,
+        padding: "2px 8px",
+        background: isOverdue ? DANGER + "18" : WARN + "18",
+        color: isOverdue ? "#a32d2d" : "#8a5f13"
+      }
+    }, isOverdue ? "Overdue" : "Due " + nearestDue);
+    const dueFlag = nearestDue && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 7
+      }
+    }, dueFlagInner);
+    const tagButtons = isUnassigned && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 9,
+        display: "flex",
+        gap: 5,
+        flexWrap: "wrap"
+      }
+    }, PILLARS.map(p => /*#__PURE__*/React.createElement("button", {
+      key: p,
+      onClick: e => {
+        e.stopPropagation();
+        quickTagPillar(c.id, p);
+      },
+      style: {
+        fontSize: 10,
+        fontWeight: 700,
+        border: "1px solid " + PILLAR_COLORS[p] + "40",
+        color: PILLAR_COLORS[p],
+        background: PILLAR_COLORS[p] + "10",
+        borderRadius: 14,
+        padding: "3px 9px",
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, p.replace(" Firm", ""))));
+    const viewPipelineBtn = /*#__PURE__*/React.createElement("button", {
+      key: "vp",
+      onClick: e => {
+        e.stopPropagation();
+        onJumpToPipeline && onJumpToPipeline(c.id);
+      },
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: TEAL,
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        padding: 0
+      }
+    }, "View pipeline →");
+    const startBDBtn = activeCount === 0 && /*#__PURE__*/React.createElement("button", {
+      key: "sb",
+      onClick: e => {
+        e.stopPropagation();
+        quickStartBD(c.id);
+      },
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: OK,
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        padding: 0
+      }
+    }, "Start BD →");
+    const actionsRow = pCount > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 9,
+        display: "flex",
+        gap: 10
+      }
+    }, viewPipelineBtn, startBDBtn);
     return /*#__PURE__*/React.createElement("div", {
       key: c.id,
       onClick: () => onNavigate && onNavigate("companies", c.id),
@@ -5908,26 +6185,8 @@ function MarketMap({
     }, /*#__PURE__*/React.createElement(Badge, {
       label: c.tier,
       color: tc
-    }), pCount > 0 && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 11,
-        color: TEAL,
-        fontWeight: 600
-      }
-    }, "👥 " + pCount + " people"), c.openVacancies > 0 && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 11,
-        color: OK,
-        fontWeight: 600
-      }
-    }, "📋 " + c.openVacancies + " vacancys")), c.nextDue && /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginTop: 7
-      }
-    }, /*#__PURE__*/React.createElement(DueTag, {
-      due: c.nextDue
-    })));
-  })))));
+    }), momentumBadge, vacancyBadge), dueFlag, tagButtons, actionsRow);
+  }))))));
 }
 
 // ── BD Pipeline ───────────────────────────────────────────────
@@ -6269,8 +6528,11 @@ function ActivityLogModal({
 function BDPipelineView({
   people,
   setPeople,
+  companies,
   persist,
-  ownerFilter
+  ownerFilter,
+  companyFilter,
+  onClearCompanyFilter
 }) {
   const [logModal, setLogModal] = useState(null);
   const [search, setSearch] = useState("");
@@ -6291,10 +6553,12 @@ function BDPipelineView({
     setPeople(updated);
     persist("people", updated);
   }
+  const filterCompanyObj = companyFilter && companies ? companies.find(c => c.id === companyFilter) : null;
 
   // Only show contacts (Lauren's BD targets) - type contact or people with a bdStage set
   var filtered = people.filter(function (p) {
     if (ownerFilter && !migrateOwners(p.owners, p.owner).includes(ownerFilter)) return false;
+    if (companyFilter && p.companyId !== companyFilter) return false;
     if (search && !(p.name + p.company).toLowerCase().includes(search.toLowerCase())) return false;
     return p.bdStage && p.bdStage.trim() !== "";
   });
@@ -6358,7 +6622,27 @@ function BDPipelineView({
       color: DANGER,
       fontWeight: 700
     }
-  }, overdueCount, " overdue"))), /*#__PURE__*/React.createElement("input", {
+  }, overdueCount, " overdue"))), filterCompanyObj && /*#__PURE__*/React.createElement("button", {
+    onClick: onClearCompanyFilter,
+    style: {
+      background: TL,
+      color: TEAL,
+      border: "1px solid " + TM,
+      borderRadius: 20,
+      padding: "5px 12px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      display: "flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, "Filtered: " + filterCompanyObj.name, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 800
+    }
+  }, "\u2715")), /*#__PURE__*/React.createElement("input", {
     value: search,
     onChange: function (e) {
       setSearch(e.target.value);
@@ -10298,6 +10582,7 @@ function App() {
   const [view, setView] = useState("bd");
   const [ownerFilter, setOwnerFilter] = useState(sessionStorage.getItem("volt_owner") || null);
   const [navSel, setNavSel] = useState(null);
+  const [pipelineFilterCompany, setPipelineFilterCompany] = useState(null);
   const [people, setPeople] = useState(SEED_PEOPLE);
   const [companies, setCompanies] = useState(SEED_COMPANIES);
   const [network, setNetwork] = useState([]);
@@ -10526,6 +10811,10 @@ function App() {
     setView(targetView);
     setNavSel(id);
     setTimeout(() => setNavSel(null), 500);
+  };
+  const jumpToPipelineForCompany = companyId => {
+    setPipelineFilterCompany(companyId);
+    setView("pipeline");
   };
   const overdueCount = [...people, ...companies].filter(x => x.nextDue && new Date(x.nextDue) < new Date()).length;
   if (!unlocked) return /*#__PURE__*/React.createElement(PasswordScreen, {
@@ -10787,8 +11076,11 @@ function App() {
   }), view === "pipeline" && /*#__PURE__*/React.createElement(BDPipelineView, {
     people: people,
     setPeople: setPeople,
+    companies: companies,
     persist: persist,
-    ownerFilter: ownerFilter
+    ownerFilter: ownerFilter,
+    companyFilter: pipelineFilterCompany,
+    onClearCompanyFilter: () => setPipelineFilterCompany(null)
   }), view === "people" && /*#__PURE__*/React.createElement(PeopleView, {
     people: people,
     setPeople: setPeople,
@@ -10827,8 +11119,12 @@ function App() {
     ownerFilter: ownerFilter
   }), view === "map" && /*#__PURE__*/React.createElement(MarketMap, {
     people: people,
+    setPeople: setPeople,
     companies: companies,
+    setCompanies: setCompanies,
+    persist: persist,
     onNavigate: handleNavigate,
+    onJumpToPipeline: jumpToPipelineForCompany,
     ownerFilter: ownerFilter
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
