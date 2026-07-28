@@ -64,6 +64,7 @@ var TEAM = ["David", "Lauren", "Brinda"];
 var STAGES = [1, 2, 3, 4, 5];
 var HEADLINE_SECTORS = ["Life Sciences Consulting", "Energy Consulting", "Pharma Services", "Pharma", "Biotech", "MedTech", "Investor / VC", "Other"];
 var DISCIPLINES = ["Strategy", "Commercial", "Market Access", "Pricing", "HEOR/RWE", "Medical Affairs", "Regulatory", "Clinical/R&D", "BD/Licensing", "Data & Analytics", "Digital Health", "Operations", "Other"];
+var ENERGY_DISCIPLINES = ["Economist", "Expert Witness", "Energy Markets & Trading", "Power & Utilities", "Oil & Gas", "Renewables", "Wind", "Solar", "Nuclear", "Hydrogen", "Energy Transition / Decarbonisation", "Mining & Metals", "Other"];
 
 function todayStr() {
   var d = new Date();
@@ -295,11 +296,11 @@ function Capture(props) {
           HEADLINE_SECTORS.map(function (s) { return e("option", { key: s, value: s }, s); })
         )
       ),
-      headline === "Life Sciences Consulting" ? e("div", { className: "field" },
-        e("label", null, "Discipline"),
+      (headline === "Life Sciences Consulting" || headline === "Energy Consulting") ? e("div", { className: "field" },
+        e("label", null, headline === "Energy Consulting" ? "Energy discipline" : "Discipline"),
         e("select", { value: disc, onChange: function (ev) { setDisc(ev.target.value); }, className: "sel" },
           e("option", { value: "" }, "Select discipline"),
-          DISCIPLINES.map(function (s) { return e("option", { key: s, value: s }, s); })
+          (headline === "Energy Consulting" ? ENERGY_DISCIPLINES : DISCIPLINES).map(function (s) { return e("option", { key: s, value: s }, s); })
         )
       ) : null,
       tab === "bd" ? e("div", { className: "field" },

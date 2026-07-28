@@ -366,9 +366,23 @@ var SC = {
   "Biotech": "#20c997",
   "Regulatory": "#ffc107",
   "Pricing": "#0d6efd",
+  "Economist": "#0a9396",
+  "Expert Witness": "#005f73",
+  "Energy Markets & Trading": "#ee9b00",
+  "Power & Utilities": "#94d2bd",
+  "Oil & Gas": "#4a4e69",
+  "Renewables": "#52b788",
+  "Wind": "#48cae4",
+  "Solar": "#ffb703",
+  "Nuclear": "#e63946",
+  "Hydrogen": "#8ecae6",
+  "Energy Transition / Decarbonisation": "#40916c",
+  "Mining & Metals": "#6c584c",
   "Other": "#6c757d"
 };
 var SECTORS = Object.keys(SC);
+var LS_DISCIPLINES = ["Corporate / Growth Strategy", "Portfolio & Pipeline Strategy", "BD / Licensing / M&A", "Due Diligence", "Commercial Strategy", "Marketing / Brand", "Launch / Commercialisation", "Sales / SFE", "Market Access", "Pricing & Reimbursement", "HEOR", "RWE", "Value & Evidence / Payer", "Medical Affairs", "Regulatory Affairs", "Clinical Development / R&D", "Quality / Compliance", "Data & Analytics", "Digital Health / Transformation", "Operations / Supply Chain", "Org & Operating Model", "Competitive Intelligence", "Patient Insights & Research", "Other"];
+var ENERGY_DISCIPLINES = ["Economist", "Expert Witness", "Energy Markets & Trading", "Power & Utilities", "Oil & Gas", "Renewables", "Wind", "Solar", "Nuclear", "Hydrogen", "Energy Transition / Decarbonisation", "Mining & Metals", "Other"];
 var HEADLINE_SECTORS = ["Life Sciences Consulting", "Energy Consulting", "Pharma Services", "Pharma", "Biotech", "MedTech", "Investor / VC", "Other"];
 var SENIORITY_GROUPS = [
   { group: "Consulting", items: ["Analyst", "Consultant", "Senior Consultant", "Manager", "Principal", "Engagement Manager", "Director", "Associate Partner", "Partner", "Managing Director"] },
@@ -1175,14 +1189,15 @@ const DupeBanner = ({
 };
 const SectorPicker = ({
   selected,
-  onChange
+  onChange,
+  options
 }) => /*#__PURE__*/React.createElement("div", {
   style: {
     display: "flex",
     flexWrap: "wrap",
     gap: 6
   }
-}, SECTORS.map(s => {
+}, (options || SECTORS).map(s => {
   const on = selected.includes(s),
     c = SC[s];
   return /*#__PURE__*/React.createElement("button", {
@@ -3261,11 +3276,12 @@ function PersonForm({
     onChange: set("headlineSector"),
     options: HEADLINE_SECTORS
   })), /*#__PURE__*/React.createElement(Fld, {
-    label: "Sectors",
+    label: f.headlineSector === "Energy Consulting" ? "Energy Discipline" : "Disciplines",
     span2: true
   }, /*#__PURE__*/React.createElement(SectorPicker, {
     selected: f.sectors,
-    onChange: set("sectors")
+    onChange: set("sectors"),
+    options: f.headlineSector === "Energy Consulting" ? ENERGY_DISCIPLINES : f.headlineSector === "Life Sciences Consulting" ? LS_DISCIPLINES : undefined
   })), /*#__PURE__*/React.createElement(Fld, {
     label: "LinkedIn URL",
     span2: true
