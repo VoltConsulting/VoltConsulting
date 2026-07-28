@@ -138,6 +138,11 @@ async function loadFromAirtable() {
   };
 }
 var _saveLocks = {};
+// Registry of record ids already created in Airtable this session, keyed by the
+// person/company's own stable id (id: Date.now() from creation). If a racing or
+// repeated save tries to create the same new record again, we skip it. This is
+// the hard stop for the "one manual add -> several cards" duplicate bug.
+var _createdIds = {};
 async function saveToAirtable(name, data) {
   const _n = (name || "").toLowerCase();
   const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : "VACANCY";
@@ -202,6 +207,16 @@ async function _saveToAirtableInner(name, data, recType) {
   }
 
   // CREATE in batches of 10
+  // Guard: drop any item whose own id was already created in Airtable this
+  // session (a racing/repeated save of the same new record). If it was already
+  // created, adopt the known _recId so it updates instead of duplicating.
+  toCreate = toCreate.filter(function (x) {
+    if (x.id != null && _createdIds[x.id]) {
+      x._recId = _createdIds[x.id];
+      return false;
+    }
+    return true;
+  });
   var createBatches = chunk(toCreate, 10);
   for (var ci = 0; ci < createBatches.length; ci++) {
     var batch = createBatches[ci];
@@ -220,6 +235,7 @@ async function _saveToAirtableInner(name, data, recType) {
     });
     res.records.forEach(function (r, idx) {
       batch[idx]._recId = r.id;
+      if (batch[idx].id != null) _createdIds[batch[idx].id] = r.id;
     });
     if (ci < createBatches.length - 1) await delay(250);
   }
@@ -3348,9 +3364,14 @@ function PeopleView({
   const selP = people.find(p => p.id === sel);
   const commitBoth = (np, nc) => {
     setPeople(np);
-    persist("people", np);
     setCompanies(nc);
-    persist("companies", nc);
+    // Persist sequentially, not two racing saves. The people save must finish
+    // (stamping _recId back) before the companies save can trigger anything
+    // that re-saves people. Racing these was creating duplicate cards from one add.
+    (async () => {
+      await persist("people", np);
+      await persist("companies", nc);
+    })();
   };
   const addPerson = f => {
     const {
