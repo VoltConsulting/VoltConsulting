@@ -100,7 +100,8 @@ async function loadFromAirtable() {
   const people = [],
     companies = [],
     network = [],
-    vacancies = [];
+    vacancies = [],
+    specouts = [];
   for (const rec of records) {
     const rt = (rec.fields.RecordType || "").toUpperCase();
     const dataStr = rec.fields.Data || "[]";
@@ -121,6 +122,10 @@ async function loadFromAirtable() {
         const v = JSON.parse(dataStr);
         v._recId = rec.id;
         vacancies.push(v);
+      } else if (rt === "SPECOUT") {
+        const s = JSON.parse(dataStr);
+        s._recId = rec.id;
+        specouts.push(s);
       }
     } catch (e) {
       console.warn("Parse error", rec.id, e);
@@ -130,11 +135,13 @@ async function loadFromAirtable() {
   if (companies.length) localStorage.setItem("voltcrm5-companies", JSON.stringify(companies));
   if (network.length) localStorage.setItem("voltcrm5-network", JSON.stringify(network));
   if (vacancies.length) localStorage.setItem("voltcrm5-vacancies", JSON.stringify(vacancies));
+  if (specouts.length) localStorage.setItem("voltcrm5-specouts", JSON.stringify(specouts));
   return {
     people,
     companies,
     network,
-    vacancies
+    vacancies,
+    specouts
   };
 }
 var _saveLocks = {};
@@ -145,7 +152,7 @@ var _saveLocks = {};
 var _createdIds = {};
 async function saveToAirtable(name, data) {
   const _n = (name || "").toLowerCase();
-  const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : "VACANCY";
+  const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : _n === "specouts" ? "SPECOUT" : "VACANCY";
   // ── SAVE LOCK ────────────────────────────────────────────────
   // Prevent two saves of the same record type running at once. Without
   // this, a brand-new person (no _recId yet) can be sent to Airtable by
@@ -2874,7 +2881,9 @@ function PersonDetail({
   onEdit,
   setSel,
   vacancies,
-  setVacancies
+  setVacancies,
+  specOuts = [],
+  setSpecOuts = () => {}
 }) {
   const [tab, setTab] = useState("Overview");
   useEffect(() => setTab("Overview"), [selP ? selP.id : null]);
@@ -2988,7 +2997,7 @@ function PersonDetail({
     small: true,
     onClick: onDelete
   }, "Delete"))), /*#__PURE__*/React.createElement(TabBar, {
-    tabs: ["Overview", "BD & Follow-up", "Notes", "Company"],
+    tabs: ["Overview", "BD & Follow-up", "Notes", "Company", "Spec Outs"],
     active: tab,
     onChange: setTab
   })), /*#__PURE__*/React.createElement("div", {
@@ -3210,7 +3219,356 @@ function PersonDetail({
       fontSize: 12,
       marginTop: 6
     }
-  }, "Edit this person and set their company to auto-link")))));
+  }, "Edit this person and set their company to auto-link"))), tab === "Spec Outs" && /*#__PURE__*/React.createElement(SpecOutsTab, {
+    person: selP,
+    people: people,
+    companies: companies,
+    specOuts: specOuts,
+    setSpecOuts: setSpecOuts,
+    persist: persist
+  })));
+}
+
+// ── Spec Outs (candidate speculative-approach tracking) ────────
+// One record per spec-out event. Read from the candidate side
+// (sentByMe) and the contact/company side (receivedByMe) — never
+// duplicated, so there is nothing to fall out of sync.
+function SpecOutBadge({
+  status
+}) {
+  const c = SPEC_STATUS_COLORS[status] || G400;
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: c + "22",
+      color: c,
+      fontWeight: 700,
+      fontSize: 11,
+      padding: "3px 9px",
+      borderRadius: 20,
+      whiteSpace: "nowrap"
+    }
+  }, status);
+}
+function SpecOutRow({
+  spec,
+  perspective,
+  onUpdate
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [newStatus, setNewStatus] = useState(spec.status);
+  const [note, setNote] = useState("");
+  const headline = perspective === "candidate" ? (spec.contactName ? spec.contactName + " · " : "") + (spec.companyName || "Unknown company") : spec.candidateName || "Unknown candidate";
+  function saveUpdate() {
+    const hist = (spec.updates || []).concat(note.trim() ? [{
+      date: today,
+      note: note.trim(),
+      status: newStatus
+    }] : []);
+    onUpdate(spec.id, {
+      status: newStatus,
+      lastUpdated: today,
+      updates: hist
+    });
+    setNote("");
+    setUpdating(false);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: W,
+      border: "1px solid " + G200,
+      borderRadius: 8,
+      padding: 14,
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 13,
+      color: NAVY
+    }
+  }, headline), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      marginTop: 2
+    }
+  }, "Sent " + (spec.dateSent || "—") + (spec.lastUpdated && spec.lastUpdated !== spec.dateSent ? " · updated " + spec.lastUpdated : ""))), /*#__PURE__*/React.createElement(SpecOutBadge, {
+    status: spec.status
+  })), spec.summary && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: G700,
+      marginTop: 8
+    }
+  }, spec.summary), spec.fullEmail && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setExpanded(!expanded),
+    style: {
+      background: "none",
+      border: "none",
+      color: TEAL,
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+      padding: 0,
+      fontFamily: "inherit"
+    }
+  }, expanded ? "Hide full email" : "Show full email"), expanded && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8,
+      padding: 10,
+      background: G50,
+      borderRadius: 6,
+      fontSize: 12,
+      color: G700,
+      whiteSpace: "pre-wrap"
+    }
+  }, spec.fullEmail)), (spec.updates || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10,
+      paddingTop: 10,
+      borderTop: "1px solid " + G100
+    }
+  }, spec.updates.map((u, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      fontSize: 11,
+      color: G600,
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 700,
+      color: G700
+    }
+  }, u.date + " — " + u.status + ": "), u.note))), !updating ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => setUpdating(true),
+    style: {
+      marginTop: 10,
+      background: "none",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "5px 12px",
+      fontSize: 11,
+      fontWeight: 700,
+      color: G700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Log update") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10,
+      paddingTop: 10,
+      borderTop: "1px solid " + G100,
+      display: "grid",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(SelEl, {
+    value: newStatus,
+    onChange: setNewStatus,
+    options: SPEC_STATUSES
+  }), /*#__PURE__*/React.createElement(Tarea, {
+    value: note,
+    onChange: setNote,
+    placeholder: "What happened? e.g. \"Had a call, not right for this one\"",
+    rows: 2
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: saveUpdate
+  }, "Save update"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    variant: "ghost",
+    onClick: () => {
+      setUpdating(false);
+      setNote("");
+    }
+  }, "Cancel"))));
+}
+function AddSpecOutForm({
+  person,
+  companies,
+  people,
+  onSave,
+  onCancel
+}) {
+  const [companyName, setCompanyName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [dateSent, setDateSent] = useState(today);
+  const [summary, setSummary] = useState("");
+  const [fullEmail, setFullEmail] = useState("");
+  function save() {
+    if (!companyName.trim()) return;
+    const co = companies.find(c => (c.name || "").trim().toLowerCase() === companyName.trim().toLowerCase());
+    const ct = people.find(p => (p.name || "").trim().toLowerCase() === contactName.trim().toLowerCase());
+    onSave({
+      id: Date.now(),
+      candidateId: person.id,
+      candidateName: person.name,
+      companyId: co ? co.id : null,
+      companyName: co ? co.name : companyName.trim(),
+      contactId: ct ? ct.id : null,
+      contactName: ct ? ct.name : contactName.trim(),
+      dateSent: dateSent,
+      summary: summary.trim(),
+      fullEmail: fullEmail.trim(),
+      status: "Sent",
+      lastUpdated: dateSent,
+      updates: []
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 8,
+      padding: 16,
+      marginBottom: 14,
+      display: "grid",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement(Fld, {
+    label: "Company"
+  }, /*#__PURE__*/React.createElement(Inp, {
+    value: companyName,
+    onChange: setCompanyName,
+    placeholder: "Start typing a company name…",
+    style: {
+      width: "100%"
+    }
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "spec-co-list"
+  }, companies.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c.id,
+    value: c.name
+  })))), /*#__PURE__*/React.createElement(Fld, {
+    label: "Contact (hiring manager, partner, HR — whoever it went to)"
+  }, /*#__PURE__*/React.createElement(Inp, {
+    value: contactName,
+    onChange: setContactName,
+    placeholder: "Start typing a contact name…"
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "spec-ct-list"
+  }, people.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.id,
+    value: p.name
+  })))), /*#__PURE__*/React.createElement(Fld, {
+    label: "Date sent"
+  }, /*#__PURE__*/React.createElement(Inp, {
+    type: "date",
+    value: dateSent,
+    onChange: setDateSent
+  })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Summary"
+  }, /*#__PURE__*/React.createElement(Inp, {
+    value: summary,
+    onChange: setSummary,
+    placeholder: "e.g. Specced re: Head of Market Access role"
+  })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Full email (optional — expandable later)"
+  }, /*#__PURE__*/React.createElement(Tarea, {
+    value: fullEmail,
+    onChange: setFullEmail,
+    rows: 5
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: save
+  }, "Save spec out"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "Cancel")));
+}
+function SpecOutsTab({
+  person,
+  people,
+  companies,
+  specOuts,
+  setSpecOuts,
+  persist
+}) {
+  const [adding, setAdding] = useState(false);
+  const sentByMe = specOuts.filter(s => s.candidateId === person.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
+  const receivedByMe = specOuts.filter(s => s.contactId === person.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
+  function commit(updated) {
+    setSpecOuts(updated);
+    persist("specouts", updated);
+  }
+  function addSpec(spec) {
+    commit([spec, ...specOuts]);
+    setAdding(false);
+  }
+  function updateSpec(id, patch) {
+    commit(specOuts.map(s => s.id === id ? Object.assign({}, s, patch) : s));
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 14,
+      color: NAVY
+    }
+  }, "Specced out to"), !adding && /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => setAdding(true)
+  }, "+ Add spec out")), adding && /*#__PURE__*/React.createElement(AddSpecOutForm, {
+    person: person,
+    companies: companies,
+    people: people,
+    onSave: addSpec,
+    onCancel: () => setAdding(false)
+  }), sentByMe.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: G400,
+      fontSize: 12,
+      marginBottom: 20
+    }
+  }, "Not specced out to anyone yet.") : sentByMe.map(s => /*#__PURE__*/React.createElement(SpecOutRow, {
+    key: s.id,
+    spec: s,
+    perspective: "candidate",
+    onUpdate: updateSpec
+  })), receivedByMe.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 24
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 14,
+      color: NAVY,
+      marginBottom: 14
+    }
+  }, "Specs received"), receivedByMe.map(s => /*#__PURE__*/React.createElement(SpecOutRow, {
+    key: s.id,
+    spec: s,
+    perspective: "contact",
+    onUpdate: updateSpec
+  }))));
 }
 
 // ── Person form ───────────────────────────────────────────────
@@ -3486,7 +3844,9 @@ function PeopleView({
   initialSel,
   ownerFilter,
   vacancies,
-  setVacancies
+  setVacancies,
+  specOuts,
+  setSpecOuts
 }) {
   const [search, setSearch] = useState("");
   const [typeF, setTypeF] = useState("all");
@@ -3717,7 +4077,9 @@ function PeopleView({
     onEdit: () => setModal("edit"),
     setSel: setSel,
     vacancies: vacancies,
-    setVacancies: setVacancies
+    setVacancies: setVacancies,
+    specOuts: specOuts,
+    setSpecOuts: setSpecOuts
   }), modal === "add" && /*#__PURE__*/React.createElement(ModalEl, {
     title: "Add Person",
     onClose: () => setModal(null),
@@ -4282,7 +4644,9 @@ function CompaniesView({
   initialSel,
   onNavigatePerson,
   ownerFilter,
-  vacancies
+  vacancies,
+  specOuts = [],
+  setSpecOuts = () => {}
 }) {
   const [search, setSearch] = useState("");
   const [tierF, setTierF] = useState("all");
@@ -4297,10 +4661,16 @@ function CompaniesView({
   })) && (c.name + c.type + c.hq).toLowerCase().includes(search.toLowerCase())), [companies, people, search, tierF, ownerFilter]);
   const selC = companies.find(c => c.id === sel);
   const linked = selC ? people.filter(p => p.companyId === selC.id) : [];
+  const receivedSpecs = selC ? specOuts.filter(s => s.companyId === selC.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || "")) : [];
   const commit = u => {
     setCompanies(u);
     persist("companies", u);
   };
+  function updateSpecFromCompany(id, patch) {
+    const u = specOuts.map(s => s.id === id ? Object.assign({}, s, patch) : s);
+    setSpecOuts(u);
+    persist("specouts", u);
+  }
   const add = f => commit([{
     ...f,
     id: Date.now(),
@@ -4713,7 +5083,29 @@ function CompaniesView({
       lineHeight: 1.75,
       whiteSpace: "pre-wrap"
     }
-  }, selC.notes || "—")), /*#__PURE__*/React.createElement("div", {
+  }, selC.notes || "—")), receivedSpecs.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: W,
+      borderRadius: 10,
+      padding: "16px 20px",
+      border: "1px solid " + G200,
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      marginBottom: 10,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em"
+    }
+  }, "Specs received (" + receivedSpecs.length + ")"), receivedSpecs.map(s => /*#__PURE__*/React.createElement(SpecOutRow, {
+    key: s.id,
+    spec: s,
+    perspective: "contact",
+    onUpdate: updateSpecFromCompany
+  }))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 16
     }
@@ -6365,6 +6757,14 @@ const BD_STAGE_COLORS = {
   "Proposal": "#7c3aed",
   "Active": OK,
   "Nurture": "#db2777"
+};
+var SPEC_STATUSES = ["Sent", "Interested", "Declined", "No Response", "Meeting Booked"];
+var SPEC_STATUS_COLORS = {
+  "Sent": G400,
+  "Interested": TEAL,
+  "Declined": DANGER,
+  "No Response": "#0284c7",
+  "Meeting Booked": "#7c3aed"
 };
 const ACT_TYPES = [{
   id: "linkedin",
@@ -10924,6 +11324,7 @@ function App() {
   const [companies, setCompanies] = useState(SEED_COMPANIES);
   const [network, setNetwork] = useState([]);
   const [vacancies, setVacancies] = useState([]);
+  const [specOuts, setSpecOuts] = useState([]);
   const [ready, setReady] = useState(false);
   const [saveState, setSaveState] = useState(null);
   const [syncStatus, setSyncStatus] = useState("loading");
@@ -10972,6 +11373,12 @@ function App() {
         if (snet && snet.length > 0) setNetwork(JSON.parse(typeof snet === "string" ? snet : JSON.stringify(snet)));
         const svac = await sGet("voltcrm5-vacancies");
         if (svac && svac.length > 0) setVacancies(JSON.parse(typeof svac === "string" ? svac : JSON.stringify(svac)));
+        if (data.specouts && data.specouts.length > 0) {
+          setSpecOuts(data.specouts);
+        } else {
+          const sso = await sGet("voltcrm5-specouts");
+          if (sso && sso.length > 0) setSpecOuts(JSON.parse(typeof sso === "string" ? sso : JSON.stringify(sso)));
+        }
         setSyncStatus("ok");
         // If Airtable was empty, do one clean push from localStorage and store _recIds
         if ((!data.people || data.people.length === 0) && (!data.companies || data.companies.length === 0)) {
@@ -11031,7 +11438,7 @@ function App() {
     } catch (e) {}
     // Try Airtable sync
     try {
-      if (key === "people") await saveToAirtable("PEOPLE", data);else if (key === "companies") await saveToAirtable("COMPANIES", data);else if (key === "network") await saveToAirtable("NETWORK", data);else if (key === "vacancies") await saveToAirtable("VACANCIES", data);
+      if (key === "people") await saveToAirtable("PEOPLE", data);else if (key === "companies") await saveToAirtable("COMPANIES", data);else if (key === "network") await saveToAirtable("NETWORK", data);else if (key === "vacancies") await saveToAirtable("VACANCIES", data);else if (key === "specouts") await saveToAirtable("SPECOUTS", data);
       // saveToAirtable stamps _recId onto items in `data`; persist that back
       // to localStorage so any later retry updates instead of re-creating.
       try {
@@ -11078,7 +11485,7 @@ function App() {
             // them on every retry, producing duplicate cards.
             var freshRaw = await sGet("voltcrm5-" + key);
             var freshData = freshRaw || entry.data;
-            if (key === "people") await saveToAirtable("PEOPLE", freshData);else if (key === "companies") await saveToAirtable("COMPANIES", freshData);else if (key === "network") await saveToAirtable("NETWORK", freshData);else if (key === "vacancies") await saveToAirtable("VACANCIES", freshData);
+            if (key === "people") await saveToAirtable("PEOPLE", freshData);else if (key === "companies") await saveToAirtable("COMPANIES", freshData);else if (key === "network") await saveToAirtable("NETWORK", freshData);else if (key === "vacancies") await saveToAirtable("VACANCIES", freshData);else if (key === "specouts") await saveToAirtable("SPECOUTS", freshData);
             try { await sSet("voltcrm5-" + key, freshData); } catch (e) {}
             var q2 = JSON.parse(localStorage.getItem("volt_sync_queue") || "{}");
             delete q2[key];
@@ -11427,7 +11834,9 @@ function App() {
     initialSel: navSel,
     ownerFilter: ownerFilter,
     vacancies: vacancies,
-    setVacancies: setVacancies
+    setVacancies: setVacancies,
+    specOuts: specOuts,
+    setSpecOuts: setSpecOuts
   }), view === "companies" && /*#__PURE__*/React.createElement(CompaniesView, {
     companies: companies,
     setCompanies: setCompanies,
@@ -11439,7 +11848,9 @@ function App() {
       handleNavigate("people", id);
     },
     ownerFilter: ownerFilter,
-    vacancies: vacancies
+    vacancies: vacancies,
+    specOuts: specOuts,
+    setSpecOuts: setSpecOuts
   }), view === "vacancies" && /*#__PURE__*/React.createElement(VacanciesView, {
     vacancies: vacancies,
     setVacancies: setVacancies,
