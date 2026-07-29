@@ -3412,6 +3412,8 @@ function AddSpecOutForm({
   const [dateSent, setDateSent] = useState(today);
   const [summary, setSummary] = useState("");
   const [fullEmail, setFullEmail] = useState("");
+  const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === companyName.trim().toLowerCase());
+  const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
   function save() {
     if (!companyName.trim()) return;
     const co = companies.find(c => (c.name || "").trim().toLowerCase() === companyName.trim().toLowerCase());
@@ -3444,12 +3446,24 @@ function AddSpecOutForm({
     }
   }, /*#__PURE__*/React.createElement(Fld, {
     label: "Company"
-  }, /*#__PURE__*/React.createElement(Inp, {
+  }, /*#__PURE__*/React.createElement("input", {
     value: companyName,
-    onChange: setCompanyName,
+    onChange: e => {
+      setCompanyName(e.target.value);
+      setContactName("");
+    },
     placeholder: "Start typing a company name…",
+    list: "spec-co-list",
     style: {
-      width: "100%"
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      color: G900,
+      fontSize: 13,
+      outline: "none",
+      width: "100%",
+      fontFamily: "inherit"
     }
   }), /*#__PURE__*/React.createElement("datalist", {
     id: "spec-co-list"
@@ -3457,14 +3471,26 @@ function AddSpecOutForm({
     key: c.id,
     value: c.name
   })))), /*#__PURE__*/React.createElement(Fld, {
-    label: "Contact (hiring manager, partner, HR — whoever it went to)"
-  }, /*#__PURE__*/React.createElement(Inp, {
+    label: matchedCo ? "Contact at " + matchedCo.name : "Contact (hiring manager, partner, HR — whoever it went to)"
+  }, /*#__PURE__*/React.createElement("input", {
     value: contactName,
-    onChange: setContactName,
-    placeholder: "Start typing a contact name…"
+    onChange: e => setContactName(e.target.value),
+    placeholder: matchedCo ? "Start typing a contact at " + matchedCo.name + "…" : "Type the company first to narrow this down…",
+    list: "spec-ct-list",
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      color: G900,
+      fontSize: 13,
+      outline: "none",
+      width: "100%",
+      fontFamily: "inherit"
+    }
   }), /*#__PURE__*/React.createElement("datalist", {
     id: "spec-ct-list"
-  }, people.map(p => /*#__PURE__*/React.createElement("option", {
+  }, contactOptions.map(p => /*#__PURE__*/React.createElement("option", {
     key: p.id,
     value: p.name
   })))), /*#__PURE__*/React.createElement(Fld, {
