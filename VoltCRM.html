@@ -2979,11 +2979,11 @@ function PersonDetail({
     variant: "teal",
     small: true,
     onClick: () => window.open(selP.linkedin, "_blank")
-  }, "LinkedIn \u2197"), /*#__PURE__*/React.createElement(Btn, {
+  }, "LinkedIn \u2197"), onEdit && /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
     small: true,
     onClick: onEdit
-  }, "Edit"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Edit"), onDelete && /*#__PURE__*/React.createElement(Btn, {
     variant: "danger",
     small: true,
     onClick: onDelete
@@ -6769,10 +6769,16 @@ function BDPipelineView({
   persist,
   ownerFilter,
   companyFilter,
-  onClearCompanyFilter
+  onClearCompanyFilter,
+  vacancies,
+  setVacancies
 }) {
   const [logModal, setLogModal] = useState(null);
   const [search, setSearch] = useState("");
+  const [sel, setSel] = useState(null);
+  const selP = sel ? people.find(function (p) {
+    return p.id === sel;
+  }) : null;
   function saveActivity(person, updates) {
     const updated = people.map(function (p) {
       return p.id === person.id ? Object.assign({}, p, updates) : p;
@@ -6989,13 +6995,17 @@ function BDPipelineView({
       var ownerCol = OWNER_COLORS[p.owner] || G400;
       return /*#__PURE__*/React.createElement("div", {
         key: p.id,
+        onClick: function () {
+          setSel(p.id);
+        },
         style: {
           background: W,
           border: "1px solid " + (overdue ? DANGER + "40" : G200),
           borderRadius: 8,
           padding: "10px 12px",
           marginBottom: 8,
-          boxShadow: "0 1px 3px #0001"
+          boxShadow: "0 1px 3px #0001",
+          cursor: "pointer"
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
@@ -7015,7 +7025,8 @@ function BDPipelineView({
           textOverflow: "ellipsis"
         }
       }, p.name), /*#__PURE__*/React.createElement("button", {
-        onClick: function () {
+        onClick: function (e) {
+          e.stopPropagation();
           setStage(p, "");
         },
         title: "Remove from pipeline (keeps the contact)",
@@ -7092,7 +7103,8 @@ function BDPipelineView({
           marginTop: 4
         }
       }, /*#__PURE__*/React.createElement("button", {
-        onClick: function () {
+        onClick: function (e) {
+          e.stopPropagation();
           setLogModal(p);
         },
         style: {
@@ -7109,6 +7121,9 @@ function BDPipelineView({
         }
       }, "Log Activity")), /*#__PURE__*/React.createElement("select", {
         value: p.bdStage || "Target",
+        onClick: function (e) {
+          e.stopPropagation();
+        },
         onChange: function (e) {
           if (e.target.value === "__remove") {
             setStage(p, "");
@@ -7138,6 +7153,61 @@ function BDPipelineView({
         }, s);
       }))));
     })));
+  }))), sel && /*#__PURE__*/React.createElement("div", {
+    onClick: function () {
+      setSel(null);
+    },
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(13,27,42,0.55)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+      padding: 24
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: function (e) {
+      e.stopPropagation();
+    },
+    style: {
+      background: W,
+      borderRadius: 10,
+      width: 720,
+      maxWidth: "100%",
+      height: "85vh",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      boxShadow: "0 12px 40px #0004"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setSel(null);
+    },
+    style: {
+      position: "absolute",
+      top: 14,
+      right: 20,
+      background: "none",
+      border: "none",
+      color: G400,
+      fontSize: 22,
+      lineHeight: 1,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      zIndex: 1
+    }
+  }, "\u00D7"), /*#__PURE__*/React.createElement(PersonDetail, {
+    selP: selP,
+    people: people,
+    companies: companies,
+    setPeople: setPeople,
+    persist: persist,
+    setSel: setSel,
+    vacancies: vacancies,
+    setVacancies: setVacancies
   }))));
 }
 
