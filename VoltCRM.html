@@ -7703,7 +7703,36 @@ function BDPipelineView({
           overflow: "hidden",
           textOverflow: "ellipsis"
         }
-      }, p.company), lastAct && /*#__PURE__*/React.createElement("div", {
+      }, p.company), (p.seniority || p.headlineSector) && /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 4,
+          marginBottom: 6
+        }
+      }, p.seniority && /*#__PURE__*/React.createElement("span", {
+        style: {
+          background: "#EEEDFE",
+          color: "#26215C",
+          fontSize: 10,
+          fontWeight: 600,
+          padding: "2px 6px",
+          borderRadius: 5
+        }
+      }, p.seniority), p.headlineSector && /*#__PURE__*/React.createElement("span", {
+        style: {
+          background: "#E1F5EE",
+          color: "#085041",
+          fontSize: 10,
+          fontWeight: 600,
+          padding: "2px 6px",
+          borderRadius: 5,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          maxWidth: 140
+        }
+      }, p.headlineSector)), lastAct && /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 11,
           color: G600,
@@ -7741,7 +7770,11 @@ function BDPipelineView({
           color: overdue ? DANGER : TEAL,
           marginBottom: 8
         }
-      }, overdue ? "⚠ Overdue: " : "→ ", p.nextDue), p.owner && /*#__PURE__*/React.createElement("div", {
+      }, overdue ? "⚠ Overdue: " : "→ ", new Date(p.nextDue).toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short"
+      })), p.owner && /*#__PURE__*/React.createElement("div", {
         style: {
           width: 6,
           height: 6,
