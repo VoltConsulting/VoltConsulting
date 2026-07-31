@@ -2880,6 +2880,7 @@ function PersonDetail({
   onDelete,
   onEdit,
   setSel,
+  onBack,
   vacancies,
   setVacancies,
   specOuts = [],
@@ -2932,7 +2933,23 @@ function PersonDetail({
       padding: "20px 28px 0",
       flexShrink: 0
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, onBack && /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    style: {
+      background: "transparent",
+      border: "none",
+      color: TEAL,
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      padding: 0,
+      marginBottom: 14,
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, "\u2190 Back to Market Map"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -3869,6 +3886,7 @@ function PeopleView({
   persist,
   initialSel,
   ownerFilter,
+  onBack,
   vacancies,
   setVacancies,
   specOuts,
@@ -4228,6 +4246,7 @@ function PeopleView({
     onDelete: delPerson,
     onEdit: () => setModal("edit"),
     setSel: setSel,
+    onBack: onBack,
     vacancies: vacancies,
     setVacancies: setVacancies,
     specOuts: specOuts,
@@ -6120,17 +6139,26 @@ function MarketMap({
   persist,
   onNavigate,
   onJumpToPipeline,
-  ownerFilter
+  ownerFilter,
+  sectorF,
+  setSectorF,
+  seniorityF,
+  setSeniorityF,
+  relF,
+  setRelF,
+  typeF,
+  setTypeF,
+  tierF,
+  setTierF,
+  disciplineF,
+  setDisciplineF,
+  companySort,
+  setCompanySort,
+  mapView,
+  setMapView,
+  pillarF,
+  setPillarF
 }) {
-  const [sectorF, setSectorF] = useState("All");
-  const [seniorityF, setSeniorityF] = useState("All");
-  const [relF, setRelF] = useState("All");
-  const [typeF, setTypeF] = useState("All");
-  const [tierF, setTierF] = useState("All");
-  const [disciplineF, setDisciplineF] = useState("All");
-  const [companySort, setCompanySort] = useState("az"); // az | recent
-  const [mapView, setMapView] = useState("people"); // people | companies
-  const [pillarF, setPillarF] = useState("Consulting Firm"); // Consulting Firm | Pharmaceutical Firm | Pharma Services Firm | Unassigned | All
   const quickTagPillar = (companyId, pillar) => {
     const updated = companies.map(c => c.id === companyId ? {
       ...c,
@@ -6574,7 +6602,7 @@ function MarketMap({
     const ac = p.type === "contact" ? "#6f42c1" : TEAL;
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
-      onClick: () => onNavigate && onNavigate("people", p.id),
+      onClick: () => onNavigate && onNavigate("people", p.id, "map"),
       style: {
         background: W,
         border: "1px solid " + G200,
@@ -11515,6 +11543,15 @@ function App() {
   const [ownerFilter, setOwnerFilter] = useState(sessionStorage.getItem("volt_owner") || null);
   const [navSel, setNavSel] = useState(null);
   const [navFrom, setNavFrom] = useState(null);
+  const [mmSectorF, setMmSectorF] = useState("All");
+  const [mmSeniorityF, setMmSeniorityF] = useState("All");
+  const [mmRelF, setMmRelF] = useState("All");
+  const [mmTypeF, setMmTypeF] = useState("All");
+  const [mmTierF, setMmTierF] = useState("All");
+  const [mmDisciplineF, setMmDisciplineF] = useState("All");
+  const [mmCompanySort, setMmCompanySort] = useState("az");
+  const [mmMapView, setMmMapView] = useState("people");
+  const [mmPillarF, setMmPillarF] = useState("Consulting Firm");
   const [pipelineFilterCompany, setPipelineFilterCompany] = useState(null);
   const [people, setPeople] = useState(SEED_PEOPLE);
   const [companies, setCompanies] = useState(SEED_COMPANIES);
@@ -12030,6 +12067,10 @@ function App() {
     persist: persist,
     initialSel: navSel,
     ownerFilter: ownerFilter,
+    onBack: navFrom === "map" ? () => {
+      setNavFrom(null);
+      setView("map");
+    } : null,
     vacancies: vacancies,
     setVacancies: setVacancies,
     specOuts: specOuts,
@@ -12074,7 +12115,25 @@ function App() {
     persist: persist,
     onNavigate: handleNavigate,
     onJumpToPipeline: jumpToPipelineForCompany,
-    ownerFilter: ownerFilter
+    ownerFilter: ownerFilter,
+    sectorF: mmSectorF,
+    setSectorF: setMmSectorF,
+    seniorityF: mmSeniorityF,
+    setSeniorityF: setMmSeniorityF,
+    relF: mmRelF,
+    setRelF: setMmRelF,
+    typeF: mmTypeF,
+    setTypeF: setMmTypeF,
+    tierF: mmTierF,
+    setTierF: setMmTierF,
+    disciplineF: mmDisciplineF,
+    setDisciplineF: setMmDisciplineF,
+    companySort: mmCompanySort,
+    setCompanySort: setMmCompanySort,
+    mapView: mmMapView,
+    setMapView: setMmMapView,
+    pillarF: mmPillarF,
+    setPillarF: setMmPillarF
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
