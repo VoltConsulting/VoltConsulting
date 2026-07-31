@@ -7327,6 +7327,7 @@ function BDPipelineView({
 }) {
   const [logModal, setLogModal] = useState(null);
   const [search, setSearch] = useState("");
+  const [sortAZ, setSortAZ] = useState(false);
   const [sel, setSel] = useState(null);
   const selP = sel ? people.find(function (p) {
     return p.id === sel;
@@ -7367,6 +7368,13 @@ function BDPipelineView({
     if (!stageMap[s]) stageMap[s] = [];
     stageMap[s].push(p);
   });
+  if (sortAZ) {
+    Object.keys(stageMap).forEach(function (s) {
+      stageMap[s] = stageMap[s].slice().sort(function (a, b) {
+        return (a.name || "").localeCompare(b.name || "");
+      });
+    });
+  }
   var totalActive = filtered.length;
   var overdueCount = filtered.filter(function (p) {
     return p.nextDue && new Date(p.nextDue) < new Date();
@@ -7437,7 +7445,25 @@ function BDPipelineView({
     style: {
       fontWeight: 800
     }
-  }, "\u2715")), /*#__PURE__*/React.createElement("input", {
+  }, "\u2715")), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setSortAZ(function (v) {
+        return !v;
+      });
+    },
+    style: {
+      background: sortAZ ? TL : "transparent",
+      color: sortAZ ? TEAL : G600,
+      border: "1px solid " + (sortAZ ? TM : G300),
+      borderRadius: 8,
+      padding: "6px 12px",
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap"
+    }
+  }, sortAZ ? "A\u2013Z \u2713" : "Sort A\u2013Z"), /*#__PURE__*/React.createElement("input", {
     value: search,
     onChange: function (e) {
       setSearch(e.target.value);
