@@ -4795,6 +4795,7 @@ function CompaniesView({
   persist,
   initialSel,
   onNavigatePerson,
+  onBack,
   ownerFilter,
   vacancies,
   specOuts = [],
@@ -5017,7 +5018,23 @@ function CompaniesView({
       padding: "28px 32px",
       background: G50
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, onBack && /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    style: {
+      background: "transparent",
+      border: "none",
+      color: TEAL,
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      padding: 0,
+      marginBottom: 14,
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, "\u2190 Back to Market Map"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -6853,7 +6870,7 @@ function MarketMap({
     }, viewPipelineBtn, startBDBtn);
     return /*#__PURE__*/React.createElement("div", {
       key: c.id,
-      onClick: () => onNavigate && onNavigate("companies", c.id),
+      onClick: () => onNavigate && onNavigate("companies", c.id, "map"),
       style: {
         background: W,
         border: "1px solid " + G200,
@@ -11497,6 +11514,7 @@ function App() {
   const [view, setView] = useState("bd");
   const [ownerFilter, setOwnerFilter] = useState(sessionStorage.getItem("volt_owner") || null);
   const [navSel, setNavSel] = useState(null);
+  const [navFrom, setNavFrom] = useState(null);
   const [pipelineFilterCompany, setPipelineFilterCompany] = useState(null);
   const [people, setPeople] = useState(SEED_PEOPLE);
   const [companies, setCompanies] = useState(SEED_COMPANIES);
@@ -11729,9 +11747,10 @@ function App() {
       clearInterval(retryInterval);
     };
   }, []);
-  const handleNavigate = (targetView, id) => {
+  const handleNavigate = (targetView, id, from) => {
     setView(targetView);
     setNavSel(id);
+    setNavFrom(from || null);
     setTimeout(() => setNavSel(null), 500);
   };
   const jumpToPipelineForCompany = companyId => {
@@ -12025,6 +12044,10 @@ function App() {
     onNavigatePerson: id => {
       handleNavigate("people", id);
     },
+    onBack: navFrom === "map" ? () => {
+      setNavFrom(null);
+      setView("map");
+    } : null,
     ownerFilter: ownerFilter,
     vacancies: vacancies,
     specOuts: specOuts,
