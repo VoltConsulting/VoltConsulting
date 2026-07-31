@@ -834,30 +834,45 @@ const RelDot = ({
   }
 }, rel));
 const DueTag = ({
-  due
+  due,
+  big
 }) => {
   if (!due) return null;
   const d = Math.ceil((new Date(due) - new Date()) / 86400000);
+  const dateLabel = new Date(due).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short"
+  });
+  const bigStyle = big ? {
+    fontSize: 15,
+    fontWeight: 700,
+    padding: "3px 10px",
+    borderRadius: 6,
+    background: (d < 0 ? DANGER : WARN) + "15"
+  } : {
+    fontSize: 11,
+    fontWeight: 700
+  };
   if (d > 3) return /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 11,
-      color: G600
+      ...bigStyle,
+      color: big ? WARN : G600,
+      fontWeight: big ? 700 : 600
     }
-  }, due);
+  }, dateLabel);
   if (d >= 0) return /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 11,
-      fontWeight: 700,
+      ...bigStyle,
       color: WARN
     }
-  }, d === 0 ? "Due today" : "Due in " + d + "d");
+  }, (d === 0 ? "Due today" : "Due in " + d + "d") + " · " + dateLabel);
   return /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 11,
-      fontWeight: 700,
+      ...bigStyle,
       color: DANGER
     }
-  }, "Overdue " + Math.abs(d) + "d");
+  }, "Overdue " + Math.abs(d) + "d · " + dateLabel);
 };
 const Inp = ({
   value,
@@ -2995,6 +3010,19 @@ function PersonDetail({
   }), selP.seniority && /*#__PURE__*/React.createElement(Badge, {
     label: selP.seniority,
     color: G600
+  }), selP.bdStage && migrateOwners(selP.owners, selP.owner).length > 0 && /*#__PURE__*/React.createElement(Badge, {
+    label: "BD: " + selP.bdStage + " \u00b7 " + migrateOwners(selP.owners, selP.owner).join("/"),
+    color: "#0284c7"
+  }), selP.nextDue && /*#__PURE__*/React.createElement(Badge, {
+    label: "Follow-up: " + new Date(selP.nextDue).toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short"
+    }),
+    color: new Date(selP.nextDue) < new Date() ? DANGER : WARN
+  }), selP.headlineSector && /*#__PURE__*/React.createElement(Badge, {
+    label: selP.headlineSector,
+    color: "#7c3aed"
   })))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -5592,7 +5620,8 @@ function BDTracker({
           alignItems: "center"
         }
       }, /*#__PURE__*/React.createElement(DueTag, {
-        due: item.nextDue
+        due: item.nextDue,
+        big: true
       }), /*#__PURE__*/React.createElement(RelDot, {
         rel: item.relationship
       }))), /*#__PURE__*/React.createElement("div", {
@@ -5639,7 +5668,11 @@ function BDTracker({
           color: new Date(item.nextDue) < new Date() ? DANGER : G600,
           fontWeight: 600
         }
-      }, "Due: ", item.nextDue, new Date(item.nextDue) < new Date() ? " — OVERDUE" : ""))), /*#__PURE__*/React.createElement("button", {
+      }, "Due: ", new Date(item.nextDue).toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short"
+      }), new Date(item.nextDue) < new Date() ? " — OVERDUE" : ""))), /*#__PURE__*/React.createElement("button", {
         onClick: function () {
           openDone(item);
         },
