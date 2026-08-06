@@ -127,6 +127,14 @@ footer{background:#0f1923;padding:56px 0 32px}
   .article-card.featured{flex-direction:column}
   .article-card.featured .card-accent{width:auto;height:4px}
 }
+.nav-dropdown{position:relative}
+.nav-dropdown > a::after{content:' ▾';font-size:.6rem;opacity:.6}
+.dropdown-menu{display:none;position:absolute;top:100%;left:0;background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.10);min-width:230px;padding:6px 0;z-index:200;margin-top:0}
+.dropdown-menu a{display:block;padding:12px 18px;font-size:.95rem;font-weight:600;color:var(--near-black);text-decoration:none;white-space:nowrap;transition:background .15s,color .15s}
+.dropdown-menu a:hover{background:var(--teal-light);color:var(--teal-dark)}
+.dropdown-menu a.active{color:var(--teal);font-weight:700}
+.nav-dropdown:hover .dropdown-menu{display:block}
+.nav-dropdown > a{padding-bottom:8px;margin-bottom:-8px}
 </style>
 </head>
 <body>
@@ -138,7 +146,14 @@ footer{background:#0f1923;padding:56px 0 32px}
     <ul class="nav-links" id="navLinks">
       <li><a href="https://voltconsulting.solutions/index.html#about">About</a></li>
       <li><a href="https://voltconsulting.solutions/executive-search.html">Executive Search</a></li>
-      <li><a href="https://voltconsulting.solutions/consulting-firms.html">Consulting Firms</a></li>
+      <li class="nav-dropdown">
+        <a href="https://voltconsulting.solutions/consulting-firms.html">Consulting Firms</a>
+        <div class="dropdown-menu">
+          <a href="https://voltconsulting.solutions/consulting-firms.html">For Consulting Firms</a>
+          <a href="https://voltconsulting.solutions/flat-fee-consulting-recruitment.html">VoltTEAMbuild &middot; Flat-Fee Pricing</a>
+          <a href="https://voltconsulting.solutions/embedded-talent-solutions.html">Embedded Recruitment</a>
+        </div>
+      </li>
       <li><a href="https://voltconsulting.solutions/index.html#voltnetwork">VoltNETWORK</a></li>
       <li><a href="https://voltconsulting.solutions/index.html#team">Team</a></li>
       <li><a href="https://voltconsulting.solutions/careers.html">Join Us - Enter the Volt</a></li>
