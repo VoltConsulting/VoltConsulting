@@ -127,6 +127,7 @@ footer{background:#0f1923;padding:56px 0 32px}
   .article-card.featured{flex-direction:column}
   .article-card.featured .card-accent{width:auto;height:4px}
 }
+.nav-dropdown.js-open .dropdown-menu{display:block}
 </style>
 </head>
 <body>
@@ -232,6 +233,25 @@ function toggleNav(){document.getElementById('navLinks').classList.toggle('open'
 window.addEventListener('scroll',function(){document.getElementById('navbar').classList.toggle('scrolled',window.scrollY>20)});
 const obs=new IntersectionObserver((e)=>{e.forEach(i=>{if(i.isIntersecting)i.target.classList.add('visible')})},{threshold:0.12});
 document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+</script>
+<script>
+(function(){
+  document.querySelectorAll('.nav-dropdown > a').forEach(function(trigger){
+    trigger.addEventListener('click', function(e){
+      var parent = trigger.parentElement;
+      if(!parent.classList.contains('js-open')){
+        e.preventDefault();
+        document.querySelectorAll('.nav-dropdown.js-open').forEach(function(o){ if(o!==parent) o.classList.remove('js-open'); });
+        parent.classList.add('js-open');
+      }
+    });
+  });
+  document.addEventListener('click', function(e){
+    document.querySelectorAll('.nav-dropdown.js-open').forEach(function(o){
+      if(!o.contains(e.target)) o.classList.remove('js-open');
+    });
+  });
+})();
 </script>
 </body>
 </html>

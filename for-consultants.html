@@ -647,7 +647,8 @@
       .contact-wrap { grid-template-columns: 1fr; gap: 0.6rem; }
       .form-row { grid-template-columns: 1fr; }
     }
-  </style>
+  .nav-dropdown.js-open .dropdown-menu{display:block}
+</style>
 </head>
 <body>
 
@@ -972,6 +973,25 @@ const observer = new IntersectionObserver((entries) => {
   entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
 }, { threshold: 0.12 });
 document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+<script>
+(function(){
+  document.querySelectorAll('.nav-dropdown > a').forEach(function(trigger){
+    trigger.addEventListener('click', function(e){
+      var parent = trigger.parentElement;
+      if(!parent.classList.contains('js-open')){
+        e.preventDefault();
+        document.querySelectorAll('.nav-dropdown.js-open').forEach(function(o){ if(o!==parent) o.classList.remove('js-open'); });
+        parent.classList.add('js-open');
+      }
+    });
+  });
+  document.addEventListener('click', function(e){
+    document.querySelectorAll('.nav-dropdown.js-open').forEach(function(o){
+      if(!o.contains(e.target)) o.classList.remove('js-open');
+    });
+  });
+})();
 </script>
 </body>
 </html>

@@ -48,6 +48,8 @@ body{font-family:var(--font);color:var(--near-black);background:var(--white);lin
 .dropdown-menu a{display:block;padding:12px 18px;font-size:.95rem;font-weight:600;color:var(--near-black);text-decoration:none;white-space:nowrap;transition:background .15s,color .15s}
 .dropdown-menu a:hover{background:var(--teal-light);color:var(--teal-dark)}
 .nav-dropdown:hover .dropdown-menu{display:block}
+.nav-dropdown.js-open .dropdown-menu{display:block}
+
 .nav-dropdown > a{padding-bottom:8px;margin-bottom:-8px}
 
 /* HERO */
@@ -346,6 +348,25 @@ document.querySelectorAll('[data-carousel]').forEach(function(shell) {
 
   go(0);
 });
+</script>
+<script>
+(function(){
+  document.querySelectorAll('.nav-dropdown > a').forEach(function(trigger){
+    trigger.addEventListener('click', function(e){
+      var parent = trigger.parentElement;
+      if(!parent.classList.contains('js-open')){
+        e.preventDefault();
+        document.querySelectorAll('.nav-dropdown.js-open').forEach(function(o){ if(o!==parent) o.classList.remove('js-open'); });
+        parent.classList.add('js-open');
+      }
+    });
+  });
+  document.addEventListener('click', function(e){
+    document.querySelectorAll('.nav-dropdown.js-open').forEach(function(o){
+      if(!o.contains(e.target)) o.classList.remove('js-open');
+    });
+  });
+})();
 </script>
 </body>
 </html>

@@ -185,6 +185,8 @@ footer{background:var(--black);padding:52px 5% 28px}
 .dropdown-menu a:hover{background:var(--teal-light);color:var(--teal-dark)}
 .dropdown-menu a.active{color:var(--teal);font-weight:700}
 .nav-dropdown:hover .dropdown-menu{display:block}
+.nav-dropdown.js-open .dropdown-menu{display:block}
+
 .nav-dropdown > a{padding-bottom:8px;margin-bottom:-8px}
 </style>
 <script type="application/ld+json">
@@ -513,6 +515,25 @@ if (track) { track.innerHTML += track.innerHTML; }
     }
   ]
 }
+</script>
+<script>
+(function(){
+  document.querySelectorAll('.nav-dropdown > a').forEach(function(trigger){
+    trigger.addEventListener('click', function(e){
+      var parent = trigger.parentElement;
+      if(!parent.classList.contains('js-open')){
+        e.preventDefault();
+        document.querySelectorAll('.nav-dropdown.js-open').forEach(function(o){ if(o!==parent) o.classList.remove('js-open'); });
+        parent.classList.add('js-open');
+      }
+    });
+  });
+  document.addEventListener('click', function(e){
+    document.querySelectorAll('.nav-dropdown.js-open').forEach(function(o){
+      if(!o.contains(e.target)) o.classList.remove('js-open');
+    });
+  });
+})();
 </script>
 </body>
 </html>
