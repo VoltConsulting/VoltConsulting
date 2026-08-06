@@ -35,7 +35,7 @@ body{font-family:var(--font);color:var(--near-black);background:var(--white);lin
 .nav-links{display:flex;align-items:center;gap:18px;list-style:none}
 .nav-links a{font-weight:500;font-size:.78rem;color:var(--near-black);text-decoration:none;white-space:nowrap;transition:color .2s}
 .nav-links a:hover{color:var(--teal)}
-.nav-links a.active{color:var(--teal);font-weight:700}
+.nav-links a.active{color:var(--teal);text-shadow:0 0 .5px currentColor}
 .nav-links .nav-cta{margin-left:8px}
 .nav-burger{display:none;background:none;border:none;cursor:pointer;padding:4px}
 .nav-burger span{display:block;width:22px;height:2px;background:var(--black);margin:5px 0;border-radius:2px}
@@ -132,7 +132,7 @@ footer{background:#0f1923;padding:56px 0 32px}
 .dropdown-menu{display:none;position:absolute;top:100%;left:0;background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.10);min-width:230px;padding:6px 0;z-index:200;margin-top:0}
 .dropdown-menu a{display:block;padding:12px 18px;font-size:.95rem;font-weight:600;color:var(--near-black);text-decoration:none;white-space:nowrap;transition:background .15s,color .15s}
 .dropdown-menu a:hover{background:var(--teal-light);color:var(--teal-dark)}
-.dropdown-menu a.active{color:var(--teal);font-weight:700}
+.dropdown-menu a.active{color:var(--teal);text-shadow:0 0 .5px currentColor}
 .nav-dropdown:hover .dropdown-menu{display:block}
 .nav-dropdown.js-open .dropdown-menu{display:block}
 
@@ -154,6 +154,9 @@ footer{background:#0f1923;padding:56px 0 32px}
           <a href="https://voltconsulting.solutions/consulting-firms.html">For Consulting Firms</a>
           <a href="https://voltconsulting.solutions/flat-fee-consulting-recruitment.html">VoltTEAMbuild &middot; Flat-Fee Pricing</a>
           <a href="https://voltconsulting.solutions/embedded-talent-solutions.html">Embedded Recruitment</a>
+          <a href="https://voltconsulting.solutions/what-to-expect.html#client-experience" style="color:var(--teal-dark)">What to Expect as a Client</a>
+          <a href="https://voltconsulting.solutions/for-consultants.html" style="border-top:1px solid var(--border)">For Consulting Professionals</a>
+          <a href="https://voltconsulting.solutions/what-to-expect.html#candidate-experience" style="color:var(--teal-dark)">What to Expect as a Candidate</a>
         </div>
       </li>
       <li><a href="https://voltconsulting.solutions/index.html#voltnetwork">VoltNETWORK</a></li>
