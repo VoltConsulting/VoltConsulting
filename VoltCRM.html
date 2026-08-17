@@ -7205,7 +7205,17 @@ function SpecOutsView({
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState("all");
   const [groupBy, setGroupBy] = useState("candidate");
+  const [sortMode, setSortMode] = useState("followup");
   const [adding, setAdding] = useState(false);
+  const [expandedKeys, setExpandedKeys] = useState(() => new Set());
+  const autoExpanded = useRef(false);
+  function toggleGroup(key) {
+    setExpandedKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);else next.add(key);
+      return next;
+    });
+  }
   function commit(updated) {
     setSpecOuts(updated);
     persist("specouts", updated);
@@ -7216,6 +7226,16 @@ function SpecOutsView({
   }
   function updateSpec(id, patch) {
     commit(specOuts.map(s => s.id === id ? Object.assign({}, s, patch) : s));
+  }
+  // "Open" = still awaiting a response; these are what need chasing.
+  // Resolved (Interested/Meeting Booked/Declined) don't need a follow-up nudge.
+  function specIsOpen(s) {
+    return s.status === "Sent" || s.status === "No Response";
+  }
+  function specDaysSince(s) {
+    const d = s.lastUpdated || s.dateSent;
+    if (!d) return 0;
+    return Math.max(0, Math.floor((new Date() - new Date(d)) / 86400000));
   }
   const scoped = useMemo(() => (specOuts || []).filter(s => {
     if (!ownerFilter) return true;
@@ -7241,8 +7261,39 @@ function SpecOutsView({
       });
       map.get(k).items.push(s);
     });
-    return Array.from(map.values()).sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
-  }, [list, groupBy]);
+    const arr = Array.from(map.values()).map(g => {
+      const openItems = g.items.filter(specIsOpen);
+      const maxOpenDays = openItems.length ? Math.max.apply(null, openItems.map(specDaysSince)) : -1;
+      const mostRecentDays = Math.min.apply(null, g.items.map(specDaysSince));
+      return Object.assign({}, g, {
+        maxOpenDays: maxOpenDays,
+        mostRecentDays: mostRecentDays,
+        openCount: openItems.length
+      });
+    });
+    if (sortMode === "az") {
+      arr.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      arr.sort((a, b) => {
+        const aOpen = a.maxOpenDays >= 0,
+          bOpen = b.maxOpenDays >= 0;
+        if (aOpen && bOpen) return b.maxOpenDays - a.maxOpenDays;
+        if (aOpen && !bOpen) return -1;
+        if (!aOpen && bOpen) return 1;
+        return a.mostRecentDays - b.mostRecentDays;
+      });
+    }
+    return arr;
+  }, [list, groupBy, sortMode]);
+  // Auto-expand when the list is small enough that collapsing just adds
+  // clicks for no reason. Only fires once, so manual toggles afterwards
+  // (including re-collapsing) aren't fought.
+  useEffect(() => {
+    if (!autoExpanded.current && groups.length > 0 && groups.length <= 2) {
+      autoExpanded.current = true;
+      setExpandedKeys(new Set(groups.map(g => g.navTarget + "-" + g.name)));
+    }
+  }, [groups]);
   const counts = useMemo(() => {
     const c = {
       all: scoped.length
@@ -7350,54 +7401,160 @@ function SpecOutsView({
       fontFamily: "inherit",
       textTransform: "capitalize"
     }
-  }, g)))), groups.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, g)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginLeft: 8
+    }
+  }, "Sort"), [{
+    v: "followup",
+    l: "Needs follow-up"
+  }, {
+    v: "az",
+    l: "A\u2013Z"
+  }].map(o => /*#__PURE__*/React.createElement("button", {
+    key: o.v,
+    onClick: () => setSortMode(o.v),
+    style: {
+      background: sortMode === o.v ? TEAL : W,
+      color: sortMode === o.v ? W : G600,
+      border: "1px solid " + (sortMode === o.v ? TEAL : G300),
+      borderRadius: 6,
+      padding: "5px 12px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, o.l)))), groups.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       color: G400,
       fontSize: 13,
       padding: "40px 0",
       textAlign: "center"
     }
-  }, "No spec outs logged yet.") : groups.map(g => /*#__PURE__*/React.createElement("div", {
-    key: g.navTarget + "-" + g.name,
-    style: {
-      marginBottom: 26
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      marginBottom: 10,
-      paddingBottom: 6,
-      borderBottom: "1px solid " + G200
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => g.id != null && onNavigate(g.navTarget, g.id),
-    disabled: g.id == null,
-    style: {
-      background: "none",
-      border: "none",
-      padding: 0,
-      fontSize: 15,
-      fontWeight: 700,
-      color: g.id != null ? TEAL : NAVY,
-      cursor: g.id != null ? "pointer" : "default",
-      fontFamily: "inherit",
-      textDecoration: g.id != null ? "underline" : "none",
-      textDecorationColor: TM
-    }
-  }, g.name), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: G400,
-      fontWeight: 600
-    }
-  }, g.items.length + (g.items.length === 1 ? " spec out" : " spec outs"))), g.items.map(s => /*#__PURE__*/React.createElement(SpecOutRow, {
-    key: s.id,
-    spec: s,
-    perspective: groupBy === "candidate" ? "candidate" : "contact",
-    onUpdate: updateSpec
-  })))));
+  }, "No spec outs logged yet.") : groups.map(g => {
+    const key = g.navTarget + "-" + g.name;
+    const isOpen = expandedKeys.has(key);
+    return /*#__PURE__*/React.createElement("div", {
+      key: key,
+      style: {
+        marginBottom: 12,
+        border: "1px solid " + G200,
+        borderRadius: 8,
+        overflow: "hidden"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      onClick: () => toggleGroup(key),
+      style: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+        padding: "12px 14px",
+        cursor: "pointer",
+        background: isOpen ? G50 : W
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement(Av, {
+      name: g.name,
+      size: 32,
+      color: groupBy === "candidate" ? TEAL : G600
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        fontSize: 14,
+        color: NAVY
+      }
+    }, g.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginTop: 3,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: G600
+      }
+    }, g.items.length + (g.items.length === 1 ? " spec out" : " spec outs") + " · last " + (g.mostRecentDays === 0 ? "today" : g.mostRecentDays + "d ago")), SPEC_STATUSES.filter(st => g.items.some(s => s.status === st)).map(st => /*#__PURE__*/React.createElement("span", {
+      key: st,
+      style: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: SPEC_STATUS_COLORS[st] || G400,
+        background: (SPEC_STATUS_COLORS[st] || G400) + "18",
+        borderRadius: 10,
+        padding: "1px 7px"
+      }
+    }, g.items.filter(s => s.status === st).length + " " + st))))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        flexShrink: 0
+      }
+    }, g.maxOpenDays >= 3 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: g.maxOpenDays >= 10 ? DANGER : WARN,
+        whiteSpace: "nowrap"
+      }
+    }, "Follow up \u00b7 " + g.maxOpenDays + "d"), g.id != null && /*#__PURE__*/React.createElement("button", {
+      onClick: e => {
+        e.stopPropagation();
+        onNavigate(g.navTarget, g.id);
+      },
+      style: {
+        background: "none",
+        border: "none",
+        color: TEAL,
+        fontSize: 11,
+        fontWeight: 700,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        textDecoration: "underline",
+        textDecorationColor: TM,
+        whiteSpace: "nowrap"
+      }
+    }, "View profile"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        color: G400,
+        display: "inline-block",
+        transform: isOpen ? "rotate(90deg)" : "none",
+        transition: "transform .15s"
+      }
+    }, "\u203A"))), isOpen && /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: 14,
+        borderTop: "1px solid " + G100,
+        background: W
+      }
+    }, g.items.map(s => /*#__PURE__*/React.createElement(SpecOutRow, {
+      key: s.id,
+      spec: s,
+      perspective: groupBy === "candidate" ? "candidate" : "contact",
+      onUpdate: updateSpec
+    }))));
+  }));
 }
 
 </script>
@@ -12074,8 +12231,14 @@ function App() {
         try {
           const sp = await sGet("voltcrm5-people");
           const sc = await sGet("voltcrm5-companies");
+          const snet2 = await sGet("voltcrm5-network");
+          const svac2 = await sGet("voltcrm5-vacancies");
+          const sso2 = await sGet("voltcrm5-specouts");
           if (sp) setPeople(JSON.parse(typeof sp === "string" ? sp : JSON.stringify(sp)));
           if (sc) setCompanies(JSON.parse(typeof sc === "string" ? sc : JSON.stringify(sc)));
+          if (snet2) setNetwork(JSON.parse(typeof snet2 === "string" ? snet2 : JSON.stringify(snet2)));
+          if (svac2) setVacancies(JSON.parse(typeof svac2 === "string" ? svac2 : JSON.stringify(svac2)));
+          if (sso2) setSpecOuts(JSON.parse(typeof sso2 === "string" ? sso2 : JSON.stringify(sso2)));
         } catch (e2) {/* keep seed data */}
         setSyncStatus("offline");
       }
