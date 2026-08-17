@@ -3315,7 +3315,8 @@ function PersonDetail({
     companies: companies,
     specOuts: specOuts,
     setSpecOuts: setSpecOuts,
-    persist: persist
+    persist: persist,
+    onNavigatePerson: setSel
   })));
 }
 
@@ -3342,13 +3343,16 @@ function SpecOutBadge({
 function SpecOutRow({
   spec,
   perspective,
-  onUpdate
+  onUpdate,
+  onNavigatePerson
 }) {
   const [expanded, setExpanded] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [newStatus, setNewStatus] = useState(spec.status);
   const [note, setNote] = useState("");
-  const headline = perspective === "candidate" ? (spec.contactName ? spec.contactName + " · " : "") + (spec.companyName || "Unknown company") : spec.candidateName || "Unknown candidate";
+  const linkId = perspective === "candidate" ? spec.contactId : spec.candidateId;
+  const linkName = perspective === "candidate" ? spec.contactName : spec.candidateName;
+  const tailText = perspective === "candidate" ? spec.companyName || "Unknown company" : "";
   function saveUpdate() {
     const hist = (spec.updates || []).concat(note.trim() ? [{
       date: today,
@@ -3384,7 +3388,15 @@ function SpecOutRow({
       fontSize: 13,
       color: NAVY
     }
-  }, headline), /*#__PURE__*/React.createElement("div", {
+  }, onNavigatePerson && linkId != null ? /*#__PURE__*/React.createElement("span", {
+    onClick: () => onNavigatePerson(linkId),
+    style: {
+      cursor: "pointer",
+      color: TEAL,
+      textDecoration: "underline",
+      textDecorationColor: TM
+    }
+  }, linkName || "Unknown") : linkName || "Unknown", tailText && " · " + tailText), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: G600,
@@ -3620,7 +3632,8 @@ function SpecOutsTab({
   companies,
   specOuts,
   setSpecOuts,
-  persist
+  persist,
+  onNavigatePerson
 }) {
   const [adding, setAdding] = useState(false);
   const sentByMe = specOuts.filter(s => s.candidateId === person.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
@@ -3685,7 +3698,8 @@ function SpecOutsTab({
     key: s.id,
     spec: s,
     perspective: "candidate",
-    onUpdate: updateSpec
+    onUpdate: updateSpec,
+    onNavigatePerson: onNavigatePerson
   })), receivedByMe.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 24
@@ -3701,7 +3715,8 @@ function SpecOutsTab({
     key: s.id,
     spec: s,
     perspective: "contact",
-    onUpdate: updateSpec
+    onUpdate: updateSpec,
+    onNavigatePerson: onNavigatePerson
   }))));
 }
 
@@ -5390,7 +5405,8 @@ function CompaniesView({
     key: s.id,
     spec: s,
     perspective: "contact",
-    onUpdate: updateSpecFromCompany
+    onUpdate: updateSpecFromCompany,
+    onNavigatePerson: onNavigatePerson
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 16
@@ -7643,7 +7659,8 @@ function SpecOutsView({
       key: s.id,
       spec: s,
       perspective: groupBy === "candidate" ? "candidate" : "contact",
-      onUpdate: updateSpec
+      onUpdate: updateSpec,
+      onNavigatePerson: id => onNavigate("people", id)
     }))));
   }));
 }
