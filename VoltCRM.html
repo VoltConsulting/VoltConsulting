@@ -7040,6 +7040,366 @@ const EMAIL_TEMPLATES = [{
   body: "Hi {{firstName}},\n\nThanks for the time today — really useful context. I'll follow up as agreed and keep you posted.\n\nBest,\nDavid"
 }];
 
+// ── Spec Outs — top-level tab ────────────────────────────────
+// Same underlying SPECOUT records as the per-person Spec Outs
+// tab, viewed as one master list across every candidate and
+// target company so David can see where speculative approaches
+// stand without digging into individual records.
+function AddSpecOutFormGlobal({
+  people,
+  companies,
+  onSave,
+  onCancel
+}) {
+  const [candidateName, setCandidateName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [dateSent, setDateSent] = useState(today);
+  const [summary, setSummary] = useState("");
+  const [fullEmail, setFullEmail] = useState("");
+  const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === companyName.trim().toLowerCase());
+  const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
+  const candidateOptions = people.filter(p => p.type === "candidate");
+  function save() {
+    if (!candidateName.trim() || !companyName.trim()) return;
+    const cand = people.find(p => (p.name || "").trim().toLowerCase() === candidateName.trim().toLowerCase());
+    const co = companies.find(c => (c.name || "").trim().toLowerCase() === companyName.trim().toLowerCase());
+    const ct = people.find(p => (p.name || "").trim().toLowerCase() === contactName.trim().toLowerCase());
+    onSave({
+      id: Date.now(),
+      candidateId: cand ? cand.id : null,
+      candidateName: cand ? cand.name : candidateName.trim(),
+      companyId: co ? co.id : null,
+      companyName: co ? co.name : companyName.trim(),
+      contactId: ct ? ct.id : null,
+      contactName: ct ? ct.name : contactName.trim(),
+      dateSent: dateSent,
+      summary: summary.trim(),
+      fullEmail: fullEmail.trim(),
+      status: "Sent",
+      lastUpdated: dateSent,
+      updates: []
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 8,
+      padding: 16,
+      marginBottom: 14,
+      display: "grid",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement(Fld, {
+    label: "Candidate"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: candidateName,
+    onChange: e => setCandidateName(e.target.value),
+    placeholder: "Start typing a candidate name…",
+    list: "specglobal-cand-list",
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      color: G900,
+      fontSize: 13,
+      outline: "none",
+      width: "100%",
+      fontFamily: "inherit"
+    }
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "specglobal-cand-list"
+  }, candidateOptions.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.id,
+    value: p.name
+  })))), /*#__PURE__*/React.createElement(Fld, {
+    label: "Company"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: companyName,
+    onChange: e => {
+      setCompanyName(e.target.value);
+      setContactName("");
+    },
+    placeholder: "Start typing a company name…",
+    list: "specglobal-co-list",
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      color: G900,
+      fontSize: 13,
+      outline: "none",
+      width: "100%",
+      fontFamily: "inherit"
+    }
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "specglobal-co-list"
+  }, companies.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c.id,
+    value: c.name
+  })))), /*#__PURE__*/React.createElement(Fld, {
+    label: matchedCo ? "Contact at " + matchedCo.name : "Contact (hiring manager, partner, HR — whoever it went to)"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: contactName,
+    onChange: e => setContactName(e.target.value),
+    placeholder: matchedCo ? "Start typing a contact at " + matchedCo.name + "…" : "Type the company first to narrow this down…",
+    list: "specglobal-ct-list",
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      color: G900,
+      fontSize: 13,
+      outline: "none",
+      width: "100%",
+      fontFamily: "inherit"
+    }
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "specglobal-ct-list"
+  }, contactOptions.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.id,
+    value: p.name
+  })))), /*#__PURE__*/React.createElement(Fld, {
+    label: "Date sent"
+  }, /*#__PURE__*/React.createElement(Inp, {
+    type: "date",
+    value: dateSent,
+    onChange: setDateSent
+  })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Summary"
+  }, /*#__PURE__*/React.createElement(Inp, {
+    value: summary,
+    onChange: setSummary,
+    placeholder: "e.g. Specced re: Head of Market Access role"
+  })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Full email (optional — expandable later)"
+  }, /*#__PURE__*/React.createElement(Tarea, {
+    value: fullEmail,
+    onChange: setFullEmail,
+    rows: 5
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: save
+  }, "Save spec out"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "Cancel")));
+}
+function SpecOutsView({
+  specOuts,
+  setSpecOuts,
+  people,
+  companies,
+  persist,
+  ownerFilter,
+  onNavigate
+}) {
+  const [search, setSearch] = useState("");
+  const [statusF, setStatusF] = useState("all");
+  const [groupBy, setGroupBy] = useState("candidate");
+  const [adding, setAdding] = useState(false);
+  function commit(updated) {
+    setSpecOuts(updated);
+    persist("specouts", updated);
+  }
+  function addSpec(spec) {
+    commit([spec, ...specOuts]);
+    setAdding(false);
+  }
+  function updateSpec(id, patch) {
+    commit(specOuts.map(s => s.id === id ? Object.assign({}, s, patch) : s));
+  }
+  const scoped = useMemo(() => (specOuts || []).filter(s => {
+    if (!ownerFilter) return true;
+    const cand = people.find(p => p.id === s.candidateId);
+    return cand && migrateOwners(cand.owners, cand.owner).includes(ownerFilter);
+  }), [specOuts, people, ownerFilter]);
+  const list = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return scoped.filter(s => (statusF === "all" || s.status === statusF) && (!q || ((s.candidateName || "") + " " + (s.companyName || "") + " " + (s.contactName || "") + " " + (s.summary || "")).toLowerCase().includes(q))).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
+  }, [scoped, statusF, search]);
+  const groups = useMemo(() => {
+    const nameKey = groupBy === "candidate" ? "candidateName" : "companyName";
+    const idKey = groupBy === "candidate" ? "candidateId" : "companyId";
+    const navTarget = groupBy === "candidate" ? "people" : "companies";
+    const map = new Map();
+    list.forEach(s => {
+      const k = s[nameKey] || "Unknown";
+      if (!map.has(k)) map.set(k, {
+        name: k,
+        id: s[idKey],
+        navTarget: navTarget,
+        items: []
+      });
+      map.get(k).items.push(s);
+    });
+    return Array.from(map.values()).sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
+  }, [list, groupBy]);
+  const counts = useMemo(() => {
+    const c = {
+      all: scoped.length
+    };
+    SPEC_STATUSES.forEach(st => c[st] = scoped.filter(s => s.status === st).length);
+    return c;
+  }, [scoped]);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "100%",
+      overflow: "auto",
+      padding: "24px 28px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 6,
+      flexWrap: "wrap",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 20,
+      fontWeight: 700,
+      color: NAVY
+    }
+  }, "Spec Outs"), !adding && /*#__PURE__*/React.createElement(Btn, {
+    onClick: () => setAdding(true)
+  }, "+ Add spec out")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: G600,
+      marginBottom: 18
+    }
+  }, "Every candidate speculative approach in one place — where they've been specced, and how each one's landed."), adding && /*#__PURE__*/React.createElement(AddSpecOutFormGlobal, {
+    people: people,
+    companies: companies,
+    onSave: addSpec,
+    onCancel: () => setAdding(false)
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      marginBottom: 14
+    }
+  }, ["all"].concat(SPEC_STATUSES).map(st => /*#__PURE__*/React.createElement("button", {
+    key: st,
+    onClick: () => setStatusF(st),
+    style: {
+      background: statusF === st ? (st === "all" ? NAVY : (SPEC_STATUS_COLORS[st] || G400)) + "18" : W,
+      border: "1px solid " + (statusF === st ? st === "all" ? NAVY : SPEC_STATUS_COLORS[st] || G400 : G300),
+      color: statusF === st ? st === "all" ? NAVY : SPEC_STATUS_COLORS[st] || G700 : G600,
+      borderRadius: 20,
+      padding: "5px 13px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, (st === "all" ? "All" : st) + " (" + (counts[st] || 0) + ")"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 12,
+      marginBottom: 18,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement(Inp, {
+    value: search,
+    onChange: setSearch,
+    placeholder: "Search candidate, company, contact…",
+    style: {
+      maxWidth: 320
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em"
+    }
+  }, "Group by"), ["candidate", "company"].map(g => /*#__PURE__*/React.createElement("button", {
+    key: g,
+    onClick: () => setGroupBy(g),
+    style: {
+      background: groupBy === g ? TEAL : W,
+      color: groupBy === g ? W : G600,
+      border: "1px solid " + (groupBy === g ? TEAL : G300),
+      borderRadius: 6,
+      padding: "5px 12px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      textTransform: "capitalize"
+    }
+  }, g)))), groups.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: G400,
+      fontSize: 13,
+      padding: "40px 0",
+      textAlign: "center"
+    }
+  }, "No spec outs logged yet.") : groups.map(g => /*#__PURE__*/React.createElement("div", {
+    key: g.navTarget + "-" + g.name,
+    style: {
+      marginBottom: 26
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 10,
+      paddingBottom: 6,
+      borderBottom: "1px solid " + G200
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => g.id != null && onNavigate(g.navTarget, g.id),
+    disabled: g.id == null,
+    style: {
+      background: "none",
+      border: "none",
+      padding: 0,
+      fontSize: 15,
+      fontWeight: 700,
+      color: g.id != null ? TEAL : NAVY,
+      cursor: g.id != null ? "pointer" : "default",
+      fontFamily: "inherit",
+      textDecoration: g.id != null ? "underline" : "none",
+      textDecorationColor: TM
+    }
+  }, g.name), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: G400,
+      fontWeight: 600
+    }
+  }, g.items.length + (g.items.length === 1 ? " spec out" : " spec outs"))), g.items.map(s => /*#__PURE__*/React.createElement(SpecOutRow, {
+    key: s.id,
+    spec: s,
+    perspective: groupBy === "candidate" ? "candidate" : "contact",
+    onUpdate: updateSpec
+  })))));
+}
+
 </script>
   <script>
 function ActivityLogModal({
@@ -8089,6 +8449,10 @@ const NAV = [{
   id: "vacancies",
   label: "Vacancies",
   icon: "◎"
+}, {
+  id: "specouts",
+  label: "Spec Outs",
+  icon: "◇"
 }, {
   id: "network",
   label: "VoltNETWORK",
@@ -12165,6 +12529,14 @@ function App() {
     setPeople: setPeople,
     persist: persist,
     ownerFilter: ownerFilter
+  }), view === "specouts" && /*#__PURE__*/React.createElement(SpecOutsView, {
+    specOuts: specOuts,
+    setSpecOuts: setSpecOuts,
+    people: people,
+    companies: companies,
+    persist: persist,
+    ownerFilter: ownerFilter,
+    onNavigate: handleNavigate
   }), view === "network" && /*#__PURE__*/React.createElement(VoltNetworkView, {
     network: network,
     setNetwork: setNetwork,
