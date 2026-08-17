@@ -3346,7 +3346,8 @@ function SpecOutRow({
   spec,
   perspective,
   onUpdate,
-  onNavigatePerson
+  onNavigatePerson,
+  onDelete
 }) {
   const [expanded, setExpanded] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -3368,6 +3369,11 @@ function SpecOutRow({
     });
     setNote("");
     setUpdating(false);
+  }
+  function handleDelete() {
+    if (window.confirm("Remove this spec out? (" + (linkName || "this entry") + (tailText ? " · " + tailText : "") + ")")) {
+      onDelete(spec.id);
+    }
   }
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3404,9 +3410,30 @@ function SpecOutRow({
       color: G600,
       marginTop: 2
     }
-  }, "Sent " + (spec.dateSent || "—") + (spec.lastUpdated && spec.lastUpdated !== spec.dateSent ? " · updated " + spec.lastUpdated : ""))), /*#__PURE__*/React.createElement(SpecOutBadge, {
+  }, "Sent " + (spec.dateSent || "—") + (spec.lastUpdated && spec.lastUpdated !== spec.dateSent ? " · updated " + spec.lastUpdated : ""))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(SpecOutBadge, {
     status: spec.status
-  })), spec.summary && /*#__PURE__*/React.createElement("div", {
+  }), onDelete && /*#__PURE__*/React.createElement("button", {
+    onClick: handleDelete,
+    title: "Remove this spec out",
+    style: {
+      background: "none",
+      border: "none",
+      color: G400,
+      fontSize: 16,
+      lineHeight: 1,
+      cursor: "pointer",
+      padding: "0 2px",
+      fontFamily: "inherit"
+    },
+    onMouseEnter: e => e.currentTarget.style.color = DANGER,
+    onMouseLeave: e => e.currentTarget.style.color = G400
+  }, "\u00d7"))), spec.summary && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: G700,
@@ -3668,6 +3695,13 @@ function SpecOutsTab({
       note: (patch.updates && patch.updates[0] && patch.updates[0].note) || ""
     });
   }
+  function deleteSpec(id) {
+    const target = specOuts.find(s => s.id === id);
+    if (target && target._recId) {
+      atDelete(target._recId).catch(e => console.warn("Delete from Airtable failed", e));
+    }
+    commit(specOuts.filter(s => s.id !== id));
+  }
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -3701,7 +3735,8 @@ function SpecOutsTab({
     spec: s,
     perspective: "candidate",
     onUpdate: updateSpec,
-    onNavigatePerson: onNavigatePerson
+    onNavigatePerson: onNavigatePerson,
+    onDelete: deleteSpec
   })), receivedByMe.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 24
@@ -3718,7 +3753,8 @@ function SpecOutsTab({
     spec: s,
     perspective: "contact",
     onUpdate: updateSpec,
-    onNavigatePerson: onNavigatePerson
+    onNavigatePerson: onNavigatePerson,
+    onDelete: deleteSpec
   }))));
 }
 
@@ -4958,6 +4994,15 @@ function CompaniesView({
       persist("people", up);
     }
   }
+  function deleteSpecFromCompany(id) {
+    const target = specOuts.find(s => s.id === id);
+    if (target && target._recId) {
+      atDelete(target._recId).catch(e => console.warn("Delete from Airtable failed", e));
+    }
+    const u = specOuts.filter(s => s.id !== id);
+    setSpecOuts(u);
+    persist("specouts", u);
+  }
   const add = f => commit([{
     ...f,
     id: Date.now(),
@@ -5408,7 +5453,8 @@ function CompaniesView({
     spec: s,
     perspective: "contact",
     onUpdate: updateSpecFromCompany,
-    onNavigatePerson: onNavigatePerson
+    onNavigatePerson: onNavigatePerson,
+    onDelete: deleteSpecFromCompany
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 16
@@ -7336,6 +7382,13 @@ function SpecOutsView({
       note: (patch.updates && patch.updates[0] && patch.updates[0].note) || ""
     });
   }
+  function deleteSpec(id) {
+    const target = specOuts.find(s => s.id === id);
+    if (target && target._recId) {
+      atDelete(target._recId).catch(e => console.warn("Delete from Airtable failed", e));
+    }
+    commit(specOuts.filter(s => s.id !== id));
+  }
   // "Open" = still awaiting a response; these are what need chasing.
   // Resolved (Interested/Meeting Booked/Declined) don't need a follow-up nudge.
   function specIsOpen(s) {
@@ -7662,7 +7715,8 @@ function SpecOutsView({
       spec: s,
       perspective: groupBy === "candidate" ? "candidate" : "contact",
       onUpdate: updateSpec,
-      onNavigatePerson: id => onNavigate("people", id)
+      onNavigatePerson: id => onNavigate("people", id),
+      onDelete: deleteSpec
     }))));
   }));
 }
