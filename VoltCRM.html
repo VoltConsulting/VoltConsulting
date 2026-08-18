@@ -1386,6 +1386,100 @@ const SectorPicker = ({
     }
   }, s);
 }));
+const LocationTagPicker = ({
+  selected,
+  onChange,
+  suggestions
+}) => {
+  const [val, setVal] = useState("");
+  const add = () => {
+    const v = val.trim();
+    if (!v) return;
+    if (!(selected || []).some(x => x.toLowerCase() === v.toLowerCase())) {
+      onChange([...(selected || []), v]);
+    }
+    setVal("");
+  };
+  return /*#__PURE__*/React.createElement("div", null, (selected || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 6,
+      marginBottom: 8
+    }
+  }, selected.map(loc => /*#__PURE__*/React.createElement("span", {
+    key: loc,
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5,
+      background: G100,
+      color: NAVY,
+      border: "1px solid " + G300,
+      borderRadius: 14,
+      padding: "3px 6px 3px 10px",
+      fontSize: 11.5,
+      fontWeight: 600
+    }
+  }, loc, /*#__PURE__*/React.createElement("button", {
+    onClick: () => onChange(selected.filter(x => x !== loc)),
+    style: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      color: G600,
+      fontSize: 13,
+      lineHeight: 1,
+      padding: "0 2px",
+      fontFamily: "inherit"
+    }
+  }, "\xD7")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: val,
+    onChange: e => setVal(e.target.value),
+    onKeyDown: e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        add();
+      }
+    },
+    list: "location-suggestions",
+    placeholder: "e.g. Greater Boston, or London",
+    style: {
+      flex: 1,
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "6px 10px",
+      fontSize: 12,
+      outline: "none",
+      fontFamily: "inherit"
+    }
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "location-suggestions"
+  }, (suggestions || []).map(loc => /*#__PURE__*/React.createElement("option", {
+    key: loc,
+    value: loc
+  }))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: add,
+    style: {
+      background: NAVY,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 14px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Add")));
+};
 
 // ── Quick log panel ───────────────────────────────────────────
 function QuickLog({
@@ -4433,6 +4527,7 @@ const BLANKCO = {
   type: "",
   pillar: "",
   disciplines: [],
+  locations: [],
   tier: "",
   hq: "",
   keyContact: "",
@@ -4460,6 +4555,11 @@ function CompanyForm({
     ...p,
     [k]: v
   }));
+  const allCompanyLocations = useMemo(() => {
+    const set = new Set();
+    (companies || []).forEach(c => (c.locations || []).forEach(l => set.add(l)));
+    return Array.from(set).sort();
+  }, [companies]);
   const handleSave = () => {
     if (!f.name.trim()) return;
     if (!dismissed && !isEdit) {
@@ -4510,6 +4610,13 @@ function CompanyForm({
   }, /*#__PURE__*/React.createElement(SectorPicker, {
     selected: f.disciplines || [],
     onChange: s("disciplines")
+  })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Office Locations",
+    span2: true
+  }, /*#__PURE__*/React.createElement(LocationTagPicker, {
+    selected: f.locations || [],
+    onChange: s("locations"),
+    suggestions: allCompanyLocations
   })), /*#__PURE__*/React.createElement(Fld, {
     label: "Type"
   }, /*#__PURE__*/React.createElement(SelEl, {
@@ -5233,7 +5340,18 @@ function CompaniesView({
       fontSize: 14,
       marginTop: 3
     }
-  }, selC.type, selC.hq ? " · " + selC.hq : ""), /*#__PURE__*/React.createElement("div", {
+  }, selC.type, selC.hq ? " · " + selC.hq : ""), (selC.locations || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 5,
+      flexWrap: "wrap",
+      marginTop: 8
+    }
+  }, selC.locations.map(l => /*#__PURE__*/React.createElement(Badge, {
+    key: l,
+    label: l,
+    color: "#64748b"
+  }))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -6319,6 +6437,8 @@ function MarketMap({
   setTierF,
   disciplineF,
   setDisciplineF,
+  locF,
+  setLocF,
   companySort,
   setCompanySort,
   mapView,
@@ -6372,10 +6492,19 @@ function MarketMap({
     preDisciplineCompanies.forEach(c => (c.disciplines || []).forEach(d => s.add(d)));
     return Array.from(s).sort();
   }, [preDisciplineCompanies]);
-  const filteredCompanies = useMemo(() => preDisciplineCompanies.filter(c => {
+  const preLocationCompanies = useMemo(() => preDisciplineCompanies.filter(c => {
     if (disciplineF !== "All" && !(c.disciplines || []).includes(disciplineF)) return false;
     return true;
   }), [preDisciplineCompanies, disciplineF]);
+  const availableLocations = useMemo(() => {
+    const s = new Set();
+    preLocationCompanies.forEach(c => (c.locations || []).forEach(l => s.add(l)));
+    return Array.from(s).sort();
+  }, [preLocationCompanies]);
+  const filteredCompanies = useMemo(() => preLocationCompanies.filter(c => {
+    if (locF && locF !== "All" && !(c.locations || []).includes(locF)) return false;
+    return true;
+  }), [preLocationCompanies, locF]);
   const pillarCounts = useMemo(() => {
     const counts = {};
     PILLARS.forEach(p => counts[p] = 0);
@@ -6896,7 +7025,40 @@ function MarketMap({
         fontFamily: "inherit"
       }
     }, d);
-  }))), /*#__PURE__*/React.createElement("div", {
+  }))), availableLocations.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 700,
+      textTransform: "uppercase",
+      letterSpacing: "0.07em",
+      marginBottom: 10
+    }
+  }, "Filter by location"), /*#__PURE__*/React.createElement("select", {
+    value: locF || "All",
+    onChange: e => setLocF(e.target.value),
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "6px 10px",
+      fontSize: 12,
+      outline: "none",
+      fontFamily: "inherit",
+      minWidth: 220,
+      cursor: "pointer"
+    }
+  }, [/*#__PURE__*/React.createElement("option", {
+    key: "All",
+    value: "All"
+  }, "All locations")].concat(availableLocations.map(l => /*#__PURE__*/React.createElement("option", {
+    key: l,
+    value: l
+  }, l))))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -6964,6 +7126,18 @@ function MarketMap({
       key: d,
       label: d,
       color: SC[d] || G600
+    })));
+    const locationTags = (c.locations || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 4,
+        flexWrap: "wrap",
+        marginTop: 6
+      }
+    }, c.locations.slice(0, 3).map(l => /*#__PURE__*/React.createElement(Badge, {
+      key: l,
+      label: l,
+      color: "#64748b"
     })));
     const momentumBadge = pCount > 0 && /*#__PURE__*/React.createElement("span", {
       style: {
@@ -7107,7 +7281,7 @@ function MarketMap({
     }, /*#__PURE__*/React.createElement(Badge, {
       label: c.tier,
       color: tc
-    }), momentumBadge, vacancyBadge), disciplineTags, dueFlag, tagButtons, actionsRow);
+    }), momentumBadge, vacancyBadge), disciplineTags, locationTags, dueFlag, tagButtons, actionsRow);
   })))));
 }
 
@@ -12297,6 +12471,7 @@ function App() {
   const [mmTypeF, setMmTypeF] = useState("All");
   const [mmTierF, setMmTierF] = useState("All");
   const [mmDisciplineF, setMmDisciplineF] = useState("All");
+  const [mmLocF, setMmLocF] = useState("All");
   const [mmCompanySort, setMmCompanySort] = useState("az");
   const [mmMapView, setMmMapView] = useState("people");
   const [mmPillarF, setMmPillarF] = useState("Consulting Firm");
@@ -12891,6 +13066,8 @@ function App() {
     setTierF: setMmTierF,
     disciplineF: mmDisciplineF,
     setDisciplineF: setMmDisciplineF,
+    locF: mmLocF,
+    setLocF: setMmLocF,
     companySort: mmCompanySort,
     setCompanySort: setMmCompanySort,
     mapView: mmMapView,
