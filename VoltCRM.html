@@ -4591,7 +4591,7 @@ function PeopleView({
       fontFamily: "inherit",
       cursor: "pointer"
     }
-  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set type\u2026"), /*#__PURE__*/React.createElement("option", { key: "contact", value: "contact" }, "Contact"), /*#__PURE__*/React.createElement("option", { key: "candidate", value: "candidate" }, "Candidate")]), /*#__PURE__*/React.createElement("select", {
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set type\u2026"), /*#__PURE__*/React.createElement("option", { key: "contact", value: "contact" }, "Contact"), /*#__PURE__*/React.createElement("option", { key: "candidate", value: "candidate" }, "Candidate"), /*#__PURE__*/React.createElement("option", { key: "client", value: "client" }, "Client")]), /*#__PURE__*/React.createElement("select", {
     value: bulkSeniority,
     onChange: e => setBulkSeniority(e.target.value),
     style: {
@@ -5224,6 +5224,7 @@ function CompaniesView({
   const [bulkIds, setBulkIds] = useState([]);
   const [bulkOwner, setBulkOwner] = useState("");
   const [bulkPillar, setBulkPillar] = useState("");
+  const [bulkTier, setBulkTier] = useState("");
   const [bulkDiscipline, setBulkDiscipline] = useState("");
   const [bulkLocation, setBulkLocation] = useState("");
   const toggleBulk = id => setBulkIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
@@ -5232,6 +5233,7 @@ function CompaniesView({
     setBulkIds([]);
     setBulkOwner("");
     setBulkPillar("");
+    setBulkTier("");
     setBulkDiscipline("");
     setBulkLocation("");
   };
@@ -5246,6 +5248,7 @@ function CompaniesView({
         next.owners = cur.includes(bulkOwner) ? cur : [...cur, bulkOwner];
       }
       if (bulkPillar) next.pillar = bulkPillar;
+      if (bulkTier) next.tier = bulkTier;
       if (bulkDiscipline.trim()) {
         const cur = c.disciplines || [];
         next.disciplines = cur.some(d => d.toLowerCase() === bulkDiscipline.trim().toLowerCase()) ? cur : [...cur, bulkDiscipline.trim()];
@@ -5859,7 +5862,18 @@ function CompaniesView({
   }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set pillar\u2026")].concat(PILLARS.map(p => /*#__PURE__*/React.createElement("option", {
     key: p,
     value: p
-  }, p)))), /*#__PURE__*/React.createElement("input", {
+  }, p)))), /*#__PURE__*/React.createElement("select", {
+    value: bulkTier,
+    onChange: e => setBulkTier(e.target.value),
+    style: {
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      fontSize: 12,
+      fontFamily: "inherit",
+      cursor: "pointer"
+    }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set tier\u2026"), /*#__PURE__*/React.createElement("option", { key: "Active Client", value: "Active Client" }, "Active Client"), /*#__PURE__*/React.createElement("option", { key: "Prospect", value: "Prospect" }, "Prospect"), /*#__PURE__*/React.createElement("option", { key: "Previous Client", value: "Previous Client" }, "Previous Client")]), /*#__PURE__*/React.createElement("input", {
     value: bulkDiscipline,
     onChange: e => setBulkDiscipline(e.target.value),
     placeholder: "+ Discipline\u2026",
