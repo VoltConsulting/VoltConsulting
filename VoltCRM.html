@@ -925,12 +925,14 @@ const Inp = ({
   onChange,
   placeholder,
   type = "text",
+  list,
   style = {}
 }) => /*#__PURE__*/React.createElement("input", {
   type: type,
   value: value || "",
   onChange: e => onChange(e.target.value),
   placeholder: placeholder,
+  list: list,
   style: {
     background: W,
     border: "1px solid " + G300,
@@ -4000,6 +4002,7 @@ function PersonForm({
   }, /*#__PURE__*/React.createElement(Inp, {
     value: f.location,
     onChange: set("location"),
+    list: "people-locations",
     placeholder: "London, UK"
   })), /*#__PURE__*/React.createElement(Fld, {
     label: "Seniority",
@@ -4139,6 +4142,43 @@ function PeopleView({
   const [sel, setSel] = useState(initialSel || null);
   const [modal, setModal] = useState(null);
   const [prefill, setPrefill] = useState(null);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkIds, setBulkIds] = useState([]);
+  const [bulkOwner, setBulkOwner] = useState("");
+  const [bulkType, setBulkType] = useState("");
+  const [bulkSeniority, setBulkSeniority] = useState("");
+  const [bulkSector, setBulkSector] = useState("");
+  const toggleBulk = id => setBulkIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
+  const exitBulkMode = () => {
+    setBulkMode(false);
+    setBulkIds([]);
+    setBulkOwner("");
+    setBulkType("");
+    setBulkSeniority("");
+    setBulkSector("");
+  };
+  const applyBulk = () => {
+    if (bulkIds.length === 0) return;
+    const idSet = new Set(bulkIds);
+    const u = people.map(p => {
+      if (!idSet.has(p.id)) return p;
+      const next = { ...p };
+      if (bulkOwner) {
+        const cur = migrateOwners(p.owners, p.owner);
+        next.owners = cur.includes(bulkOwner) ? cur : [...cur, bulkOwner];
+      }
+      if (bulkType) next.type = bulkType;
+      if (bulkSeniority) next.seniority = bulkSeniority;
+      if (bulkSector.trim()) {
+        const cur = p.sectors || [];
+        next.sectors = cur.some(x => x.toLowerCase() === bulkSector.trim().toLowerCase()) ? cur : [...cur, bulkSector.trim()];
+      }
+      return next;
+    });
+    setPeople(u);
+    persist("people", u);
+    exitBulkMode();
+  };
   useEffect(() => {
     if (initialSel) setSel(initialSel);
   }, [initialSel]);
@@ -4262,7 +4302,11 @@ function PeopleView({
     variant: "ghost",
     small: true,
     onClick: () => setModal("csv")
-  }, "\u2B06 Import CSV")), /*#__PURE__*/React.createElement("div", {
+  }, "\u2B06 Import CSV"), /*#__PURE__*/React.createElement(Btn, {
+    variant: bulkMode ? "primary" : "ghost",
+    small: true,
+    onClick: () => bulkMode ? exitBulkMode() : setBulkMode(true)
+  }, bulkMode ? "Done" : "Bulk tag")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -4391,16 +4435,17 @@ function PeopleView({
   }, list.map(p => {
     const isSel = sel === p.id,
       ac = p.type === "contact" ? "#6f42c1" : TEAL;
+    const isChecked = bulkIds.includes(p.id);
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
-      onClick: () => setSel(p.id),
+      onClick: () => bulkMode ? toggleBulk(p.id) : setSel(p.id),
       style: {
         padding: "11px 12px",
         borderRadius: 8,
         marginBottom: 4,
         cursor: "pointer",
-        background: isSel ? TL : "transparent",
-        border: "1px solid " + (isSel ? TM : "transparent"),
+        background: bulkMode ? (isChecked ? TL : "transparent") : isSel ? TL : "transparent",
+        border: "1px solid " + (bulkMode ? (isChecked ? TM : G200) : isSel ? TM : "transparent"),
         transition: "all 0.1s"
       }
     }, /*#__PURE__*/React.createElement("div", {
@@ -4409,7 +4454,18 @@ function PeopleView({
         gap: 10,
         alignItems: "center"
       }
-    }, /*#__PURE__*/React.createElement(Av, {
+    }, bulkMode && /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: isChecked,
+      onChange: () => toggleBulk(p.id),
+      onClick: e => e.stopPropagation(),
+      style: {
+        width: 15,
+        height: 15,
+        cursor: "pointer",
+        flexShrink: 0
+      }
+    }), /*#__PURE__*/React.createElement(Av, {
       name: p.name,
       size: 34,
       color: ac
@@ -4486,7 +4542,98 @@ function PeopleView({
     setVacancies: setVacancies,
     specOuts: specOuts,
     setSpecOuts: setSpecOuts
-  }), modal === "add" && /*#__PURE__*/React.createElement(ModalEl, {
+  }), bulkMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      left: "50%",
+      transform: "translateX(-50%)",
+      bottom: 20,
+      zIndex: 600,
+      background: NAVY,
+      borderRadius: 12,
+      padding: "12px 16px",
+      boxShadow: "0 8px 30px #0004",
+      display: "flex",
+      gap: 10,
+      alignItems: "center",
+      flexWrap: "wrap",
+      maxWidth: "90vw"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: W,
+      fontSize: 12.5,
+      fontWeight: 700,
+      whiteSpace: "nowrap"
+    }
+  }, bulkIds.length + " selected"), /*#__PURE__*/React.createElement("select", {
+    value: bulkOwner,
+    onChange: e => setBulkOwner(e.target.value),
+    style: {
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      fontSize: 12,
+      fontFamily: "inherit",
+      cursor: "pointer"
+    }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "+ Owner\u2026")].concat(TEAM.map(t => /*#__PURE__*/React.createElement("option", {
+    key: t,
+    value: t
+  }, t)))), /*#__PURE__*/React.createElement("select", {
+    value: bulkType,
+    onChange: e => setBulkType(e.target.value),
+    style: {
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      fontSize: 12,
+      fontFamily: "inherit",
+      cursor: "pointer"
+    }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set type\u2026"), /*#__PURE__*/React.createElement("option", { key: "contact", value: "contact" }, "Contact"), /*#__PURE__*/React.createElement("option", { key: "candidate", value: "candidate" }, "Candidate")]), /*#__PURE__*/React.createElement("select", {
+    value: bulkSeniority,
+    onChange: e => setBulkSeniority(e.target.value),
+    style: {
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      fontSize: 12,
+      fontFamily: "inherit",
+      cursor: "pointer"
+    }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set seniority\u2026")].concat(SENIORITY_GROUPS.map(g => /*#__PURE__*/React.createElement("optgroup", {
+    key: g.group,
+    label: g.group
+  }, g.items.map(o => /*#__PURE__*/React.createElement("option", {
+    key: o,
+    value: o
+  }, o)))))), /*#__PURE__*/React.createElement("input", {
+    value: bulkSector,
+    onChange: e => setBulkSector(e.target.value),
+    placeholder: "+ Discipline\u2026",
+    style: {
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      fontSize: 12,
+      fontFamily: "inherit",
+      width: 130
+    }
+  }), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: applyBulk
+  }, "Apply to " + bulkIds.length), /*#__PURE__*/React.createElement("button", {
+    onClick: exitBulkMode,
+    style: {
+      background: "none",
+      border: "none",
+      color: "#ffffffaa",
+      cursor: "pointer",
+      fontSize: 12,
+      fontFamily: "inherit"
+    }
+  }, "Cancel")), modal === "add" && /*#__PURE__*/React.createElement(ModalEl, {
     title: "Add Person",
     onClose: () => setModal(null),
     wide: true
