@@ -57,7 +57,12 @@ function getMsalInstance() {
     _msalInstance = new msal.PublicClientApplication({
       auth: {
         clientId: MS_CLIENT_ID,
-        authority: "https://login.microsoftonline.com/organizations",
+        // Locked to VoltConsulting's own tenant, matching how the app was
+        // registered ("My organization only") — using the specific tenant
+        // ID here (rather than the generic /organizations endpoint) means
+        // anyone outside the tenant is rejected immediately at sign-in,
+        // not partway through the flow.
+        authority: "https://login.microsoftonline.com/c05da861-a847-4edc-baa4-0c6e9f04ff80",
         redirectUri: MS_REDIRECT_URI
       },
       cache: {
@@ -2931,7 +2936,9 @@ function OverviewTab({
   setPeople,
   persist,
   vacancies,
-  setVacancies
+  setVacancies,
+  templates = [],
+  setTemplates = () => {}
 }) {
   const [sendModal, setSendModal] = useState(false);
   const save = (field, value) => {
@@ -2954,11 +2961,17 @@ function OverviewTab({
     setPeople(updated);
     persist("people", updated);
   }
+  function saveTemplate(t) {
+    const updated = [t, ...(templates || [])];
+    setTemplates(updated);
+    persist("templates", updated);
+  }
   return /*#__PURE__*/React.createElement("div", null, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
-    person: selP,
-    onSent: function (entry) {
+    people: [selP],
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    onSent: function (p, entry) {
       applyEmailSend(entry);
-      setSendModal(false);
     },
     onClose: function () {
       setSendModal(false);
@@ -3230,7 +3243,9 @@ function PersonDetail({
   vacancies,
   setVacancies,
   specOuts = [],
-  setSpecOuts = () => {}
+  setSpecOuts = () => {},
+  templates = [],
+  setTemplates = () => {}
 }) {
   const [tab, setTab] = useState("Overview");
   useEffect(() => setTab("Overview"), [selP ? selP.id : null]);
@@ -3389,7 +3404,9 @@ function PersonDetail({
     setPeople: setPeople,
     persist: persist,
     vacancies: vacancies,
-    setVacancies: setVacancies
+    setVacancies: setVacancies,
+    templates: templates,
+    setTemplates: setTemplates
   }), tab === "BD & Follow-up" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -4317,7 +4334,9 @@ function PeopleView({
   vacancies,
   setVacancies,
   specOuts,
-  setSpecOuts
+  setSpecOuts,
+  templates,
+  setTemplates
 }) {
   const [search, setSearch] = useState("");
   const [typeF, setTypeF] = useState("all");
@@ -4730,7 +4749,9 @@ function PeopleView({
     vacancies: vacancies,
     setVacancies: setVacancies,
     specOuts: specOuts,
-    setSpecOuts: setSpecOuts
+    setSpecOuts: setSpecOuts,
+    templates: templates,
+    setTemplates: setTemplates
   }), bulkMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -8373,17 +8394,51 @@ function SpecOutsView({
 // automatically), then logs the activity in the same action —
 // no separate "remember to log this" step.
 function SendMailModal({
-  person,
+  people,
+  templates,
+  onSaveTemplate,
   onSent,
   onClose
 }) {
+  const multi = people.length > 1;
+  const validPeople = people.filter(function (p) {
+    return p.email;
+  });
+  const skippedCount = people.length - validPeople.length;
   const [connectedAs, setConnectedAs] = useState(getConnectedOutlookAccount());
   const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(multi ? "Hi {{firstName}},\n\n" : "");
+  const [templateId, setTemplateId] = useState("");
+  const [showSaveBox, setShowSaveBox] = useState(false);
+  const [templateTitle, setTemplateTitle] = useState("");
   const [sending, setSending] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
+  const [progress, setProgress] = useState(null);
+  const [results, setResults] = useState(null);
   const notConfigured = !MS_CLIENT_ID;
+  const emailTemplates = (templates || []).filter(function (t) {
+    return t.channel === "email" || !t.channel;
+  });
+  function insertTemplate(id) {
+    setTemplateId(id);
+    if (!id) return;
+    const t = emailTemplates.find(function (x) {
+      return String(x.id) === String(id);
+    });
+    if (t) setBody(t.body || "");
+  }
+  function saveAsTemplate() {
+    if (!templateTitle.trim() || !body.trim()) return;
+    onSaveTemplate({
+      id: Date.now(),
+      name: templateTitle.trim(),
+      body: body.trim(),
+      channel: "email"
+    });
+    setTemplateTitle("");
+    setShowSaveBox(false);
+  }
   async function connect() {
     setError("");
     setConnecting(true);
@@ -8396,37 +8451,79 @@ function SendMailModal({
       setConnecting(false);
     }
   }
+  function personalize(text, p) {
+    const fname = p.firstName || (p.name || "").split(" ")[0] || "";
+    return (text || "").split("{{firstName}}").join(fname);
+  }
+  function delay(ms) {
+    return new Promise(function (r) {
+      setTimeout(r, ms);
+    });
+  }
   async function send() {
-    if (!body.trim()) return;
+    if (!body.trim() || !validPeople.length) return;
     setError("");
     setSending(true);
-    try {
-      await sendGraphMail(person.email, subject.trim(), body);
-      const ts = new Date().toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit"
+    const ok = [],
+      failed = [];
+    for (let i = 0; i < validPeople.length; i++) {
+      const p = validPeople[i];
+      setProgress({
+        i: i + 1,
+        n: validPeople.length
       });
-      const actLabel = ACT_TYPES.find(function (a) {
-        return a.id === "email";
+      const personalSubject = personalize(subject, p).trim();
+      const personalBody = personalize(body, p);
+      try {
+        // Individually addressed sends, not one message with everyone in
+        // To/CC — each person only ever sees their own email.
+        await sendGraphMail(p.email, personalSubject, personalBody);
+        const ts = new Date().toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+        const actLabel = ACT_TYPES.find(function (a) {
+          return a.id === "email";
+        });
+        const entry = {
+          id: Date.now() + i,
+          type: "email",
+          icon: actLabel.icon,
+          label: actLabel.label,
+          note: (personalSubject ? "Subject: " + personalSubject + "\n\n" : "") + personalBody.trim(),
+          date: ts,
+          by: ""
+        };
+        onSent(p, entry);
+        ok.push(p);
+      } catch (e) {
+        failed.push({
+          person: p,
+          error: e.message || "Send failed"
+        });
+      }
+      // Small pause between sends — a courtesy to Graph's rate limits and
+      // to avoid a burst of identical-timestamp sends looking automated.
+      // 2.5s keeps well under Microsoft's 30-messages-per-minute submission
+      // rate even for larger batches, and reads less like an automated
+      // blast than sub-second spacing would.
+      if (i < validPeople.length - 1) await delay(2500);
+    }
+    setSending(false);
+    setProgress(null);
+    if (multi) {
+      setResults({
+        ok: ok,
+        failed: failed
       });
-      const entry = {
-        id: Date.now(),
-        type: "email",
-        icon: actLabel.icon,
-        label: actLabel.label,
-        note: (subject.trim() ? "Subject: " + subject.trim() + "\n\n" : "") + body.trim(),
-        date: ts,
-        by: ""
-      };
-      onSent(entry);
-    } catch (e) {
-      setError(e.message || "Send failed.");
-      setSending(false);
+    } else {
+      onClose();
     }
   }
+  const headerName = multi ? people.length + " contacts" : people[0] ? people[0].name : "";
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -8437,7 +8534,7 @@ function SendMailModal({
       justifyContent: "center",
       zIndex: 300
     },
-    onClick: onClose
+    onClick: sending ? undefined : onClose
   }, /*#__PURE__*/React.createElement("div", {
     onClick: function (e) {
       e.stopPropagation();
@@ -8466,7 +8563,7 @@ function SendMailModal({
       fontSize: 16,
       color: NAVY
     }
-  }, "Send via Outlook \u2014 ", person.name), /*#__PURE__*/React.createElement("button", {
+  }, "Send via Outlook \u2014 ", headerName), !sending && /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     style: {
       background: "none",
@@ -8476,7 +8573,50 @@ function SendMailModal({
       cursor: "pointer",
       lineHeight: 1
     }
-  }, "\xD7")), notConfigured ? /*#__PURE__*/React.createElement("div", {
+  }, "\xD7")), results ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: G800,
+      marginBottom: 4
+    }
+  }, "Sent to ", /*#__PURE__*/React.createElement("strong", null, results.ok.length), " of ", validPeople.length, results.failed.length > 0 ? " \u2014 " + results.failed.length + " failed:" : "."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11.5,
+      color: G600,
+      marginBottom: 10
+    }
+  }, "This confirms Outlook accepted each message \u2014 a bounce or delivery failure would still arrive later as its own email in your inbox, same as any email you send by hand."), results.failed.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, results.failed.map(function (f, i) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        fontSize: 12,
+        color: DANGER,
+        marginBottom: 4
+      }
+    }, f.person.name, " \u2014 ", f.error);
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "8px 22px",
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Done"))) : notConfigured ? /*#__PURE__*/React.createElement("div", {
     style: {
       background: WARN + "15",
       border: "1px solid " + WARN + "50",
@@ -8486,13 +8626,7 @@ function SendMailModal({
       color: G800,
       marginBottom: 6
     }
-  }, "Outlook isn't connected yet \u2014 the Azure app Client ID hasn't been added. Use the ", /*#__PURE__*/React.createElement("a", {
-    href: person.email ? "mailto:" + person.email : undefined,
-    style: {
-      color: TEAL,
-      fontWeight: 700
-    }
-  }, "mailto link"), " for now.") : !connectedAs ? /*#__PURE__*/React.createElement("div", {
+  }, "Outlook isn't connected yet \u2014 the Azure app Client ID hasn't been added.") : !connectedAs ? /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
       padding: "18px 10px"
@@ -8543,7 +8677,7 @@ function SendMailModal({
       letterSpacing: "0.06em",
       marginBottom: 6
     }
-  }, "To"), /*#__PURE__*/React.createElement("div", {
+  }, "To"), multi ? /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       color: G800,
@@ -8551,7 +8685,56 @@ function SendMailModal({
       background: G50,
       borderRadius: 6
     }
-  }, person.email || "(no email on file)")), /*#__PURE__*/React.createElement("div", {
+  }, validPeople.length, " individually addressed email", validPeople.length === 1 ? "" : "s", " \u2014 ", validPeople.map(function (p) {
+    return p.name;
+  }).join(", "), skippedCount > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: WARN,
+      marginTop: 4
+    }
+  }, skippedCount, " skipped \u2014 no email on file")) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: G800,
+      padding: "7px 10px",
+      background: G50,
+      borderRadius: 6
+    }
+  }, people[0] && people[0].email || "(no email on file)")), emailTemplates.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 6
+    }
+  }, "Insert saved template"), /*#__PURE__*/React.createElement("select", {
+    value: templateId,
+    onChange: function (e) {
+      insertTemplate(e.target.value);
+    },
+    style: {
+      width: "100%",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "7px 10px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit"
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "None \u2014 write from scratch"), emailTemplates.map(function (t) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: t.id,
+      value: t.id
+    }, t.name);
+  }))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 10
     }
@@ -8569,6 +8752,7 @@ function SendMailModal({
     onChange: function (e) {
       setSubject(e.target.value);
     },
+    placeholder: multi ? "Use {{firstName}} to personalize" : "",
     style: {
       width: "100%",
       border: "1px solid " + G300,
@@ -8580,7 +8764,7 @@ function SendMailModal({
     }
   })), /*#__PURE__*/React.createElement("div", {
     style: {
-      marginBottom: 14
+      marginBottom: 8
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8595,9 +8779,10 @@ function SendMailModal({
     value: body,
     onChange: function (e) {
       setBody(e.target.value);
+      if (templateId) setTemplateId("");
     },
     rows: 8,
-    placeholder: "Write your message\u2026",
+    placeholder: multi ? "Write your message\u2026 use {{firstName}} anywhere you want it personalized per contact." : "Write your message\u2026",
     style: {
       width: "100%",
       border: "1px solid " + G300,
@@ -8608,19 +8793,78 @@ function SendMailModal({
       fontFamily: "inherit",
       resize: "vertical"
     }
-  })), error && /*#__PURE__*/React.createElement("div", {
+  }), body.trim() && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 6
+    }
+  }, !showSaveBox ? /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setShowSaveBox(true);
+    },
+    style: {
+      background: "none",
+      border: "none",
+      color: TEAL,
+      fontSize: 11.5,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      padding: 0
+    }
+  }, "+ Save this as a reusable template") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: templateTitle,
+    onChange: function (e) {
+      setTemplateTitle(e.target.value);
+    },
+    placeholder: "Template title\u2026",
+    style: {
+      flex: 1,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "6px 9px",
+      fontSize: 12.5,
+      outline: "none",
+      fontFamily: "inherit"
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: saveAsTemplate,
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 14px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Save")))), error && /*#__PURE__*/React.createElement("div", {
     style: {
       color: DANGER,
       fontSize: 12,
       marginBottom: 10
     }
-  }, error), /*#__PURE__*/React.createElement("div", {
+  }, error), sending && progress && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      color: TEAL,
+      fontWeight: 600,
+      marginBottom: 10
+    }
+  }, "Sending ", progress.i, " of ", progress.n, "\u2026"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "flex-end",
       gap: 10
     }
-  }, /*#__PURE__*/React.createElement("button", {
+  }, !sending && /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     style: {
       background: "transparent",
@@ -8634,7 +8878,7 @@ function SendMailModal({
     }
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     onClick: send,
-    disabled: sending || !body.trim() || !person.email,
+    disabled: sending || !body.trim() || !validPeople.length,
     style: {
       background: TEAL,
       color: W,
@@ -8643,11 +8887,11 @@ function SendMailModal({
       padding: "8px 22px",
       fontSize: 13,
       fontWeight: 700,
-      cursor: sending || !body.trim() || !person.email ? "default" : "pointer",
+      cursor: sending || !body.trim() || !validPeople.length ? "default" : "pointer",
       fontFamily: "inherit",
-      opacity: sending || !body.trim() || !person.email ? 0.6 : 1
+      opacity: sending || !body.trim() || !validPeople.length ? 0.6 : 1
     }
-  }, sending ? "Sending\u2026" : "Send")))));
+  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send")))));
 }
 function ActivityLogModal({
   people,
@@ -9320,16 +9564,19 @@ function BDPipelineView({
       setBulkModal(false);
     }
   }), sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
-    person: sendModal,
-    onSent: function (entry) {
-      applyActivity([sendModal], {
+    people: sendModal,
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    onSent: function (p, entry) {
+      applyActivity([p], {
         entry: entry,
         actType: "email"
       });
-      setSendModal(null);
     },
     onClose: function () {
       setSendModal(null);
+      setSelectedIds([]);
+      setBulkMode(false);
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9731,7 +9978,7 @@ function BDPipelineView({
       }, "Log Activity"), p.email && /*#__PURE__*/React.createElement("button", {
         onClick: function (e) {
           e.stopPropagation();
-          setSendModal(p);
+          setSendModal([p]);
         },
         title: "Send via Outlook",
         style: {
@@ -9820,6 +10067,23 @@ function BDPipelineView({
     }
   }, "Log Activity for " + selectedIds.length), /*#__PURE__*/React.createElement("button", {
     onClick: function () {
+      setSendModal(people.filter(function (p) {
+        return selectedIds.indexOf(p.id) !== -1;
+      }));
+    },
+    style: {
+      background: TL,
+      color: TEAL,
+      border: "1px solid " + TM,
+      borderRadius: 6,
+      padding: "7px 16px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
       setSelectedIds([]);
     },
     style: {
@@ -9886,7 +10150,9 @@ function BDPipelineView({
     persist: persist,
     setSel: setSel,
     vacancies: vacancies,
-    setVacancies: setVacancies
+    setVacancies: setVacancies,
+    templates: templates,
+    setTemplates: setTemplates
   }))));
 }
 
@@ -14199,7 +14465,9 @@ function App() {
     vacancies: vacancies,
     setVacancies: setVacancies,
     specOuts: specOuts,
-    setSpecOuts: setSpecOuts
+    setSpecOuts: setSpecOuts,
+    templates: templates,
+    setTemplates: setTemplates
   }), view === "companies" && /*#__PURE__*/React.createElement(CompaniesView, {
     companies: companies,
     setCompanies: setCompanies,
