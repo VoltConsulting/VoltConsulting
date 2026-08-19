@@ -6,6 +6,7 @@
   <title>VoltConsulting CRM</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; width: 100%; overflow: hidden; }
@@ -38,6 +39,99 @@ const {
 let AT_BASE = localStorage.getItem("volt_at_base") || "appD0JD8AUdtR6thY";
 let AT_TABLE = localStorage.getItem("volt_at_table") || "tblUL48Km1j2m8sRU";
 var AT_URL = "https://api.airtable.com/v0/" + AT_BASE + "/" + AT_TABLE;
+
+// ── Microsoft 365 / Outlook mail integration ────────────────────
+// Sends real email through the signed-in user's own Outlook 365
+// mailbox via Microsoft Graph, so it lands in their actual Sent
+// Items automatically. Uses MSAL's Authorization Code + PKCE flow
+// (the standard, backend-free pattern for single-page apps).
+// MS_CLIENT_ID comes from David's Azure app registration — until
+// that's filled in, the "Send via Outlook" button stays disabled
+// and the CRM falls back to the existing mailto: link.
+var MS_CLIENT_ID = localStorage.getItem("volt_ms_client_id") || "b4059565-7fc0-4231-b889-67dad11d8946";
+var MS_REDIRECT_URI = window.location.origin + window.location.pathname;
+var _msalInstance = null;
+function getMsalInstance() {
+  if (!MS_CLIENT_ID || typeof msal === "undefined") return null;
+  if (!_msalInstance) {
+    _msalInstance = new msal.PublicClientApplication({
+      auth: {
+        clientId: MS_CLIENT_ID,
+        authority: "https://login.microsoftonline.com/organizations",
+        redirectUri: MS_REDIRECT_URI
+      },
+      cache: {
+        cacheLocation: "localStorage"
+      }
+    });
+  }
+  return _msalInstance;
+}
+var MS_SCOPES = ["Mail.Send", "User.Read"];
+// Returns a valid Graph access token for the signed-in user, silently
+// refreshing if possible. Triggers a sign-in popup only if there's no
+// existing session (first use, or the cached session has expired).
+async function getGraphToken() {
+  var inst = getMsalInstance();
+  if (!inst) throw new Error("Outlook isn't connected yet — add the Client ID from your Azure app registration first.");
+  var accounts = inst.getAllAccounts();
+  var request = {
+    scopes: MS_SCOPES,
+    account: accounts[0] || null
+  };
+  try {
+    var res = await inst.acquireTokenSilent(request);
+    return res.accessToken;
+  } catch (e) {
+    var res2 = await inst.loginPopup({
+      scopes: MS_SCOPES
+    });
+    inst.setActiveAccount(res2.account);
+    var res3 = await inst.acquireTokenSilent({
+      scopes: MS_SCOPES,
+      account: res2.account
+    });
+    return res3.accessToken;
+  }
+}
+function getConnectedOutlookAccount() {
+  var inst = getMsalInstance();
+  if (!inst) return null;
+  var accounts = inst.getAllAccounts();
+  return accounts[0] ? accounts[0].username : null;
+}
+// Sends via the signed-in user's own Outlook 365 mailbox. Graph's
+// default behaviour already saves a copy to Sent Items automatically
+// — that's not something this code has to arrange, Microsoft does it.
+async function sendGraphMail(to, subject, body) {
+  var token = await getGraphToken();
+  var r = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message: {
+        subject: subject,
+        body: {
+          contentType: "Text",
+          content: body
+        },
+        toRecipients: [{
+          emailAddress: {
+            address: to
+          }
+        }]
+      },
+      saveToSentItems: true
+    })
+  });
+  if (!r.ok) {
+    var errText = await r.text();
+    throw new Error("Send failed (" + r.status + "): " + errText);
+  }
+}
 async function atGet(url) {
   const r = await fetch(url, {
     headers: {
@@ -103,7 +197,8 @@ async function loadFromAirtable() {
     companies = [],
     network = [],
     vacancies = [],
-    specouts = [];
+    specouts = [],
+    templates = [];
   for (const rec of records) {
     const rt = (rec.fields.RecordType || "").toUpperCase();
     const dataStr = rec.fields.Data || "[]";
@@ -128,6 +223,10 @@ async function loadFromAirtable() {
         const s = JSON.parse(dataStr);
         s._recId = rec.id;
         specouts.push(s);
+      } else if (rt === "TEMPLATE") {
+        const t = JSON.parse(dataStr);
+        t._recId = rec.id;
+        templates.push(t);
       }
     } catch (e) {
       console.warn("Parse error", rec.id, e);
@@ -138,12 +237,14 @@ async function loadFromAirtable() {
   if (network.length) localStorage.setItem("voltcrm5-network", JSON.stringify(network));
   if (vacancies.length) localStorage.setItem("voltcrm5-vacancies", JSON.stringify(vacancies));
   if (specouts.length) localStorage.setItem("voltcrm5-specouts", JSON.stringify(specouts));
+  if (templates.length) localStorage.setItem("voltcrm5-templates", JSON.stringify(templates));
   return {
     people,
     companies,
     network,
     vacancies,
-    specouts
+    specouts,
+    templates
   };
 }
 var _saveLocks = {};
@@ -154,7 +255,7 @@ var _saveLocks = {};
 var _createdIds = {};
 async function saveToAirtable(name, data) {
   const _n = (name || "").toLowerCase();
-  const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : _n === "specouts" ? "SPECOUT" : "VACANCY";
+  const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : _n === "specouts" ? "SPECOUT" : _n === "templates" ? "TEMPLATE" : "VACANCY";
   // ── SAVE LOCK ────────────────────────────────────────────────
   // Prevent two saves of the same record type running at once. Without
   // this, a brand-new person (no _recId yet) can be sent to Airtable by
@@ -1488,16 +1589,19 @@ function QuickLog({
   item,
   onUpdate
 }) {
+  const [actType, setActType] = useState("note");
   const [note, setNote] = useState("");
   const [na, setNa] = useState(item.nextAction || "");
   const [nd, setNd] = useState(item.nextDue || "");
   const log = () => {
-    const ts = new Date().toLocaleDateString("en-GB", {
+    const actLabel = ACT_TYPES.find(function (a) {
+      return a.id === actType;
+    });
+    const newNote = note.trim() ? "[" + new Date().toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
       year: "numeric"
-    });
-    const newNote = note.trim() ? "[" + ts + "] " + note.trim() + "\n\n" + (item.notes || "") : item.notes;
+    }) + "] " + note.trim() + "\n\n" + (item.notes || "") : item.notes;
     const ts2 = new Date().toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
@@ -1507,21 +1611,26 @@ function QuickLog({
     });
     const histLog = note.trim() ? [{
       id: Date.now(),
-      type: "note",
-      icon: "📝",
-      label: "Note",
+      type: actType,
+      icon: actLabel ? actLabel.icon : "📝",
+      label: actLabel ? actLabel.label : "Note",
       note: note.trim(),
       date: ts2,
       by: ""
     }, ...(item.activityLog || [])] : item.activityLog;
-    onUpdate({
+    var updates = {
       notes: newNote,
       activityLog: histLog,
       lastContacted: today,
       nextAction: na,
       nextDue: nd
-    });
+    };
+    if (note.trim()) {
+      if (actType === "linkedin") updates.linkedinStage = (item.linkedinStage || 0) + 1;else if (actType === "email") updates.emailStage = (item.emailStage || 0) + 1;else if (actType === "call") updates.callCount = (item.callCount || 0) + 1;
+    }
+    onUpdate(updates);
     setNote("");
+    setActType("note");
   };
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1539,10 +1648,51 @@ function QuickLog({
       textTransform: "uppercase",
       letterSpacing: "0.06em"
     }
-  }, "Log Interaction"), /*#__PURE__*/React.createElement(Tarea, {
+  }, "Log Interaction"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap",
+      marginBottom: 10
+    }
+  }, ACT_TYPES.map(function (a) {
+    const active = actType === a.id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: a.id,
+      onClick: function () {
+        setActType(a.id);
+      },
+      style: {
+        background: active ? TEAL + "15" : "transparent",
+        color: active ? TEAL : G600,
+        border: "1px solid " + (active ? TEAL + "50" : G300),
+        borderRadius: 6,
+        padding: "4px 9px",
+        fontSize: 11.5,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontWeight: active ? 700 : 400
+      }
+    }, a.icon === "in" ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 15,
+        height: 15,
+        background: "#0A66C2",
+        color: "#fff",
+        borderRadius: 3,
+        fontSize: 8,
+        fontWeight: 700,
+        marginRight: 5,
+        verticalAlign: "middle"
+      }
+    }, "in") : /*#__PURE__*/React.createElement("span", null, a.icon, " "), a.label);
+  })), /*#__PURE__*/React.createElement(Tarea, {
     value: note,
     onChange: setNote,
-    placeholder: "Notes from this call, email or meeting\u2026",
+    placeholder: actType === "email" ? "Paste the email you sent\u2026" : actType === "linkedin" ? "Paste or type the LinkedIn message you sent\u2026" : "Notes from this call, email or meeting\u2026",
     rows: 2
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2783,6 +2933,7 @@ function OverviewTab({
   vacancies,
   setVacancies
 }) {
+  const [sendModal, setSendModal] = useState(false);
   const save = (field, value) => {
     const updated = people.map(p => p.id === selP.id ? {
       ...p,
@@ -2791,7 +2942,28 @@ function OverviewTab({
     setPeople(updated);
     persist("people", updated);
   };
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  function applyEmailSend(entry) {
+    const updated = people.map(p => {
+      if (p.id !== selP.id) return p;
+      return Object.assign({}, p, {
+        activityLog: [entry, ...(p.activityLog || [])],
+        lastContacted: today,
+        emailStage: (p.emailStage || 0) + 1
+      });
+    });
+    setPeople(updated);
+    persist("people", updated);
+  }
+  return /*#__PURE__*/React.createElement("div", null, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
+    person: selP,
+    onSent: function (entry) {
+      applyEmailSend(entry);
+      setSendModal(false);
+    },
+    onClose: function () {
+      setSendModal(false);
+    }
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       background: W,
       borderRadius: 8,
@@ -2815,13 +2987,30 @@ function OverviewTab({
       gridTemplateColumns: "1fr 1fr",
       gap: "0 24px"
     }
-  }, /*#__PURE__*/React.createElement(InlineField, {
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(InlineField, {
     label: "Email",
     value: selP.email,
     onChange: v => save("email", v),
     type: "email",
     href: selP.email ? "mailto:" + selP.email : null
-  }), /*#__PURE__*/React.createElement(InlineField, {
+  }), selP.email && /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setSendModal(true);
+    },
+    style: {
+      background: TL,
+      color: TEAL,
+      border: "1px solid " + TM,
+      borderRadius: 5,
+      padding: "4px 10px",
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      marginTop: -4,
+      marginBottom: 10
+    }
+  }, "\u2709 Send via Outlook")), /*#__PURE__*/React.createElement(InlineField, {
     label: "Phone",
     value: selP.phone,
     onChange: v => save("phone", v),
@@ -7632,31 +7821,6 @@ const ACT_TYPES = [{
   icon: "📝"
 }];
 
-// ── BD email sequence templates ────────────────────────────────
-// Edit this array to add/change saved BD email sequences. Each shows up
-// in the "Insert template" dropdown when logging an Email activity.
-const EMAIL_TEMPLATES = [{
-  id: "bd1",
-  name: "BD 1 — Initial outreach",
-  subject: "Quick intro from VoltConsulting",
-  body: "Hi {{firstName}},\n\nI work with life sciences and consulting firms on Partner and senior-level hiring, and your background caught my eye.\n\nWould you be open to a short call to compare notes on the market? No agenda beyond that.\n\nBest,\nDavid"
-}, {
-  id: "bd2",
-  name: "BD 2 — Follow-up (no reply)",
-  subject: "Re: Quick intro from VoltConsulting",
-  body: "Hi {{firstName}},\n\nJust bumping this up in case it slipped past — still keen for a quick call if useful.\n\nBest,\nDavid"
-}, {
-  id: "bd3",
-  name: "BD 3 — Re-engagement (dormant contact)",
-  subject: "Checking back in",
-  body: "Hi {{firstName}},\n\nIt's been a while since we last spoke — wanted to check whether anything's changed on your side worth catching up on.\n\nBest,\nDavid"
-}, {
-  id: "bd4",
-  name: "BD 4 — Post-call thank you",
-  subject: "Good speaking today",
-  body: "Hi {{firstName}},\n\nThanks for the time today — really useful context. I'll follow up as agreed and keep you posted.\n\nBest,\nDavid"
-}];
-
 // ── Spec Outs — top-level tab ────────────────────────────────
 // Same underlying SPECOUT records as the per-person Spec Outs
 // tab, viewed as one master list across every candidate and
@@ -8203,27 +8367,343 @@ function SpecOutsView({
 
 </script>
   <script>
-function ActivityLogModal({
+// ── Send via Outlook — compose modal ─────────────────────────────
+// Sends real email through Microsoft Graph using the signed-in
+// user's own Outlook 365 account (lands in their real Sent Items
+// automatically), then logs the activity in the same action —
+// no separate "remember to log this" step.
+function SendMailModal({
   person,
+  onSent,
+  onClose
+}) {
+  const [connectedAs, setConnectedAs] = useState(getConnectedOutlookAccount());
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+  const notConfigured = !MS_CLIENT_ID;
+  async function connect() {
+    setError("");
+    setConnecting(true);
+    try {
+      await getGraphToken();
+      setConnectedAs(getConnectedOutlookAccount());
+    } catch (e) {
+      setError(e.message || "Couldn't connect to Outlook.");
+    } finally {
+      setConnecting(false);
+    }
+  }
+  async function send() {
+    if (!body.trim()) return;
+    setError("");
+    setSending(true);
+    try {
+      await sendGraphMail(person.email, subject.trim(), body);
+      const ts = new Date().toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      const actLabel = ACT_TYPES.find(function (a) {
+        return a.id === "email";
+      });
+      const entry = {
+        id: Date.now(),
+        type: "email",
+        icon: actLabel.icon,
+        label: actLabel.label,
+        note: (subject.trim() ? "Subject: " + subject.trim() + "\n\n" : "") + body.trim(),
+        date: ts,
+        by: ""
+      };
+      onSent(entry);
+    } catch (e) {
+      setError(e.message || "Send failed.");
+      setSending(false);
+    }
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "#0006",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 300
+    },
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: function (e) {
+      e.stopPropagation();
+    },
+    style: {
+      background: W,
+      borderRadius: 12,
+      padding: "24px 28px",
+      width: 520,
+      maxWidth: "96vw",
+      boxShadow: "0 20px 60px #0003",
+      border: "1px solid " + G200
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 14,
+      paddingBottom: 14,
+      borderBottom: "1px solid " + G200
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 700,
+      fontSize: 16,
+      color: NAVY
+    }
+  }, "Send via Outlook \u2014 ", person.name), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: {
+      background: "none",
+      border: "none",
+      color: G400,
+      fontSize: 22,
+      cursor: "pointer",
+      lineHeight: 1
+    }
+  }, "\xD7")), notConfigured ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: WARN + "15",
+      border: "1px solid " + WARN + "50",
+      borderRadius: 8,
+      padding: "12px 14px",
+      fontSize: 13,
+      color: G800,
+      marginBottom: 6
+    }
+  }, "Outlook isn't connected yet \u2014 the Azure app Client ID hasn't been added. Use the ", /*#__PURE__*/React.createElement("a", {
+    href: person.email ? "mailto:" + person.email : undefined,
+    style: {
+      color: TEAL,
+      fontWeight: 700
+    }
+  }, "mailto link"), " for now.") : !connectedAs ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: "18px 10px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: G600,
+      marginBottom: 12
+    }
+  }, "Connect your Outlook account once \u2014 after that, sending stays signed in."), /*#__PURE__*/React.createElement("button", {
+    onClick: connect,
+    disabled: connecting,
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "9px 20px",
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: connecting ? "default" : "pointer",
+      fontFamily: "inherit",
+      opacity: connecting ? 0.6 : 1
+    }
+  }, connecting ? "Connecting\u2026" : "Connect Outlook"), error && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: DANGER,
+      fontSize: 12,
+      marginTop: 10
+    }
+  }, error)) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11.5,
+      color: G600,
+      marginBottom: 12
+    }
+  }, "Connected as ", /*#__PURE__*/React.createElement("strong", null, connectedAs)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 6
+    }
+  }, "To"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: G800,
+      padding: "7px 10px",
+      background: G50,
+      borderRadius: 6
+    }
+  }, person.email || "(no email on file)")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 6
+    }
+  }, "Subject"), /*#__PURE__*/React.createElement("input", {
+    value: subject,
+    onChange: function (e) {
+      setSubject(e.target.value);
+    },
+    style: {
+      width: "100%",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "7px 10px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 6
+    }
+  }, "Message"), /*#__PURE__*/React.createElement("textarea", {
+    value: body,
+    onChange: function (e) {
+      setBody(e.target.value);
+    },
+    rows: 8,
+    placeholder: "Write your message\u2026",
+    style: {
+      width: "100%",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      resize: "vertical"
+    }
+  })), error && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: DANGER,
+      fontSize: 12,
+      marginBottom: 10
+    }
+  }, error), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: {
+      background: "transparent",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 18px",
+      fontSize: 13,
+      color: G600,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement("button", {
+    onClick: send,
+    disabled: sending || !body.trim() || !person.email,
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "8px 22px",
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: sending || !body.trim() || !person.email ? "default" : "pointer",
+      fontFamily: "inherit",
+      opacity: sending || !body.trim() || !person.email ? 0.6 : 1
+    }
+  }, sending ? "Sending\u2026" : "Send")))));
+}
+function ActivityLogModal({
+  people,
+  templates,
+  onSaveTemplate,
+  onDeleteTemplate,
   onSave,
   onClose
 }) {
+  const multi = people.length > 1;
+  const single = people.length === 1 ? people[0] : null;
   const [actType, setActType] = useState("email");
   const [note, setNote] = useState("");
   const [templateId, setTemplateId] = useState("");
-  const [nextAction, setNextAction] = useState(person.nextAction || "");
-  const [nextDue, setNextDue] = useState(person.nextDue || "");
-  const [stage, setStage] = useState(person.bdStage || "");
+  const [nextAction, setNextAction] = useState(single ? single.nextAction || "" : "");
+  const [nextDue, setNextDue] = useState(single ? single.nextDue || "" : "");
+  const [stage, setStage] = useState(single ? single.bdStage || "" : "");
+  const [bounced, setBounced] = useState(false);
+  const [showSaveBox, setShowSaveBox] = useState(false);
+  const [templateTitle, setTemplateTitle] = useState("");
+  const [showManage, setShowManage] = useState(false);
+  const relevantTemplates = (templates || []).filter(function (t) {
+    return t.channel === actType || !t.channel;
+  });
   function insertTemplate(id) {
     setTemplateId(id);
     if (!id) return;
-    const t = EMAIL_TEMPLATES.find(function (x) {
-      return x.id === id;
+    const t = (templates || []).find(function (x) {
+      return String(x.id) === String(id);
     });
     if (!t) return;
-    const fname = person.firstName || (person.name || "").split(" ")[0] || "";
-    const body = t.body.split("{{firstName}}").join(fname);
-    setNote("Subject: " + t.subject + "\n\n" + body);
+    const fname = single ? single.firstName || (single.name || "").split(" ")[0] || "" : "";
+    const body = (t.body || "").split("{{firstName}}").join(fname);
+    setNote(body);
+  }
+  function selectType(id) {
+    // Bug fix: if the note currently on screen came from an inserted
+    // template, clear it when switching activity type so template text
+    // can never end up logged against the wrong channel. A note the
+    // person typed themselves (templateId is empty) is left alone.
+    if (templateId) {
+      setNote("");
+      setTemplateId("");
+    }
+    setActType(id);
+  }
+  function saveAsTemplate() {
+    if (!templateTitle.trim() || !note.trim()) return;
+    onSaveTemplate({
+      id: Date.now(),
+      name: templateTitle.trim(),
+      body: note.trim(),
+      channel: actType
+    });
+    setTemplateTitle("");
+    setShowSaveBox(false);
   }
   function handleSave() {
     const ts = new Date().toLocaleDateString("en-GB", {
@@ -8245,23 +8725,16 @@ function ActivityLogModal({
       date: ts,
       by: ""
     };
-    const log = [entry, ...(person.activityLog || [])];
-    var updates = {
-      activityLog: log,
+    onSave({
+      entry: entry,
+      actType: actType,
       nextAction: nextAction,
       nextDue: nextDue,
-      bdStage: stage,
-      lastContacted: today
-    };
-    if (actType === "linkedin") {
-      updates.linkedinStage = (person.linkedinStage || 0) + 1;
-    } else if (actType === "email") {
-      updates.emailStage = (person.emailStage || 0) + 1;
-    } else if (actType === "call") {
-      updates.callCount = (person.callCount || 0) + 1;
-    }
-    onSave(updates);
+      stage: stage,
+      bounced: bounced
+    });
   }
+  const headerName = multi ? people.length + " contacts" : single ? single.name : "";
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -8301,7 +8774,7 @@ function ActivityLogModal({
       fontSize: 16,
       color: NAVY
     }
-  }, "Log Activity \u2014 ", person.name), /*#__PURE__*/React.createElement("button", {
+  }, "Log Activity \u2014 ", headerName), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     style: {
       background: "none",
@@ -8335,7 +8808,7 @@ function ActivityLogModal({
     return /*#__PURE__*/React.createElement("button", {
       key: a.id,
       onClick: function () {
-        setActType(a.id);
+        selectType(a.id);
       },
       style: {
         background: active ? TEAL + "15" : "transparent",
@@ -8364,9 +8837,16 @@ function ActivityLogModal({
         verticalAlign: "middle"
       }
     }, "in") : /*#__PURE__*/React.createElement("span", null, a.icon, " "), a.label);
-  }))), actType === "email" && /*#__PURE__*/React.createElement("div", {
+  }))), (actType === "email" || actType === "linkedin") && /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 6
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8374,10 +8854,22 @@ function ActivityLogModal({
       color: G600,
       fontWeight: 600,
       textTransform: "uppercase",
-      letterSpacing: "0.06em",
-      marginBottom: 6
+      letterSpacing: "0.06em"
     }
-  }, "Insert template"), /*#__PURE__*/React.createElement("select", {
+  }, "Insert saved template"), relevantTemplates.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setShowManage(!showManage);
+    },
+    style: {
+      background: "none",
+      border: "none",
+      color: TEAL,
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, showManage ? "Done" : "Manage")), /*#__PURE__*/React.createElement("select", {
     value: templateId,
     onChange: function (e) {
       insertTemplate(e.target.value);
@@ -8393,14 +8885,50 @@ function ActivityLogModal({
     }
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
-  }, "None — write from scratch"), EMAIL_TEMPLATES.map(function (t) {
+  }, relevantTemplates.length ? "None — write from scratch" : "No saved templates yet — write one below"), relevantTemplates.map(function (t) {
     return /*#__PURE__*/React.createElement("option", {
       key: t.id,
       value: t.id
     }, t.name);
+  })), showManage && relevantTemplates.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8,
+      border: "1px solid " + G200,
+      borderRadius: 6,
+      overflow: "hidden"
+    }
+  }, relevantTemplates.map(function (t) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: t.id,
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "6px 10px",
+        borderBottom: "1px solid " + G200,
+        fontSize: 12.5,
+        color: G800
+      }
+    }, t.name, /*#__PURE__*/React.createElement("button", {
+      onClick: function () {
+        if (templateId === String(t.id)) {
+          setTemplateId("");
+          setNote("");
+        }
+        onDeleteTemplate(t);
+      },
+      style: {
+        background: "none",
+        border: "none",
+        color: DANGER,
+        fontSize: 12,
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, "Delete"));
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
-      marginBottom: 14
+      marginBottom: 8
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8411,13 +8939,14 @@ function ActivityLogModal({
       letterSpacing: "0.06em",
       marginBottom: 6
     }
-  }, actType === "email" ? "Email sent (paste subject + body)" : "Notes"), /*#__PURE__*/React.createElement("textarea", {
+  }, actType === "email" ? "Email sent (paste subject + body)" : actType === "linkedin" ? "LinkedIn message sent" : "Notes"), /*#__PURE__*/React.createElement("textarea", {
     value: note,
     onChange: function (e) {
       setNote(e.target.value);
+      if (templateId) setTemplateId("");
     },
-    placeholder: actType === "email" ? "Paste the email you sent — subject and body..." : "What happened? Key points from the conversation...",
-    rows: actType === "email" ? 8 : 3,
+    placeholder: actType === "email" ? "Paste the email you sent — subject and body..." : actType === "linkedin" ? "Paste or type the LinkedIn message you sent..." : "What happened? Key points from the conversation...",
+    rows: actType === "email" ? 8 : actType === "linkedin" ? 5 : 3,
     style: {
       width: "100%",
       border: "1px solid " + G300,
@@ -8428,7 +8957,74 @@ function ActivityLogModal({
       fontFamily: "inherit",
       resize: "vertical"
     }
-  })), /*#__PURE__*/React.createElement("div", {
+  }), (actType === "email" || actType === "linkedin") && note.trim() && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 6
+    }
+  }, !showSaveBox ? /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setShowSaveBox(true);
+    },
+    style: {
+      background: "none",
+      border: "none",
+      color: TEAL,
+      fontSize: 11.5,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      padding: 0
+    }
+  }, "+ Save this as a reusable template") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: templateTitle,
+    onChange: function (e) {
+      setTemplateTitle(e.target.value);
+    },
+    placeholder: "Template title, e.g. \"First outreach\"",
+    style: {
+      flex: 1,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "6px 9px",
+      fontSize: 12.5,
+      outline: "none",
+      fontFamily: "inherit"
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: saveAsTemplate,
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 14px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Save"), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setShowSaveBox(false);
+      setTemplateTitle("");
+    },
+    style: {
+      background: "none",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "6px 10px",
+      fontSize: 12,
+      color: G600,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Cancel")))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
@@ -8517,7 +9113,23 @@ function ActivityLogModal({
       outline: "none",
       fontFamily: "inherit"
     }
-  })), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 18,
+      cursor: "pointer",
+      fontSize: 12.5,
+      color: DANGER
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: bounced,
+    onChange: function (e) {
+      setBounced(e.target.checked);
+    }
+  }), multi ? "Mark all selected as bounced / no longer at company" : "Mark as bounced / no longer at company"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "flex-end",
@@ -8548,7 +9160,7 @@ function ActivityLogModal({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "Save Activity"))));
+  }, multi ? "Log activity for " + people.length : "Save Activity"))));
 }
 function BDPipelineView({
   people,
@@ -8559,22 +9171,85 @@ function BDPipelineView({
   companyFilter,
   onClearCompanyFilter,
   vacancies,
-  setVacancies
+  setVacancies,
+  templates,
+  setTemplates
 }) {
   const [logModal, setLogModal] = useState(null);
+  const [sendModal, setSendModal] = useState(null);
+  const [bulkModal, setBulkModal] = useState(false);
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(false);
   const [sel, setSel] = useState(null);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
   const selP = sel ? people.find(function (p) {
     return p.id === sel;
   }) : null;
-  function saveActivity(person, updates) {
+  function toggleSelect(id) {
+    setSelectedIds(function (prev) {
+      return prev.includes(id) ? prev.filter(function (x) {
+        return x !== id;
+      }) : prev.concat([id]);
+    });
+  }
+  function saveTemplate(t) {
+    const updated = [t, ...(templates || [])];
+    setTemplates(updated);
+    persist("templates", updated);
+  }
+  function deleteTemplate(t) {
+    const updated = (templates || []).filter(function (x) {
+      return x.id !== t.id;
+    });
+    setTemplates(updated);
+    if (t._recId) atDelete(t._recId).catch(function (e) {
+      console.warn("Template delete failed", e);
+    });
+  }
+  // Applies one logged activity to one or many people at once (bulk campaign
+  // logging shares this path with the single-card Log Activity flow).
+  function applyActivity(targets, payload) {
+    var ids = targets.map(function (p) {
+      return p.id;
+    });
     const updated = people.map(function (p) {
-      return p.id === person.id ? Object.assign({}, p, updates) : p;
+      if (ids.indexOf(p.id) === -1) return p;
+      var upd = {
+        activityLog: [payload.entry, ...(p.activityLog || [])],
+        lastContacted: today
+      };
+      if (payload.actType === "linkedin") upd.linkedinStage = (p.linkedinStage || 0) + 1;else if (payload.actType === "email") upd.emailStage = (p.emailStage || 0) + 1;else if (payload.actType === "call") upd.callCount = (p.callCount || 0) + 1;
+      if (payload.nextAction !== undefined && payload.nextAction !== "") upd.nextAction = payload.nextAction;
+      if (payload.nextDue !== undefined && payload.nextDue !== "") upd.nextDue = payload.nextDue;
+      if (payload.stage) upd.bdStage = payload.stage;
+      if (payload.bounced) upd.contactFlag = "Bounced";
+      return Object.assign({}, p, upd);
     });
     setPeople(updated);
     persist("people", updated);
+  }
+  function saveActivity(person, payload) {
+    applyActivity([person], payload);
     setLogModal(null);
+  }
+  function saveBulkActivity(payload) {
+    var targets = people.filter(function (p) {
+      return selectedIds.indexOf(p.id) !== -1;
+    });
+    applyActivity(targets, payload);
+    setBulkModal(false);
+    setSelectedIds([]);
+    setBulkMode(false);
+  }
+  function clearFlag(person) {
+    const updated = people.map(function (p) {
+      return p.id === person.id ? Object.assign({}, p, {
+        contactFlag: ""
+      }) : p;
+    });
+    setPeople(updated);
+    persist("people", updated);
   }
   function setStage(person, stage) {
     const updated = people.map(function (p) {
@@ -8623,12 +9298,38 @@ function BDPipelineView({
       overflow: "hidden"
     }
   }, logModal && /*#__PURE__*/React.createElement(ActivityLogModal, {
-    person: logModal,
-    onSave: function (updates) {
-      saveActivity(logModal, updates);
+    people: [logModal],
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    onDeleteTemplate: deleteTemplate,
+    onSave: function (payload) {
+      saveActivity(logModal, payload);
     },
     onClose: function () {
       setLogModal(null);
+    }
+  }), bulkModal && /*#__PURE__*/React.createElement(ActivityLogModal, {
+    people: people.filter(function (p) {
+      return selectedIds.indexOf(p.id) !== -1;
+    }),
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    onDeleteTemplate: deleteTemplate,
+    onSave: saveBulkActivity,
+    onClose: function () {
+      setBulkModal(false);
+    }
+  }), sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
+    person: sendModal,
+    onSent: function (entry) {
+      applyActivity([sendModal], {
+        entry: entry,
+        actType: "email"
+      });
+      setSendModal(null);
+    },
+    onClose: function () {
+      setSendModal(null);
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8699,7 +9400,26 @@ function BDPipelineView({
       fontFamily: "inherit",
       whiteSpace: "nowrap"
     }
-  }, sortAZ ? "A\u2013Z \u2713" : "Sort A\u2013Z"), /*#__PURE__*/React.createElement("input", {
+  }, sortAZ ? "A\u2013Z \u2713" : "Sort A\u2013Z"), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setBulkMode(function (v) {
+        if (v) setSelectedIds([]);
+        return !v;
+      });
+    },
+    style: {
+      background: bulkMode ? TL : "transparent",
+      color: bulkMode ? TEAL : G600,
+      border: "1px solid " + (bulkMode ? TM : G300),
+      borderRadius: 8,
+      padding: "6px 12px",
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap"
+    }
+  }, bulkMode ? "Cancel bulk log" : "Bulk log activity"), /*#__PURE__*/React.createElement("input", {
     value: search,
     onChange: function (e) {
       setSearch(e.target.value);
@@ -8807,14 +9527,16 @@ function BDPipelineView({
       var overdue = p.nextDue && new Date(p.nextDue) < new Date();
       var lastAct = p.activityLog && p.activityLog.length > 0 ? p.activityLog[0] : null;
       var ownerCol = OWNER_COLORS[p.owner] || G400;
+      var isChecked = selectedIds.indexOf(p.id) !== -1;
+      var bounced = p.contactFlag === "Bounced";
       return /*#__PURE__*/React.createElement("div", {
         key: p.id,
         onClick: function () {
-          setSel(p.id);
+          if (bulkMode) toggleSelect(p.id);else setSel(p.id);
         },
         style: {
-          background: W,
-          border: "1px solid " + (overdue ? DANGER + "40" : G200),
+          background: bulkMode && isChecked ? TL : W,
+          border: "1px solid " + (bulkMode && isChecked ? TM : overdue ? DANGER + "40" : G200),
           borderRadius: 8,
           padding: "10px 12px",
           marginBottom: 8,
@@ -8830,6 +9552,27 @@ function BDPipelineView({
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          minWidth: 0
+        }
+      }, bulkMode && /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        checked: isChecked,
+        onChange: function () {
+          toggleSelect(p.id);
+        },
+        onClick: function (e) {
+          e.stopPropagation();
+        },
+        style: {
+          width: 14,
+          height: 14,
+          flexShrink: 0
+        }
+      }), /*#__PURE__*/React.createElement("div", {
+        style: {
           fontWeight: 700,
           color: NAVY,
           fontSize: 13,
@@ -8838,7 +9581,7 @@ function BDPipelineView({
           overflow: "hidden",
           textOverflow: "ellipsis"
         }
-      }, p.name), /*#__PURE__*/React.createElement("button", {
+      }, p.name)), !bulkMode && /*#__PURE__*/React.createElement("button", {
         onClick: function (e) {
           e.stopPropagation();
           setStage(p, "");
@@ -8893,7 +9636,26 @@ function BDPipelineView({
           textOverflow: "ellipsis",
           maxWidth: 140
         }
-      }, p.headlineSector)), lastAct && /*#__PURE__*/React.createElement("div", {
+      }, p.headlineSector)), bounced && /*#__PURE__*/React.createElement("div", {
+        onClick: function (e) {
+          e.stopPropagation();
+          clearFlag(p);
+        },
+        title: "Click to clear this flag",
+        style: {
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          background: DANGER + "15",
+          color: DANGER,
+          fontSize: 10,
+          fontWeight: 700,
+          padding: "2px 7px",
+          borderRadius: 5,
+          marginBottom: 6,
+          cursor: "pointer"
+        }
+      }, "\u26A0 Bounced / gone \u00D7"), lastAct && /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 11,
           color: G600,
@@ -8966,7 +9728,24 @@ function BDPipelineView({
           cursor: "pointer",
           fontFamily: "inherit"
         }
-      }, "Log Activity")), /*#__PURE__*/React.createElement("select", {
+      }, "Log Activity"), p.email && /*#__PURE__*/React.createElement("button", {
+        onClick: function (e) {
+          e.stopPropagation();
+          setSendModal(p);
+        },
+        title: "Send via Outlook",
+        style: {
+          background: TL,
+          color: TEAL,
+          border: "1px solid " + TM,
+          borderRadius: 5,
+          padding: "4px 8px",
+          fontSize: 11,
+          fontWeight: 700,
+          cursor: "pointer",
+          fontFamily: "inherit"
+        }
+      }, "\u2709")), /*#__PURE__*/React.createElement("select", {
         value: p.bdStage || "Target",
         onClick: function (e) {
           e.stopPropagation();
@@ -9000,7 +9779,60 @@ function BDPipelineView({
         }, s);
       }))));
     })));
-  }))), sel && /*#__PURE__*/React.createElement("div", {
+  }))), bulkMode && selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      left: "50%",
+      transform: "translateX(-50%)",
+      bottom: 20,
+      zIndex: 600,
+      background: NAVY,
+      borderRadius: 12,
+      padding: "12px 16px",
+      boxShadow: "0 8px 30px #0004",
+      display: "flex",
+      gap: 10,
+      alignItems: "center",
+      flexWrap: "wrap",
+      maxWidth: "90vw"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: W,
+      fontSize: 12.5,
+      fontWeight: 700,
+      whiteSpace: "nowrap"
+    }
+  }, selectedIds.length + " selected"), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setBulkModal(true);
+    },
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "7px 16px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Log Activity for " + selectedIds.length), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setSelectedIds([]);
+    },
+    style: {
+      background: "none",
+      border: "1px solid #ffffff40",
+      borderRadius: 6,
+      padding: "7px 14px",
+      fontSize: 12.5,
+      color: W,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Clear")), sel && /*#__PURE__*/React.createElement("div", {
     onClick: function () {
       setSel(null);
     },
@@ -12763,6 +13595,53 @@ function SetupScreen({
     }
   }, "Your credentials are saved in this browser only. Each team member enters them once.")));
 }
+// ── Outlook connection status badge ──────────────────────────────
+// Shows whether this browser has an active Outlook sign-in. Only
+// renders once MS_CLIENT_ID is actually set (i.e. once the Azure
+// app registration is done and the ID is baked into the file).
+function OutlookStatusBadge() {
+  const [account, setAccount] = useState(getConnectedOutlookAccount());
+  const [connecting, setConnecting] = useState(false);
+  if (!MS_CLIENT_ID) return null;
+  async function connect() {
+    setConnecting(true);
+    try {
+      await getGraphToken();
+      setAccount(getConnectedOutlookAccount());
+    } catch (e) {/* silent — user can retry from a Send button */} finally {
+      setConnecting(false);
+    }
+  }
+  if (account) {
+    return /*#__PURE__*/React.createElement("div", {
+      title: account,
+      style: {
+        background: OK + "10",
+        border: "1px solid " + OK + "40",
+        borderRadius: 20,
+        padding: "4px 14px",
+        fontSize: 11,
+        color: OK,
+        fontWeight: 600
+      }
+    }, "\u2709 Outlook connected");
+  }
+  return /*#__PURE__*/React.createElement("button", {
+    onClick: connect,
+    disabled: connecting,
+    style: {
+      background: "none",
+      border: "1px solid " + G300,
+      borderRadius: 20,
+      padding: "4px 14px",
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      cursor: connecting ? "default" : "pointer",
+      fontFamily: "inherit"
+    }
+  }, connecting ? "\u27F3 Connecting\u2026" : "\u2709 Connect Outlook");
+}
 function App() {
   const [showSetup, setShowSetup] = useState(!localStorage.getItem("volt_at_token"));
   const [unlocked, setUnlocked] = useState(!!sessionStorage.getItem("volt_auth"));
@@ -12787,6 +13666,7 @@ function App() {
   const [network, setNetwork] = useState([]);
   const [vacancies, setVacancies] = useState([]);
   const [specOuts, setSpecOuts] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [ready, setReady] = useState(false);
   const [saveState, setSaveState] = useState(null);
   const [syncStatus, setSyncStatus] = useState("loading");
@@ -12841,6 +13721,12 @@ function App() {
           const sso = await sGet("voltcrm5-specouts");
           if (sso && sso.length > 0) setSpecOuts(JSON.parse(typeof sso === "string" ? sso : JSON.stringify(sso)));
         }
+        if (data.templates && data.templates.length > 0) {
+          setTemplates(data.templates);
+        } else {
+          const stp = await sGet("voltcrm5-templates");
+          if (stp && stp.length > 0) setTemplates(JSON.parse(typeof stp === "string" ? stp : JSON.stringify(stp)));
+        }
         setSyncStatus("ok");
         // If Airtable was empty, do one clean push from localStorage and store _recIds
         if ((!data.people || data.people.length === 0) && (!data.companies || data.companies.length === 0)) {
@@ -12879,11 +13765,13 @@ function App() {
           const snet2 = await sGet("voltcrm5-network");
           const svac2 = await sGet("voltcrm5-vacancies");
           const sso2 = await sGet("voltcrm5-specouts");
+          const stp2 = await sGet("voltcrm5-templates");
           if (sp) setPeople(JSON.parse(typeof sp === "string" ? sp : JSON.stringify(sp)));
           if (sc) setCompanies(JSON.parse(typeof sc === "string" ? sc : JSON.stringify(sc)));
           if (snet2) setNetwork(JSON.parse(typeof snet2 === "string" ? snet2 : JSON.stringify(snet2)));
           if (svac2) setVacancies(JSON.parse(typeof svac2 === "string" ? svac2 : JSON.stringify(svac2)));
           if (sso2) setSpecOuts(JSON.parse(typeof sso2 === "string" ? sso2 : JSON.stringify(sso2)));
+          if (stp2) setTemplates(JSON.parse(typeof stp2 === "string" ? stp2 : JSON.stringify(stp2)));
         } catch (e2) {/* keep seed data */}
         setSyncStatus("offline");
       }
@@ -13293,7 +14181,9 @@ function App() {
     persist: persist,
     ownerFilter: ownerFilter,
     companyFilter: pipelineFilterCompany,
-    onClearCompanyFilter: () => setPipelineFilterCompany(null)
+    onClearCompanyFilter: () => setPipelineFilterCompany(null),
+    templates: templates,
+    setTemplates: setTemplates
   }), view === "people" && /*#__PURE__*/React.createElement(PeopleView, {
     people: people,
     setPeople: setPeople,
@@ -13464,7 +14354,7 @@ function App() {
       color: DANGER,
       fontWeight: 600
     }
-  }, "\u2717 Airtable error"))));
+  }, "\u2717 Airtable error"), /*#__PURE__*/React.createElement(OutlookStatusBadge, null))));
 }
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(/*#__PURE__*/React.createElement(App, null));
