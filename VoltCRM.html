@@ -114,11 +114,41 @@ function getConnectedOutlookAccount() {
   var accounts = inst.getAllAccounts();
   return accounts[0] ? accounts[0].username : null;
 }
+// ── Branded email signatures ─────────────────────────────────────
+// Keyed by the person's real Outlook email, so whoever is actually
+// signed in automatically gets their own correct signature — nobody
+// has to pick anything. Add a new entry here if the team grows.
+var SIGNATURES = {
+  "david@voltconsulting.solutions": {
+    name: "David Boal",
+    title: "Co-Founder | Managing Director",
+    phone: "+44 7775514745"
+  },
+  "lauren@voltconsulting.solutions": {
+    name: "Lauren Campbell",
+    title: "Co-Founder",
+    phone: "+44 7517899154"
+  },
+  "brinda@voltconsulting.solutions": {
+    name: "Brinda Patel PhD",
+    title: "Business Partner & Head of Executive Search, BioPharma R&D",
+    phone: "+44 7956 125 804 | +34 612 46 9561"
+  }
+};
+function buildSignatureHtml(email) {
+  var sig = SIGNATURES[(email || "").toLowerCase()];
+  if (!sig) return "";
+  return "<br><br>" + "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + "<div style=\"font-weight:700;\">" + sig.name + "</div>" + "<div style=\"font-weight:700;\">" + sig.title + "</div>" + (sig.phone ? "<div>" + sig.phone + "</div>" : "") + "<div><a href=\"https://www.voltconsulting.solutions\" style=\"color:#1a1a1a;\">www.voltconsulting.solutions</a></div>" + "<div>Advocacy Over Agency\u2122</div>" + "<div style=\"margin-top:6px;\"><img src=\"" + LOGO_SRC + "\" alt=\"VoltConsulting\" style=\"height:40px;\"></div>" + "</div>";
+}
 // Sends via the signed-in user's own Outlook 365 mailbox. Graph's
 // default behaviour already saves a copy to Sent Items automatically
 // — that's not something this code has to arrange, Microsoft does it.
+// Sent as HTML so the branded signature (logo, bold name, link)
+// actually renders rather than showing as plain text.
 async function sendGraphMail(to, subject, body) {
   var token = await getGraphToken();
+  var senderEmail = getConnectedOutlookAccount();
+  var htmlBody = "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;white-space:pre-wrap;\">" + body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</div>" + buildSignatureHtml(senderEmail);
   var r = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
     method: "POST",
     headers: {
@@ -129,8 +159,8 @@ async function sendGraphMail(to, subject, body) {
       message: {
         subject: subject,
         body: {
-          contentType: "Text",
-          content: body
+          contentType: "HTML",
+          content: htmlBody
         },
         toRecipients: [{
           emailAddress: {
