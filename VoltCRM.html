@@ -6,7 +6,14 @@
   <title>VoltConsulting CRM</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
+  <script>
+    // If the primary CDN region didn't respond, fall back to the
+    // secondary region before the app ever tries to use it.
+    if (typeof msal === "undefined") {
+      document.write(unescape("%3Cscript src='https://alcdn.msftauth.net/browser/2.35.0/js/msal-browser.min.js' type='text/javascript'%3E%3C/script%3E"));
+    }
+  </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; width: 100%; overflow: hidden; }
@@ -77,8 +84,10 @@ var MS_SCOPES = ["Mail.Send", "User.Read"];
 // refreshing if possible. Triggers a sign-in popup only if there's no
 // existing session (first use, or the cached session has expired).
 async function getGraphToken() {
+  if (!MS_CLIENT_ID) throw new Error("The Client ID hasn't been added to this file yet.");
+  if (typeof msal === "undefined") throw new Error("Microsoft's sign-in library didn't load in this browser — check your internet connection, or that an ad-blocker/extension isn't blocking alcdn.msauth.net, then reload the page.");
   var inst = getMsalInstance();
-  if (!inst) throw new Error("Outlook isn't connected yet — add the Client ID from your Azure app registration first.");
+  if (!inst) throw new Error("Couldn't set up the Outlook connection — please reload the page and try again.");
   var accounts = inst.getAllAccounts();
   var request = {
     scopes: MS_SCOPES,
