@@ -4041,11 +4041,15 @@ function ProspectCombobox({
     }
   }, /*#__PURE__*/React.createElement("input", {
     value: value,
-    onChange: e => onChange(e.target.value),
+    onChange: e => {
+      onChange(e.target.value);
+      setOpen(true);
+    },
     onFocus: e => {
       e.target.select();
       setOpen(true);
     },
+    onClick: () => setOpen(true),
     onBlur: () => setTimeout(() => setOpen(false), 150),
     placeholder: placeholder,
     style: {
@@ -4063,6 +4067,7 @@ function ProspectCombobox({
     onMouseDown: e => {
       e.preventDefault();
       onChange("");
+      setOpen(true);
     },
     title: "Clear and search again",
     style: {
