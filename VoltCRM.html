@@ -3284,7 +3284,9 @@ function PersonDetail({
   specOuts = [],
   setSpecOuts = () => {},
   templates = [],
-  setTemplates = () => {}
+  setTemplates = () => {},
+  onBackToPrevPerson = null,
+  prevPersonName = null
 }) {
   const [tab, setTab] = useState("Overview");
   useEffect(() => setTab("Overview"), [selP ? selP.id : null]);
@@ -3349,7 +3351,23 @@ function PersonDetail({
       alignItems: "center",
       gap: 4
     }
-  }, "\u2190 Back to Market Map"), /*#__PURE__*/React.createElement("div", {
+  }, "\u2190 Back to Market Map"), !onBack && onBackToPrevPerson && prevPersonName && /*#__PURE__*/React.createElement("button", {
+    onClick: onBackToPrevPerson,
+    style: {
+      background: "transparent",
+      border: "none",
+      color: TEAL,
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      padding: 0,
+      marginBottom: 14,
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, "\u2190 Back to " + prevPersonName), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -4069,13 +4087,17 @@ function AddProspectsForm({
   }, "Add the prospects this profile should go to \u2014 tick them from the list below once they're in, and send the synopsis to all of them in one go."), rows.map((r, idx) => {
     const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
     const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
+    const matchedContact = people.find(p => (p.name || "").trim().toLowerCase() === r.contactName.trim().toLowerCase());
     return /*#__PURE__*/React.createElement("div", {
       key: r.id,
+      style: {
+        marginBottom: 8
+      }
+    }, /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
         gridTemplateColumns: "1fr 1fr 28px",
         gap: 8,
-        marginBottom: 8,
         alignItems: "center"
       }
     }, /*#__PURE__*/React.createElement("input", {
@@ -4124,7 +4146,14 @@ function AddProspectsForm({
         cursor: "pointer",
         fontFamily: "inherit"
       }
-    }, "\xD7"));
+    }, "\xD7")), r.contactName.trim() && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        marginTop: 3,
+        paddingLeft: 2,
+        color: matchedContact ? matchedContact.email ? OK : DANGER : G400
+      }
+    }, matchedContact ? matchedContact.email ? "\u2713 " + matchedContact.email : "\u26A0 Matched, but no email on file for this contact" : "\u26A0 No matching contact found \u2014 check the spelling, or this will be saved as free text"));
   }), /*#__PURE__*/React.createElement("datalist", {
     id: "prospect-co-list-" + person.id
   }, companies.map(c => /*#__PURE__*/React.createElement("option", {
@@ -4694,6 +4723,36 @@ function PeopleView({
   const [discF, setDiscF] = useState("all");
   const [moreOpen, setMoreOpen] = useState(false);
   const [sel, setSel] = useState(initialSel || null);
+  // Tracks who you were just looking at, so a search/navigation
+  // elsewhere in the app always lands correctly (not just on first
+  // load) and always leaves a way back — "sel" alone can't do either
+  // of those on its own since React only reads a useState default once.
+  const prevSelRef = useRef(sel);
+  const [selHistory, setSelHistory] = useState([]);
+  useEffect(() => {
+    if (initialSel != null && initialSel !== sel) {
+      if (sel != null) setSelHistory(h => [...h, sel].slice(-15));
+      setSel(initialSel);
+    }
+    // eslint-disable-next-line
+  }, [initialSel]);
+  useEffect(() => {
+    if (prevSelRef.current != null && prevSelRef.current !== sel && sel != null && sel !== initialSel) {
+      setSelHistory(h => [...h, prevSelRef.current].slice(-15));
+    }
+    prevSelRef.current = sel;
+  }, [sel]);
+  function goBackToPrevPerson() {
+    setSelHistory(h => {
+      if (!h.length) return h;
+      setSel(h[h.length - 1]);
+      return h.slice(0, -1);
+    });
+  }
+  const prevPersonName = selHistory.length ? (function () {
+    const p = people.find(x => x.id === selHistory[selHistory.length - 1]);
+    return p ? p.name : null;
+  })() : null;
   const [modal, setModal] = useState(null);
   const [prefill, setPrefill] = useState(null);
   const [bulkMode, setBulkMode] = useState(false);
@@ -5097,7 +5156,9 @@ function PeopleView({
     specOuts: specOuts,
     setSpecOuts: setSpecOuts,
     templates: templates,
-    setTemplates: setTemplates
+    setTemplates: setTemplates,
+    onBackToPrevPerson: goBackToPrevPerson,
+    prevPersonName: prevPersonName
   }), bulkMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -5774,6 +5835,32 @@ function CompaniesView({
   const [search, setSearch] = useState("");
   const [tierF, setTierF] = useState("all");
   const [sel, setSel] = useState(initialSel || null);
+  const prevSelRefC = useRef(sel);
+  const [selHistoryC, setSelHistoryC] = useState([]);
+  useEffect(() => {
+    if (initialSel != null && initialSel !== sel) {
+      if (sel != null) setSelHistoryC(h => [...h, sel].slice(-15));
+      setSel(initialSel);
+    }
+    // eslint-disable-next-line
+  }, [initialSel]);
+  useEffect(() => {
+    if (prevSelRefC.current != null && prevSelRefC.current !== sel && sel != null && sel !== initialSel) {
+      setSelHistoryC(h => [...h, prevSelRefC.current].slice(-15));
+    }
+    prevSelRefC.current = sel;
+  }, [sel]);
+  function goBackToPrevCompany() {
+    setSelHistoryC(h => {
+      if (!h.length) return h;
+      setSel(h[h.length - 1]);
+      return h.slice(0, -1);
+    });
+  }
+  const prevCompanyName = selHistoryC.length ? (function () {
+    const c = companies.find(x => x.id === selHistoryC[selHistoryC.length - 1]);
+    return c ? c.name : null;
+  })() : null;
   const [modal, setModal] = useState(null);
   const [linkedInPrefill, setLinkedInPrefill] = useState(null);
   const [bulkMode, setBulkMode] = useState(false);
@@ -6082,7 +6169,23 @@ function CompaniesView({
       alignItems: "center",
       gap: 4
     }
-  }, "\u2190 Back to Market Map"), /*#__PURE__*/React.createElement("div", {
+  }, "\u2190 Back to Market Map"), !onBack && prevCompanyName && /*#__PURE__*/React.createElement("button", {
+    onClick: goBackToPrevCompany,
+    style: {
+      background: "transparent",
+      border: "none",
+      color: TEAL,
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      padding: 0,
+      marginBottom: 14,
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, "\u2190 Back to " + prevCompanyName), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -8441,13 +8544,17 @@ function AddProspectsFormGlobal({
   })))), rows.map(r => {
     const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
     const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
+    const matchedContact = people.find(p => (p.name || "").trim().toLowerCase() === r.contactName.trim().toLowerCase());
     return /*#__PURE__*/React.createElement("div", {
       key: r.id,
+      style: {
+        marginBottom: 8
+      }
+    }, /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
         gridTemplateColumns: "1fr 1fr 28px",
         gap: 8,
-        marginBottom: 8,
         alignItems: "center"
       }
     }, /*#__PURE__*/React.createElement("input", {
@@ -8496,7 +8603,14 @@ function AddProspectsFormGlobal({
         cursor: "pointer",
         fontFamily: "inherit"
       }
-    }, "\xD7"));
+    }, "\xD7")), r.contactName.trim() && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        marginTop: 3,
+        paddingLeft: 2,
+        color: matchedContact ? matchedContact.email ? OK : DANGER : G400
+      }
+    }, matchedContact ? matchedContact.email ? "\u2713 " + matchedContact.email : "\u26A0 Matched, but no email on file for this contact" : "\u26A0 No matching contact found \u2014 check the spelling, or this will be saved as free text"));
   }), /*#__PURE__*/React.createElement("datalist", {
     id: "prospect-global-co-list"
   }, companies.map(c => /*#__PURE__*/React.createElement("option", {
