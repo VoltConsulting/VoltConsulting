@@ -3659,7 +3659,9 @@ function PersonDetail({
     specOuts: specOuts,
     setSpecOuts: setSpecOuts,
     persist: persist,
-    onNavigatePerson: setSel
+    onNavigatePerson: setSel,
+    templates: templates,
+    setTemplates: setTemplates
   })));
 }
 
@@ -3995,6 +3997,164 @@ function AddSpecOutForm({
     onClick: onCancel
   }, "Cancel")));
 }
+// Adds several prospects for one candidate in a single sitting — each
+// becomes its own "Pending" spec-out record (no summary/email needed
+// yet, since the actual email gets written and sent from the bulk
+// send flow below, not typed in twice).
+function AddProspectsForm({
+  person,
+  companies,
+  people,
+  onSaveMany,
+  onCancel
+}) {
+  const [rows, setRows] = useState([{
+    id: 1,
+    companyName: "",
+    contactName: ""
+  }]);
+  function updateRow(id, field, value) {
+    setRows(rows.map(r => r.id === id ? Object.assign({}, r, {
+      [field]: value
+    }, field === "companyName" ? {
+      contactName: ""
+    } : {}) : r));
+  }
+  function addRow() {
+    setRows(rows.concat([{
+      id: Date.now(),
+      companyName: "",
+      contactName: ""
+    }]));
+  }
+  function removeRow(id) {
+    setRows(rows.filter(r => r.id !== id));
+  }
+  function save() {
+    const specs = rows.filter(r => r.companyName.trim() && r.contactName.trim()).map((r, i) => {
+      const co = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
+      const ct = people.find(p => (p.name || "").trim().toLowerCase() === r.contactName.trim().toLowerCase());
+      return {
+        id: Date.now() + i,
+        candidateId: person.id,
+        candidateName: person.name,
+        companyId: co ? co.id : null,
+        companyName: co ? co.name : r.companyName.trim(),
+        contactId: ct ? ct.id : null,
+        contactName: ct ? ct.name : r.contactName.trim(),
+        dateSent: "",
+        summary: "",
+        fullEmail: "",
+        status: "Pending",
+        lastUpdated: today,
+        updates: []
+      };
+    });
+    if (specs.length) onSaveMany(specs);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 8,
+      padding: 16,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      marginBottom: 10
+    }
+  }, "Add the prospects this profile should go to \u2014 tick them from the list below once they're in, and send the synopsis to all of them in one go."), rows.map((r, idx) => {
+    const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
+    const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
+    return /*#__PURE__*/React.createElement("div", {
+      key: r.id,
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 28px",
+        gap: 8,
+        marginBottom: 8,
+        alignItems: "center"
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      value: r.companyName,
+      onChange: e => updateRow(r.id, "companyName", e.target.value),
+      placeholder: "Company\u2026",
+      list: "prospect-co-list-" + person.id,
+      style: {
+        background: W,
+        border: "1px solid " + G300,
+        borderRadius: 6,
+        padding: "7px 10px",
+        color: G900,
+        fontSize: 13,
+        outline: "none",
+        fontFamily: "inherit"
+      }
+    }), /*#__PURE__*/React.createElement("input", {
+      value: r.contactName,
+      onChange: e => updateRow(r.id, "contactName", e.target.value),
+      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : "Contact\u2026",
+      list: "prospect-ct-list-" + r.id,
+      style: {
+        background: W,
+        border: "1px solid " + G300,
+        borderRadius: 6,
+        padding: "7px 10px",
+        color: G900,
+        fontSize: 13,
+        outline: "none",
+        fontFamily: "inherit"
+      }
+    }), /*#__PURE__*/React.createElement("datalist", {
+      id: "prospect-ct-list-" + r.id
+    }, contactOptions.map(p => /*#__PURE__*/React.createElement("option", {
+      key: p.id,
+      value: p.name
+    }))), rows.length > 1 && /*#__PURE__*/React.createElement("button", {
+      onClick: () => removeRow(r.id),
+      title: "Remove this row",
+      style: {
+        background: "none",
+        border: "none",
+        color: G400,
+        fontSize: 18,
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, "\xD7"));
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "prospect-co-list-" + person.id
+  }, companies.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c.id,
+    value: c.name
+  }))), /*#__PURE__*/React.createElement("button", {
+    onClick: addRow,
+    style: {
+      background: "none",
+      border: "none",
+      color: TEAL,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      padding: 0,
+      marginBottom: 14,
+      fontFamily: "inherit"
+    }
+  }, "+ Add another prospect"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: save
+  }, "Add prospects"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "Cancel")));
+}
 function SpecOutsTab({
   person,
   people,
@@ -4003,9 +4163,15 @@ function SpecOutsTab({
   specOuts,
   setSpecOuts,
   persist,
-  onNavigatePerson
+  onNavigatePerson,
+  templates,
+  setTemplates
 }) {
   const [adding, setAdding] = useState(false);
+  const [addingProspects, setAddingProspects] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [sendModal, setSendModal] = useState(null);
   const sentByMe = specOuts.filter(s => s.candidateId === person.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
   const receivedByMe = specOuts.filter(s => s.contactId === person.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
   function commit(updated) {
@@ -4026,6 +4192,10 @@ function SpecOutsTab({
     });
     setAdding(false);
   }
+  function addSpecsMany(specs) {
+    commit([...specs, ...specOuts]);
+    setAddingProspects(false);
+  }
   function updateSpec(id, patch) {
     const updated = specOuts.map(s => s.id === id ? Object.assign({}, s, patch) : s);
     commit(updated);
@@ -4043,12 +4213,60 @@ function SpecOutsTab({
     }
     commit(specOuts.filter(s => s.id !== id));
   }
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  function toggleSelect(id) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.concat([id]));
+  }
+  const pendingSpecs = sentByMe.filter(s => s.status === "Pending");
+  function saveTemplate(t) {
+    const updated = [t, ...(templates || [])];
+    setTemplates(updated);
+    persist("templates", updated);
+  }
+  // Resolves the selected Pending spec-out rows to real contact records
+  // and opens the same bulk-send modal used on BD Pipeline. On each
+  // successful send, marks that spec-out as Sent and logs the activity
+  // against the recipient — the send and the record-keeping happen in
+  // one action instead of two.
+  function openBulkSend() {
+    const targets = pendingSpecs.filter(s => selectedIds.includes(s.id));
+    const withContacts = targets.map(s => {
+      const p = people.find(x => x.id === s.contactId);
+      return {
+        spec: s,
+        contact: p
+      };
+    }).filter(x => x.contact && x.contact.email);
+    if (!withContacts.length) return;
+    setSendModal(withContacts);
+  }
+  function onProspectSent(contactPerson, entry) {
+    const match = sendModal && sendModal.find(x => x.contact.id === contactPerson.id);
+    if (!match) return;
+    updateSpec(match.spec.id, {
+      status: "Sent",
+      dateSent: today,
+      lastUpdated: today,
+      fullEmail: entry.note
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", null, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: sendModal.map(x => x.contact),
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    onSent: onProspectSent,
+    onClose: () => {
+      setSendModal(null);
+      setSelectedIds([]);
+      setBulkMode(false);
+    }
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      marginBottom: 14
+      marginBottom: 14,
+      flexWrap: "wrap",
+      gap: 8
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4056,10 +4274,32 @@ function SpecOutsTab({
       fontSize: 14,
       color: NAVY
     }
-  }, "Specced out to"), !adding && /*#__PURE__*/React.createElement(Btn, {
+  }, "Specced out to"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
     small: true,
+    variant: "ghost",
     onClick: () => setAdding(true)
-  }, "+ Add spec out")), adding && /*#__PURE__*/React.createElement(AddSpecOutForm, {
+  }, "+ Log a past spec out"), !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => setAddingProspects(true)
+  }, "+ Add prospects"), pendingSpecs.length > 0 && !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    variant: "ghost",
+    onClick: () => {
+      setBulkMode(!bulkMode);
+      setSelectedIds([]);
+    }
+  }, bulkMode ? "Cancel selecting" : "Select to send"))), addingProspects && /*#__PURE__*/React.createElement(AddProspectsForm, {
+    person: person,
+    companies: companies,
+    people: people,
+    onSaveMany: addSpecsMany,
+    onCancel: () => setAddingProspects(false)
+  }), adding && /*#__PURE__*/React.createElement(AddSpecOutForm, {
     person: person,
     companies: companies,
     people: people,
@@ -4071,14 +4311,81 @@ function SpecOutsTab({
       fontSize: 12,
       marginBottom: 20
     }
-  }, "Not specced out to anyone yet.") : sentByMe.map(s => /*#__PURE__*/React.createElement(SpecOutRow, {
+  }, "Not specced out to anyone yet.") : sentByMe.map(s => /*#__PURE__*/React.createElement("div", {
     key: s.id,
+    style: {
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 8
+    }
+  }, bulkMode && s.status === "Pending" && /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: selectedIds.includes(s.id),
+    onChange: () => toggleSelect(s.id),
+    style: {
+      marginTop: 18,
+      width: 15,
+      height: 15,
+      flexShrink: 0
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement(SpecOutRow, {
     spec: s,
     perspective: "candidate",
     onUpdate: updateSpec,
     onNavigatePerson: onNavigatePerson,
     onDelete: deleteSpec
-  })), receivedByMe.length > 0 && /*#__PURE__*/React.createElement("div", {
+  })))), bulkMode && selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      left: "50%",
+      transform: "translateX(-50%)",
+      bottom: 20,
+      zIndex: 600,
+      background: NAVY,
+      borderRadius: 12,
+      padding: "12px 16px",
+      boxShadow: "0 8px 30px #0004",
+      display: "flex",
+      gap: 10,
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: W,
+      fontSize: 12.5,
+      fontWeight: 700,
+      whiteSpace: "nowrap"
+    }
+  }, selectedIds.length + " selected"), /*#__PURE__*/React.createElement("button", {
+    onClick: openBulkSend,
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "7px 16px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setSelectedIds([]),
+    style: {
+      background: "none",
+      border: "1px solid #ffffff40",
+      borderRadius: 6,
+      padding: "7px 14px",
+      fontSize: 12.5,
+      color: W,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Clear")), receivedByMe.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 24
     }
@@ -7851,8 +8158,9 @@ const BD_STAGE_COLORS = {
   "Active": OK,
   "Nurture": "#db2777"
 };
-var SPEC_STATUSES = ["Sent", "Interested", "Declined", "No Response", "Meeting Booked"];
+var SPEC_STATUSES = ["Pending", "Sent", "Interested", "Declined", "No Response", "Meeting Booked"];
 var SPEC_STATUS_COLORS = {
+  "Pending": "#b45309",
   "Sent": G400,
   "Interested": TEAL,
   "Declined": DANGER,
@@ -8034,6 +8342,191 @@ function AddSpecOutFormGlobal({
     onClick: onCancel
   }, "Cancel")));
 }
+// Same as AddProspectsForm, but for the global Spec Outs view where
+// there's no single candidate already in context — picks the
+// candidate first, then adds several prospects for them at once.
+function AddProspectsFormGlobal({
+  people,
+  companies,
+  onSaveMany,
+  onCancel
+}) {
+  const [candidateName, setCandidateName] = useState("");
+  const [rows, setRows] = useState([{
+    id: 1,
+    companyName: "",
+    contactName: ""
+  }]);
+  const candidateOptions = people.filter(p => p.type === "candidate");
+  function updateRow(id, field, value) {
+    setRows(rows.map(r => r.id === id ? Object.assign({}, r, {
+      [field]: value
+    }, field === "companyName" ? {
+      contactName: ""
+    } : {}) : r));
+  }
+  function addRow() {
+    setRows(rows.concat([{
+      id: Date.now(),
+      companyName: "",
+      contactName: ""
+    }]));
+  }
+  function removeRow(id) {
+    setRows(rows.filter(r => r.id !== id));
+  }
+  function save() {
+    const cand = people.find(p => (p.name || "").trim().toLowerCase() === candidateName.trim().toLowerCase());
+    if (!cand) return;
+    const specs = rows.filter(r => r.companyName.trim() && r.contactName.trim()).map((r, i) => {
+      const co = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
+      const ct = people.find(p => (p.name || "").trim().toLowerCase() === r.contactName.trim().toLowerCase());
+      return {
+        id: Date.now() + i,
+        candidateId: cand.id,
+        candidateName: cand.name,
+        companyId: co ? co.id : null,
+        companyName: co ? co.name : r.companyName.trim(),
+        contactId: ct ? ct.id : null,
+        contactName: ct ? ct.name : r.contactName.trim(),
+        dateSent: "",
+        summary: "",
+        fullEmail: "",
+        status: "Pending",
+        lastUpdated: today,
+        updates: []
+      };
+    });
+    if (specs.length) onSaveMany(specs);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 8,
+      padding: 16,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      marginBottom: 10
+    }
+  }, "Pick the candidate, then add every prospect this profile should go to \u2014 select them below afterwards to send the synopsis to all of them in one go."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: candidateName,
+    onChange: e => setCandidateName(e.target.value),
+    placeholder: "Candidate\u2026",
+    list: "prospect-global-cand-list",
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "7px 10px",
+      color: G900,
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      width: "100%"
+    }
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "prospect-global-cand-list"
+  }, candidateOptions.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.id,
+    value: p.name
+  })))), rows.map(r => {
+    const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
+    const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
+    return /*#__PURE__*/React.createElement("div", {
+      key: r.id,
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 28px",
+        gap: 8,
+        marginBottom: 8,
+        alignItems: "center"
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      value: r.companyName,
+      onChange: e => updateRow(r.id, "companyName", e.target.value),
+      placeholder: "Company\u2026",
+      list: "prospect-global-co-list",
+      style: {
+        background: W,
+        border: "1px solid " + G300,
+        borderRadius: 6,
+        padding: "7px 10px",
+        color: G900,
+        fontSize: 13,
+        outline: "none",
+        fontFamily: "inherit"
+      }
+    }), /*#__PURE__*/React.createElement("input", {
+      value: r.contactName,
+      onChange: e => updateRow(r.id, "contactName", e.target.value),
+      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : "Contact\u2026",
+      list: "prospect-global-ct-list-" + r.id,
+      style: {
+        background: W,
+        border: "1px solid " + G300,
+        borderRadius: 6,
+        padding: "7px 10px",
+        color: G900,
+        fontSize: 13,
+        outline: "none",
+        fontFamily: "inherit"
+      }
+    }), /*#__PURE__*/React.createElement("datalist", {
+      id: "prospect-global-ct-list-" + r.id
+    }, contactOptions.map(p => /*#__PURE__*/React.createElement("option", {
+      key: p.id,
+      value: p.name
+    }))), rows.length > 1 && /*#__PURE__*/React.createElement("button", {
+      onClick: () => removeRow(r.id),
+      title: "Remove this row",
+      style: {
+        background: "none",
+        border: "none",
+        color: G400,
+        fontSize: 18,
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, "\xD7"));
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "prospect-global-co-list"
+  }, companies.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c.id,
+    value: c.name
+  }))), /*#__PURE__*/React.createElement("button", {
+    onClick: addRow,
+    style: {
+      background: "none",
+      border: "none",
+      color: TEAL,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      padding: 0,
+      marginBottom: 14,
+      fontFamily: "inherit"
+    }
+  }, "+ Add another prospect"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: save
+  }, "Add prospects"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "Cancel")));
+}
 function SpecOutsView({
   specOuts,
   setSpecOuts,
@@ -8042,14 +8535,20 @@ function SpecOutsView({
   companies,
   persist,
   ownerFilter,
-  onNavigate
+  onNavigate,
+  templates,
+  setTemplates
 }) {
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState("all");
   const [groupBy, setGroupBy] = useState("candidate");
   const [sortMode, setSortMode] = useState("followup");
   const [adding, setAdding] = useState(false);
+  const [addingProspects, setAddingProspects] = useState(false);
   const [expandedKeys, setExpandedKeys] = useState(() => new Set());
+  const [bulkGroupKey, setBulkGroupKey] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [sendModal, setSendModal] = useState(null);
   const autoExpanded = useRef(false);
   function toggleGroup(key) {
     setExpandedKeys(prev => {
@@ -8076,6 +8575,10 @@ function SpecOutsView({
     });
     setAdding(false);
   }
+  function addSpecsMany(specs) {
+    commit([...specs, ...specOuts]);
+    setAddingProspects(false);
+  }
   function updateSpec(id, patch) {
     const updated = specOuts.map(s => s.id === id ? Object.assign({}, s, patch) : s);
     commit(updated);
@@ -8092,6 +8595,42 @@ function SpecOutsView({
       atDelete(target._recId).catch(e => console.warn("Delete from Airtable failed", e));
     }
     commit(specOuts.filter(s => s.id !== id));
+  }
+  function toggleSelect(id) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.concat([id]));
+  }
+  function saveTemplate(t) {
+    const updated = [t, ...(templates || [])];
+    setTemplates(updated);
+    persist("templates", updated);
+  }
+  // Bulk-select is scoped to one group at a time — a send is always
+  // one candidate's synopsis, so mixing groups wouldn't make sense.
+  function toggleBulkGroup(key) {
+    setBulkGroupKey(prev => prev === key ? null : key);
+    setSelectedIds([]);
+  }
+  function openBulkSend(groupItems) {
+    const targets = groupItems.filter(s => s.status === "Pending" && selectedIds.includes(s.id));
+    const withContacts = targets.map(s => {
+      const p = people.find(x => x.id === s.contactId);
+      return {
+        spec: s,
+        contact: p
+      };
+    }).filter(x => x.contact && x.contact.email);
+    if (!withContacts.length) return;
+    setSendModal(withContacts);
+  }
+  function onProspectSent(contactPerson, entry) {
+    const match = sendModal && sendModal.find(x => x.contact.id === contactPerson.id);
+    if (!match) return;
+    updateSpec(match.spec.id, {
+      status: "Sent",
+      dateSent: today,
+      lastUpdated: today,
+      fullEmail: entry.note
+    });
   }
   // "Open" = still awaiting a response; these are what need chasing.
   // Resolved (Interested/Meeting Booked/Declined) don't need a follow-up nudge.
@@ -8188,15 +8727,38 @@ function SpecOutsView({
       fontWeight: 700,
       color: NAVY
     }
-  }, "Spec Outs"), !adding && /*#__PURE__*/React.createElement(Btn, {
+  }, "Spec Outs"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
     onClick: () => setAdding(true)
-  }, "+ Add spec out")), /*#__PURE__*/React.createElement("div", {
+  }, "+ Log a past spec out"), !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
+    onClick: () => setAddingProspects(true)
+  }, "+ Add prospects"))), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: G600,
       marginBottom: 18
     }
-  }, "Every candidate speculative approach in one place — where they've been specced, and how each one's landed."), adding && /*#__PURE__*/React.createElement(AddSpecOutFormGlobal, {
+  }, "Every candidate speculative approach in one place — where they've been specced, and how each one's landed."), sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: sendModal.map(x => x.contact),
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    onSent: onProspectSent,
+    onClose: () => {
+      setSendModal(null);
+      setSelectedIds([]);
+      setBulkGroupKey(null);
+    }
+  }), addingProspects && /*#__PURE__*/React.createElement(AddProspectsFormGlobal, {
+    people: people,
+    companies: companies,
+    onSaveMany: addSpecsMany,
+    onCancel: () => setAddingProspects(false)
+  }), adding && /*#__PURE__*/React.createElement(AddSpecOutFormGlobal, {
     people: people,
     companies: companies,
     onSave: addSpec,
@@ -8383,7 +8945,25 @@ function SpecOutsView({
         color: g.maxOpenDays >= 10 ? DANGER : WARN,
         whiteSpace: "nowrap"
       }
-    }, "Follow up \u00b7 " + g.maxOpenDays + "d"), g.id != null && /*#__PURE__*/React.createElement("button", {
+    }, "Follow up \u00b7 " + g.maxOpenDays + "d"), groupBy === "candidate" && g.items.some(s => s.status === "Pending") && /*#__PURE__*/React.createElement("button", {
+      onClick: e => {
+        e.stopPropagation();
+        toggleBulkGroup(key);
+        setExpandedKeys(prev => new Set(prev).add(key));
+      },
+      style: {
+        background: bulkGroupKey === key ? TL : "none",
+        border: "1px solid " + (bulkGroupKey === key ? TM : G300),
+        color: bulkGroupKey === key ? TEAL : G600,
+        borderRadius: 6,
+        padding: "3px 10px",
+        fontSize: 11,
+        fontWeight: 700,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        whiteSpace: "nowrap"
+      }
+    }, bulkGroupKey === key ? "Cancel selecting" : "Select to send"), g.id != null && /*#__PURE__*/React.createElement("button", {
       onClick: e => {
         e.stopPropagation();
         onNavigate(g.navTarget, g.id);
@@ -8414,14 +8994,81 @@ function SpecOutsView({
         borderTop: "1px solid " + G100,
         background: W
       }
-    }, g.items.map(s => /*#__PURE__*/React.createElement(SpecOutRow, {
+    }, g.items.map(s => /*#__PURE__*/React.createElement("div", {
       key: s.id,
+      style: {
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 8
+      }
+    }, bulkGroupKey === key && s.status === "Pending" && /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: selectedIds.includes(s.id),
+      onChange: () => toggleSelect(s.id),
+      style: {
+        marginTop: 18,
+        width: 15,
+        height: 15,
+        flexShrink: 0
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement(SpecOutRow, {
       spec: s,
       perspective: groupBy === "candidate" ? "candidate" : "contact",
       onUpdate: updateSpec,
       onNavigatePerson: id => onNavigate("people", id),
       onDelete: deleteSpec
-    }))));
+    }))))), bulkGroupKey === key && selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: "fixed",
+        left: "50%",
+        transform: "translateX(-50%)",
+        bottom: 20,
+        zIndex: 600,
+        background: NAVY,
+        borderRadius: 12,
+        padding: "12px 16px",
+        boxShadow: "0 8px 30px #0004",
+        display: "flex",
+        gap: 10,
+        alignItems: "center"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: W,
+        fontSize: 12.5,
+        fontWeight: 700,
+        whiteSpace: "nowrap"
+      }
+    }, selectedIds.length + " selected \u2014 " + g.name), /*#__PURE__*/React.createElement("button", {
+      onClick: () => openBulkSend(g.items),
+      style: {
+        background: TEAL,
+        color: W,
+        border: "none",
+        borderRadius: 6,
+        padding: "7px 16px",
+        fontSize: 12.5,
+        fontWeight: 700,
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setSelectedIds([]),
+      style: {
+        background: "none",
+        border: "1px solid #ffffff40",
+        borderRadius: 6,
+        padding: "7px 14px",
+        fontSize: 12.5,
+        color: W,
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, "Clear")));
   }));
 }
 
@@ -14542,7 +15189,9 @@ function App() {
     companies: companies,
     persist: persist,
     ownerFilter: ownerFilter,
-    onNavigate: handleNavigate
+    onNavigate: handleNavigate,
+    templates: templates,
+    setTemplates: setTemplates
   }), view === "network" && /*#__PURE__*/React.createElement(VoltNetworkView, {
     network: network,
     setNetwork: setNetwork,
