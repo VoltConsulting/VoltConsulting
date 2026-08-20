@@ -3771,7 +3771,7 @@ function SpecOutRow({
       color: G600,
       marginTop: 2
     }
-  }, "Sent " + (spec.dateSent || "—") + (spec.lastUpdated && spec.lastUpdated !== spec.dateSent ? " · updated " + spec.lastUpdated : ""))), /*#__PURE__*/React.createElement("div", {
+  }, spec.dateSent ? "Sent " + spec.dateSent + (spec.lastUpdated && spec.lastUpdated !== spec.dateSent ? " · updated " + spec.lastUpdated : "") : "Not yet sent" + (spec.lastUpdated ? " · added " + spec.lastUpdated : ""))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "flex-start",
