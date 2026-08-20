@@ -4019,6 +4019,96 @@ function AddSpecOutForm({
 // becomes its own "Pending" spec-out record (no summary/email needed
 // yet, since the actual email gets written and sent from the bulk
 // send flow below, not typed in twice).
+// A fully custom search-and-pick field — deliberately not using the
+// browser's native <input list>/<datalist> combo, since that fights
+// itself once a field already has a value: the browser's own dropdown
+// arrow sits on top of anything we draw there, and clicking it just
+// re-shows the current exact match rather than a fresh list. This
+// gives full control: click in, see everyone, type to filter, pick
+// one, and a real "×" that's never hidden behind browser chrome.
+function ProspectCombobox({
+  value,
+  onChange,
+  options,
+  placeholder
+}) {
+  const [open, setOpen] = useState(false);
+  const q = value.trim().toLowerCase();
+  const filtered = (q ? options.filter(o => o.name.toLowerCase().includes(q)) : options).slice(0, 50);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: value,
+    onChange: e => onChange(e.target.value),
+    onFocus: e => {
+      e.target.select();
+      setOpen(true);
+    },
+    onBlur: () => setTimeout(() => setOpen(false), 150),
+    placeholder: placeholder,
+    style: {
+      width: "100%",
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: value.trim() ? "7px 26px 7px 10px" : "7px 10px",
+      color: G900,
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit"
+    }
+  }), value.trim() && /*#__PURE__*/React.createElement("button", {
+    onMouseDown: e => {
+      e.preventDefault();
+      onChange("");
+    },
+    title: "Clear and search again",
+    style: {
+      position: "absolute",
+      right: 4,
+      top: "50%",
+      transform: "translateY(-50%)",
+      background: "none",
+      border: "none",
+      color: G400,
+      fontSize: 15,
+      lineHeight: 1,
+      cursor: "pointer",
+      padding: "4px 6px",
+      fontFamily: "inherit",
+      zIndex: 2
+    }
+  }, "\xD7"), open && filtered.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "calc(100% + 2px)",
+      left: 0,
+      right: 0,
+      zIndex: 50,
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      maxHeight: 190,
+      overflow: "auto",
+      boxShadow: "0 6px 18px #0002"
+    }
+  }, filtered.map(o => /*#__PURE__*/React.createElement("div", {
+    key: o.id,
+    onMouseDown: e => {
+      e.preventDefault();
+      onChange(o.name);
+      setOpen(false);
+    },
+    style: {
+      padding: "7px 10px",
+      fontSize: 13,
+      color: G800,
+      cursor: "pointer"
+    }
+  }, o.name))));
+}
 function AddProspectsForm({
   person,
   companies,
@@ -4100,42 +4190,17 @@ function AddProspectsForm({
         gap: 8,
         alignItems: "center"
       }
-    }, /*#__PURE__*/React.createElement("input", {
+    }, /*#__PURE__*/React.createElement(ProspectCombobox, {
       value: r.companyName,
-      onChange: e => updateRow(r.id, "companyName", e.target.value),
-      placeholder: "Company\u2026",
-      list: "prospect-co-list-" + person.id,
-      style: {
-        background: W,
-        border: "1px solid " + G300,
-        borderRadius: 6,
-        padding: "7px 10px",
-        color: G900,
-        fontSize: 13,
-        outline: "none",
-        fontFamily: "inherit"
-      }
-    }), /*#__PURE__*/React.createElement("input", {
+      onChange: v => updateRow(r.id, "companyName", v),
+      options: companies,
+      placeholder: "Company\u2026"
+    }), /*#__PURE__*/React.createElement(ProspectCombobox, {
       value: r.contactName,
-      onChange: e => updateRow(r.id, "contactName", e.target.value),
-      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : "Contact\u2026",
-      list: "prospect-ct-list-" + r.id,
-      style: {
-        background: W,
-        border: "1px solid " + G300,
-        borderRadius: 6,
-        padding: "7px 10px",
-        color: G900,
-        fontSize: 13,
-        outline: "none",
-        fontFamily: "inherit"
-      }
-    }), /*#__PURE__*/React.createElement("datalist", {
-      id: "prospect-ct-list-" + r.id
-    }, contactOptions.map(p => /*#__PURE__*/React.createElement("option", {
-      key: p.id,
-      value: p.name
-    }))), rows.length > 1 && /*#__PURE__*/React.createElement("button", {
+      onChange: v => updateRow(r.id, "contactName", v),
+      options: contactOptions,
+      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : "Contact\u2026"
+    }), rows.length > 1 && /*#__PURE__*/React.createElement("button", {
       onClick: () => removeRow(r.id),
       title: "Remove this row",
       style: {
@@ -4154,12 +4219,7 @@ function AddProspectsForm({
         color: matchedContact ? matchedContact.email ? OK : DANGER : G400
       }
     }, matchedContact ? matchedContact.email ? "\u2713 " + matchedContact.email : "\u26A0 Matched, but no email on file for this contact" : "\u26A0 No matching contact found \u2014 check the spelling, or this will be saved as free text"));
-  }), /*#__PURE__*/React.createElement("datalist", {
-    id: "prospect-co-list-" + person.id
-  }, companies.map(c => /*#__PURE__*/React.createElement("option", {
-    key: c.id,
-    value: c.name
-  }))), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("button", {
     onClick: addRow,
     style: {
       background: "none",
@@ -8520,28 +8580,12 @@ function AddProspectsFormGlobal({
     style: {
       marginBottom: 10
     }
-  }, /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement(ProspectCombobox, {
     value: candidateName,
-    onChange: e => setCandidateName(e.target.value),
-    placeholder: "Candidate\u2026",
-    list: "prospect-global-cand-list",
-    style: {
-      background: W,
-      border: "1px solid " + G300,
-      borderRadius: 6,
-      padding: "7px 10px",
-      color: G900,
-      fontSize: 13,
-      outline: "none",
-      fontFamily: "inherit",
-      width: "100%"
-    }
-  }), /*#__PURE__*/React.createElement("datalist", {
-    id: "prospect-global-cand-list"
-  }, candidateOptions.map(p => /*#__PURE__*/React.createElement("option", {
-    key: p.id,
-    value: p.name
-  })))), rows.map(r => {
+    onChange: setCandidateName,
+    options: candidateOptions,
+    placeholder: "Candidate\u2026"
+  })), rows.map(r => {
     const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
     const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
     const matchedContact = people.find(p => (p.name || "").trim().toLowerCase() === r.contactName.trim().toLowerCase());
@@ -8557,42 +8601,17 @@ function AddProspectsFormGlobal({
         gap: 8,
         alignItems: "center"
       }
-    }, /*#__PURE__*/React.createElement("input", {
+    }, /*#__PURE__*/React.createElement(ProspectCombobox, {
       value: r.companyName,
-      onChange: e => updateRow(r.id, "companyName", e.target.value),
-      placeholder: "Company\u2026",
-      list: "prospect-global-co-list",
-      style: {
-        background: W,
-        border: "1px solid " + G300,
-        borderRadius: 6,
-        padding: "7px 10px",
-        color: G900,
-        fontSize: 13,
-        outline: "none",
-        fontFamily: "inherit"
-      }
-    }), /*#__PURE__*/React.createElement("input", {
+      onChange: v => updateRow(r.id, "companyName", v),
+      options: companies,
+      placeholder: "Company\u2026"
+    }), /*#__PURE__*/React.createElement(ProspectCombobox, {
       value: r.contactName,
-      onChange: e => updateRow(r.id, "contactName", e.target.value),
-      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : "Contact\u2026",
-      list: "prospect-global-ct-list-" + r.id,
-      style: {
-        background: W,
-        border: "1px solid " + G300,
-        borderRadius: 6,
-        padding: "7px 10px",
-        color: G900,
-        fontSize: 13,
-        outline: "none",
-        fontFamily: "inherit"
-      }
-    }), /*#__PURE__*/React.createElement("datalist", {
-      id: "prospect-global-ct-list-" + r.id
-    }, contactOptions.map(p => /*#__PURE__*/React.createElement("option", {
-      key: p.id,
-      value: p.name
-    }))), rows.length > 1 && /*#__PURE__*/React.createElement("button", {
+      onChange: v => updateRow(r.id, "contactName", v),
+      options: contactOptions,
+      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : "Contact\u2026"
+    }), rows.length > 1 && /*#__PURE__*/React.createElement("button", {
       onClick: () => removeRow(r.id),
       title: "Remove this row",
       style: {
@@ -8611,12 +8630,7 @@ function AddProspectsFormGlobal({
         color: matchedContact ? matchedContact.email ? OK : DANGER : G400
       }
     }, matchedContact ? matchedContact.email ? "\u2713 " + matchedContact.email : "\u26A0 Matched, but no email on file for this contact" : "\u26A0 No matching contact found \u2014 check the spelling, or this will be saved as free text"));
-  }), /*#__PURE__*/React.createElement("datalist", {
-    id: "prospect-global-co-list"
-  }, companies.map(c => /*#__PURE__*/React.createElement("option", {
-    key: c.id,
-    value: c.name
-  }))), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("button", {
     onClick: addRow,
     style: {
       background: "none",
