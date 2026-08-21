@@ -3279,6 +3279,7 @@ function PersonDetail({
   onEdit,
   setSel,
   onBack,
+  onBackLabel = null,
   vacancies,
   setVacancies,
   specOuts = [],
@@ -3335,39 +3336,7 @@ function PersonDetail({
       padding: "20px 28px 0",
       flexShrink: 0
     }
-  }, onBack && /*#__PURE__*/React.createElement("button", {
-    onClick: onBack,
-    style: {
-      background: "transparent",
-      border: "none",
-      color: TEAL,
-      fontSize: 13,
-      fontWeight: 600,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      padding: 0,
-      marginBottom: 14,
-      display: "flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, "\u2190 Back to Market Map"), !onBack && onBackToPrevPerson && prevPersonName && /*#__PURE__*/React.createElement("button", {
-    onClick: onBackToPrevPerson,
-    style: {
-      background: "transparent",
-      border: "none",
-      color: TEAL,
-      fontSize: 13,
-      fontWeight: 600,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      padding: 0,
-      marginBottom: 14,
-      display: "flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, "\u2190 Back to " + prevPersonName), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -3436,7 +3405,16 @@ function PersonDetail({
     variant: "teal",
     small: true,
     onClick: () => window.open(selP.linkedin, "_blank")
-  }, "LinkedIn \u2197"), onEdit && /*#__PURE__*/React.createElement(Btn, {
+  }, "LinkedIn \u2197"), (onBack || onBackToPrevPerson && prevPersonName) && /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    small: true,
+    onClick: onBack || onBackToPrevPerson,
+    style: {
+      border: "1.5px solid " + TEAL,
+      color: TEAL,
+      fontWeight: 700
+    }
+  }, "\u2190 Back" + (onBack ? onBackLabel ? " to " + onBackLabel : "" : " to " + prevPersonName)), onEdit && /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
     small: true,
     onClick: onEdit
@@ -4813,6 +4791,7 @@ function PeopleView({
   initialSel,
   ownerFilter,
   onBack,
+  onBackLabel,
   vacancies,
   setVacancies,
   specOuts,
@@ -5258,6 +5237,7 @@ function PeopleView({
     onEdit: () => setModal("edit"),
     setSel: setSel,
     onBack: onBack,
+    onBackLabel: onBackLabel,
     vacancies: vacancies,
     setVacancies: setVacancies,
     specOuts: specOuts,
@@ -5934,6 +5914,7 @@ function CompaniesView({
   initialSel,
   onNavigatePerson,
   onBack,
+  onBackLabel = null,
   ownerFilter,
   vacancies,
   specOuts = [],
@@ -6260,39 +6241,7 @@ function CompaniesView({
       padding: "28px 32px",
       background: G50
     }
-  }, onBack && /*#__PURE__*/React.createElement("button", {
-    onClick: onBack,
-    style: {
-      background: "transparent",
-      border: "none",
-      color: TEAL,
-      fontSize: 13,
-      fontWeight: 600,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      padding: 0,
-      marginBottom: 14,
-      display: "flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, "\u2190 Back to Market Map"), !onBack && prevCompanyName && /*#__PURE__*/React.createElement("button", {
-    onClick: goBackToPrevCompany,
-    style: {
-      background: "transparent",
-      border: "none",
-      color: TEAL,
-      fontSize: 13,
-      fontWeight: 600,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      padding: 0,
-      marginBottom: 14,
-      display: "flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, "\u2190 Back to " + prevCompanyName), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -6344,7 +6293,16 @@ function CompaniesView({
       display: "flex",
       gap: 8
     }
-  }, /*#__PURE__*/React.createElement(Btn, {
+  }, (onBack || prevCompanyName) && /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    small: true,
+    onClick: onBack || goBackToPrevCompany,
+    style: {
+      border: "1.5px solid " + TEAL,
+      color: TEAL,
+      fontWeight: 700
+    }
+  }, "\u2190 Back" + (onBack ? onBackLabel ? " to " + onBackLabel : "" : " to " + prevCompanyName)), /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
     small: true,
     onClick: () => setModal("edit")
@@ -9196,7 +9154,7 @@ function SpecOutsView({
     }, bulkGroupKey === key ? "Cancel selecting" : "Select to send"), g.id != null && /*#__PURE__*/React.createElement("button", {
       onClick: e => {
         e.stopPropagation();
-        onNavigate(g.navTarget, g.id);
+        onNavigate(g.navTarget, g.id, "specouts");
       },
       style: {
         background: "none",
@@ -9261,7 +9219,7 @@ function SpecOutsView({
       spec: s,
       perspective: groupBy === "candidate" ? "candidate" : "contact",
       onUpdate: updateSpec,
-      onNavigatePerson: id => onNavigate("people", id),
+      onNavigatePerson: id => onNavigate("people", id, "specouts"),
       onDelete: deleteSpec
     }))))), bulkGroupKey === key && selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -11289,6 +11247,11 @@ const NAV = [{
   label: "Market Map",
   icon: "◌"
 }];
+// Quick lookup for the generic "← Back to X" button — reuses the
+// same friendly names shown in the sidebar, so every screen you can
+// arrive at from another one automatically gets a correctly-labeled
+// way back, with nothing to configure per-screen.
+const NAV_LABELS = Object.fromEntries(NAV.map(n => [n.id, n.label]));
 
 // ── VoltNETWORK ───────────────────────────────────────────────
 const VN_LEVELS = ["Associate Consultant", "Consultant", "Senior Consultant", "Principal", "Leadership"];
@@ -15107,6 +15070,15 @@ function App() {
     setNavFrom(from || null);
     setTimeout(() => setNavSel(null), 500);
   };
+  // Generic "go back to wherever you came from" — works for any
+  // origin view passed as the third argument to handleNavigate, not
+  // just Market Map. Falls back to null (no button) if nothing set.
+  const backToNavFrom = navFrom ? () => {
+    const target = navFrom;
+    setNavFrom(null);
+    setView(target);
+  } : null;
+  const backToNavFromLabel = navFrom ? NAV_LABELS[navFrom] || navFrom : null;
   const jumpToPipelineForCompany = companyId => {
     setPipelineFilterCompany(companyId);
     setView("pipeline");
@@ -15386,10 +15358,8 @@ function App() {
     persist: persist,
     initialSel: navSel,
     ownerFilter: ownerFilter,
-    onBack: navFrom === "map" ? () => {
-      setNavFrom(null);
-      setView("map");
-    } : null,
+    onBack: backToNavFrom,
+    onBackLabel: backToNavFromLabel,
     vacancies: vacancies,
     setVacancies: setVacancies,
     specOuts: specOuts,
@@ -15404,12 +15374,10 @@ function App() {
     persist: persist,
     initialSel: navSel,
     onNavigatePerson: id => {
-      handleNavigate("people", id);
+      handleNavigate("people", id, "companies");
     },
-    onBack: navFrom === "map" ? () => {
-      setNavFrom(null);
-      setView("map");
-    } : null,
+    onBack: backToNavFrom,
+    onBackLabel: backToNavFromLabel,
     ownerFilter: ownerFilter,
     vacancies: vacancies,
     specOuts: specOuts,
