@@ -3713,6 +3713,7 @@ function SpecOutRow({
   const [expanded, setExpanded] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [newStatus, setNewStatus] = useState(spec.status);
+  const [newDateSent, setNewDateSent] = useState(spec.dateSent || today);
   const [note, setNote] = useState("");
   const linkId = perspective === "candidate" ? spec.contactId : spec.candidateId;
   const linkName = perspective === "candidate" ? spec.contactName : spec.candidateName;
@@ -3723,11 +3724,18 @@ function SpecOutRow({
       note: note.trim(),
       status: newStatus
     }] : []);
-    onUpdate(spec.id, {
+    const patch = {
       status: newStatus,
       lastUpdated: today,
       updates: hist
-    });
+    };
+    // Only actually change dateSent if the status is (or is becoming)
+    // Sent — keeps a genuinely-Pending entry from picking up a
+    // send date it doesn't have, while letting you backfill the real
+    // historical date when you're recording something sent elsewhere.
+    if (newStatus !== "Pending" && newDateSent) patch.dateSent = newDateSent;
+    if (newStatus === "Pending") patch.dateSent = "";
+    onUpdate(spec.id, patch);
     setNote("");
     setUpdating(false);
   }
@@ -3870,7 +3878,26 @@ function SpecOutRow({
     value: newStatus,
     onChange: setNewStatus,
     options: SPEC_STATUSES
-  }), /*#__PURE__*/React.createElement(Tarea, {
+  }), newStatus !== "Pending" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      marginBottom: 4
+    }
+  }, "Date sent \u2014 backdate this if you're logging something sent before today"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: newDateSent,
+    onChange: e => setNewDateSent(e.target.value),
+    style: {
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "6px 9px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit"
+    }
+  })), /*#__PURE__*/React.createElement(Tarea, {
     value: note,
     onChange: setNote,
     placeholder: "What happened? e.g. \"Had a call, not right for this one\"",
@@ -4030,11 +4057,15 @@ function ProspectCombobox({
   value,
   onChange,
   options,
-  placeholder
+  placeholder,
+  onCreate = null,
+  createLabel = "candidate"
 }) {
   const [open, setOpen] = useState(false);
   const q = value.trim().toLowerCase();
   const filtered = (q ? options.filter(o => o.name.toLowerCase().includes(q)) : options).slice(0, 50);
+  const exactMatch = q && options.some(o => o.name.trim().toLowerCase() === q);
+  const showCreate = onCreate && value.trim() && !exactMatch;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "relative"
@@ -4085,7 +4116,7 @@ function ProspectCombobox({
       fontFamily: "inherit",
       zIndex: 2
     }
-  }, "\xD7"), open && filtered.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "\xD7"), open && (filtered.length > 0 || showCreate) && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "absolute",
       top: "calc(100% + 2px)",
@@ -4112,7 +4143,21 @@ function ProspectCombobox({
       color: G800,
       cursor: "pointer"
     }
-  }, o.name))));
+  }, o.name)), showCreate && /*#__PURE__*/React.createElement("div", {
+    onMouseDown: e => {
+      e.preventDefault();
+      onCreate(value.trim());
+      setOpen(false);
+    },
+    style: {
+      padding: "7px 10px",
+      fontSize: 13,
+      color: TEAL,
+      fontWeight: 700,
+      cursor: "pointer",
+      borderTop: filtered.length > 0 ? "1px solid " + G200 : "none"
+    }
+  }, "+ Add \"" + value.trim() + "\" as a new " + createLabel)));
 }
 function AddProspectsForm({
   person,
@@ -4371,13 +4416,10 @@ function SpecOutsTab({
   }, "Specced out to"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
-      gap: 8
+      alignItems: "center",
+      gap: 14
     }
   }, !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    variant: "ghost",
-    onClick: () => setAdding(true)
-  }, "+ Log a past spec out"), !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: () => setAddingProspects(true)
   }, "+ Add prospects"), pendingSpecs.length > 0 && !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
@@ -8515,6 +8557,8 @@ function AddSpecOutFormGlobal({
 // candidate first, then adds several prospects for them at once.
 function AddProspectsFormGlobal({
   people,
+  setPeople,
+  persist,
   companies,
   onSaveMany,
   onCancel
@@ -8526,6 +8570,38 @@ function AddProspectsFormGlobal({
     contactName: ""
   }]);
   const candidateOptions = people.filter(p => p.type === "candidate");
+  // Creates a brand-new candidate on the spot, right from this form,
+  // for the case where they're not in the CRM yet at all — matches
+  // the minimal record shape used elsewhere; anything else (title,
+  // sector, etc.) can be filled in later via their own profile.
+  function createCandidate(name) {
+    const newPerson = {
+      id: Date.now(),
+      type: "candidate",
+      name: name,
+      firstName: name.split(" ")[0] || "",
+      lastName: name.split(" ").slice(1).join(" ") || "",
+      title: "",
+      company: "",
+      companyId: "",
+      location: "",
+      seniority: "",
+      sectors: [],
+      linkedin: "",
+      email: "",
+      phone: "",
+      lastContacted: "",
+      nextAction: "",
+      nextDue: "",
+      relationship: "",
+      notes: "",
+      owners: []
+    };
+    const updated = [newPerson, ...people];
+    setPeople(updated);
+    persist("people", updated);
+    setCandidateName(name);
+  }
   function updateRow(id, field, value) {
     setRows(rows.map(r => r.id === id ? Object.assign({}, r, {
       [field]: value
@@ -8589,7 +8665,9 @@ function AddProspectsFormGlobal({
     value: candidateName,
     onChange: setCandidateName,
     options: candidateOptions,
-    placeholder: "Candidate\u2026"
+    placeholder: "Candidate\u2026",
+    onCreate: createCandidate,
+    createLabel: "candidate"
   })), rows.map(r => {
     const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
     const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
@@ -8678,6 +8756,7 @@ function SpecOutsView({
   const [sortMode, setSortMode] = useState("followup");
   const [adding, setAdding] = useState(false);
   const [addingProspects, setAddingProspects] = useState(false);
+  const [addingForGroup, setAddingForGroup] = useState(null);
   const [expandedKeys, setExpandedKeys] = useState(() => new Set());
   const [bulkGroupKey, setBulkGroupKey] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -8863,12 +8942,10 @@ function SpecOutsView({
   }, "Spec Outs"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
-      gap: 8
+      alignItems: "center",
+      gap: 14
     }
   }, !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
-    variant: "ghost",
-    onClick: () => setAdding(true)
-  }, "+ Log a past spec out"), !adding && !addingProspects && /*#__PURE__*/React.createElement(Btn, {
     onClick: () => setAddingProspects(true)
   }, "+ Add prospects"))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8888,6 +8965,8 @@ function SpecOutsView({
     }
   }), addingProspects && /*#__PURE__*/React.createElement(AddProspectsFormGlobal, {
     people: people,
+    setPeople: setPeople,
+    persist: persist,
     companies: companies,
     onSaveMany: addSpecsMany,
     onCancel: () => setAddingProspects(false)
@@ -9078,7 +9157,25 @@ function SpecOutsView({
         color: g.maxOpenDays >= 10 ? DANGER : WARN,
         whiteSpace: "nowrap"
       }
-    }, "Follow up \u00b7 " + g.maxOpenDays + "d"), groupBy === "candidate" && g.items.some(s => s.status === "Pending") && /*#__PURE__*/React.createElement("button", {
+    }, "Follow up \u00b7 " + g.maxOpenDays + "d"), groupBy === "candidate" && g.id != null && /*#__PURE__*/React.createElement("button", {
+      onClick: e => {
+        e.stopPropagation();
+        setAddingForGroup(addingForGroup === g.id ? null : g.id);
+        setExpandedKeys(prev => new Set(prev).add(key));
+      },
+      style: {
+        background: addingForGroup === g.id ? TL : "none",
+        border: "1px solid " + (addingForGroup === g.id ? TM : G300),
+        color: addingForGroup === g.id ? TEAL : G600,
+        borderRadius: 6,
+        padding: "3px 10px",
+        fontSize: 11,
+        fontWeight: 700,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        whiteSpace: "nowrap"
+      }
+    }, addingForGroup === g.id ? "Cancel" : "+ Add prospects"), groupBy === "candidate" && g.items.some(s => s.status === "Pending") && /*#__PURE__*/React.createElement("button", {
       onClick: e => {
         e.stopPropagation();
         toggleBulkGroup(key);
@@ -9127,7 +9224,19 @@ function SpecOutsView({
         borderTop: "1px solid " + G100,
         background: W
       }
-    }, g.items.map(s => /*#__PURE__*/React.createElement("div", {
+    }, addingForGroup === g.id && /*#__PURE__*/React.createElement(AddProspectsForm, {
+      person: {
+        id: g.id,
+        name: g.name
+      },
+      companies: companies,
+      people: people,
+      onSaveMany: specs => {
+        addSpecsMany(specs);
+        setAddingForGroup(null);
+      },
+      onCancel: () => setAddingForGroup(null)
+    }), g.items.map(s => /*#__PURE__*/React.createElement("div", {
       key: s.id,
       style: {
         display: "flex",
