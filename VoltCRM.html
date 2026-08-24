@@ -3141,7 +3141,7 @@ function OverviewTab({
       fontSize: 13,
       fontWeight: 600
     }
-  }, selP.lastContacted || "—"))), /*#__PURE__*/React.createElement("div", {
+  }, selP.lastContacted || "—"))), selP.bdStage && /*#__PURE__*/React.createElement("div", {
     style: {
       background: W,
       borderRadius: 8,
@@ -3151,49 +3151,14 @@ function OverviewTab({
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: selP.bdStage ? 10 : 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
       fontSize: 11,
       color: G600,
       fontWeight: 600,
       textTransform: "uppercase",
-      letterSpacing: "0.06em"
+      letterSpacing: "0.06em",
+      marginBottom: 10
     }
-  }, "BD Pipeline"), !selP.bdStage ? /*#__PURE__*/React.createElement("button", {
-    onClick: function () {
-      save("bdStage", "Target");
-    },
-    style: {
-      background: TEAL,
-      color: W,
-      border: "none",
-      borderRadius: 5,
-      padding: "5px 14px",
-      fontSize: 12,
-      fontWeight: 700,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
-  }, "+ Add to BD Pipeline") : /*#__PURE__*/React.createElement("button", {
-    onClick: function () {
-      save("bdStage", "");
-    },
-    style: {
-      background: "transparent",
-      color: G400,
-      border: "1px solid " + G300,
-      borderRadius: 5,
-      padding: "4px 10px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
-  }, "Remove from pipeline")), selP.bdStage && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "BD Pipeline"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -3433,11 +3398,50 @@ function PersonDetail({
     variant: "danger",
     small: true,
     onClick: onDelete
-  }, "Delete"))), /*#__PURE__*/React.createElement(TabBar, {
-    tabs: ["Overview", "BD & Follow-up", "Notes", "Company", "Spec Outs"],
+  }, "Delete"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement(TabBar, {
+    tabs: ["Overview", "Follow-ups", "Notes", "Company", "Spec Outs"],
     active: tab,
     onChange: setTab
-  })), /*#__PURE__*/React.createElement("div", {
+  }), !selP.bdStage ? /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      logUpdate({ bdStage: "Target" });
+    },
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "7px 16px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap",
+      flexShrink: 0
+    }
+  }, "+ Add to BD Pipeline") : /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      logUpdate({ bdStage: "" });
+    },
+    style: {
+      background: "transparent",
+      color: G400,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "6px 14px",
+      fontSize: 11.5,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap",
+      flexShrink: 0
+    }
+  }, "On BD Pipeline \u2715"))), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflowY: "auto",
@@ -3453,7 +3457,7 @@ function PersonDetail({
     setVacancies: setVacancies,
     templates: templates,
     setTemplates: setTemplates
-  }), tab === "BD & Follow-up" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }), tab === "Follow-ups" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr 1fr",
@@ -3524,7 +3528,7 @@ function PersonDetail({
       lineHeight: 1.8,
       whiteSpace: "pre-wrap"
     }
-  }, selP.notes || "No notes yet. Use BD & Follow-up to log an interaction.")), tab === "Company" && /*#__PURE__*/React.createElement("div", null, co ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, selP.notes || "No notes yet. Use Follow-ups to log an interaction.")), tab === "Company" && /*#__PURE__*/React.createElement("div", null, co ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       background: W,
       borderRadius: 8,
@@ -6861,6 +6865,47 @@ function BDTracker({
   const [doneNote, setDoneNote] = useState("");
   const [doneNextAction, setDoneNextAction] = useState("");
   const [doneNextDue, setDoneNextDue] = useState("");
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkKeys, setBulkKeys] = useState([]);
+  const [bulkDate, setBulkDate] = useState("");
+  function toggleBulkKey(k) {
+    setBulkKeys(function (ks) {
+      return ks.indexOf(k) !== -1 ? ks.filter(function (x) { return x !== k; }) : ks.concat([k]);
+    });
+  }
+  function exitBulkFollowups() {
+    setBulkMode(false);
+    setBulkKeys([]);
+    setBulkDate("");
+  }
+  // Follow-up items are a mix of people and companies (see `all` below),
+  // so each bulk key is "<kind>-<id>" — split back out to update the two
+  // separate arrays/persist calls each type actually lives in.
+  function applyBulkReschedule() {
+    if (!bulkDate || bulkKeys.length === 0) return;
+    var personIds = new Set(), companyIds = new Set();
+    bulkKeys.forEach(function (k) {
+      var idx = k.indexOf("-");
+      var kind = k.slice(0, idx);
+      var id = parseFloat(k.slice(idx + 1));
+      if (kind === "person") personIds.add(id);else companyIds.add(id);
+    });
+    if (personIds.size) {
+      var up = people.map(function (p) {
+        return personIds.has(p.id) ? Object.assign({}, p, { nextDue: bulkDate }) : p;
+      });
+      setPeople(up);
+      persist("people", up);
+    }
+    if (companyIds.size) {
+      var upc = companies.map(function (c) {
+        return companyIds.has(c.id) ? Object.assign({}, c, { nextDue: bulkDate }) : c;
+      });
+      setCompanies(upc);
+      persist("companies", upc);
+    }
+    exitBulkFollowups();
+  }
   const all = useMemo(() => {
     const ps = people.filter(function (p) {
       return (p.nextAction || p.nextDue) && (!ownerFilter || migrateOwners(p.owners, p.owner).includes(ownerFilter));
@@ -6991,11 +7036,13 @@ function BDTracker({
       }
     }, items.length)), items.map(item => {
       const ac = item._k === "company" ? WARN : item.type === "contact" ? "#6f42c1" : TEAL;
+      const key = item._k + "-" + item.id;
+      const isChecked = bulkKeys.indexOf(key) !== -1;
       return /*#__PURE__*/React.createElement("div", {
-        key: item._k + "-" + item.id,
+        key: key,
         style: {
-          background: W,
-          border: "1px solid " + G200,
+          background: bulkMode && isChecked ? TL : W,
+          border: "1px solid " + (bulkMode && isChecked ? TM : G200),
           borderLeft: "4px solid " + accent,
           borderRadius: 8,
           padding: "14px 18px",
@@ -7003,9 +7050,17 @@ function BDTracker({
           display: "flex",
           gap: 14,
           alignItems: "flex-start",
-          boxShadow: "0 1px 3px #0001"
-        }
-      }, /*#__PURE__*/React.createElement(Av, {
+          boxShadow: "0 1px 3px #0001",
+          cursor: bulkMode ? "pointer" : "default"
+        },
+        onClick: bulkMode ? function () { toggleBulkKey(key); } : undefined
+      }, bulkMode && /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        checked: isChecked,
+        onChange: function () { toggleBulkKey(key); },
+        onClick: function (e) { e.stopPropagation(); },
+        style: { marginTop: 4 }
+      }), /*#__PURE__*/React.createElement(Av, {
         name: item.name,
         size: 36,
         color: ac
@@ -7022,7 +7077,8 @@ function BDTracker({
           marginBottom: 3
         }
       }, /*#__PURE__*/React.createElement("span", {
-        onClick: function () {
+        onClick: function (e) {
+          e.stopPropagation();
           if (item._k === "person") {
             var p = people.find(function (p) {
               return p.id === item.id;
@@ -7098,7 +7154,8 @@ function BDTracker({
         day: "numeric",
         month: "short"
       }), new Date(item.nextDue) < new Date() ? " — OVERDUE" : ""))), /*#__PURE__*/React.createElement("button", {
-        onClick: function () {
+        onClick: function (e) {
+          e.stopPropagation();
           openDone(item);
         },
         style: {
@@ -7123,7 +7180,57 @@ function BDTracker({
       maxWidth: 860,
       height: "100%"
     }
-  }, selPerson && /*#__PURE__*/React.createElement("div", {
+  }, bulkMode && bulkKeys.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      left: "50%",
+      transform: "translateX(-50%)",
+      bottom: 20,
+      zIndex: 600,
+      background: NAVY,
+      borderRadius: 12,
+      padding: "12px 16px",
+      boxShadow: "0 8px 30px #0004",
+      display: "flex",
+      gap: 10,
+      alignItems: "center",
+      flexWrap: "wrap",
+      maxWidth: "90vw"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: W,
+      fontSize: 12.5,
+      fontWeight: 700,
+      whiteSpace: "nowrap"
+    }
+  }, bulkKeys.length + " selected"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: bulkDate,
+    onChange: function (e) { setBulkDate(e.target.value); },
+    style: {
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      fontSize: 12,
+      fontFamily: "inherit"
+    }
+  }), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: applyBulkReschedule
+  }, "Move to this date"), /*#__PURE__*/React.createElement("button", {
+    onClick: exitBulkFollowups,
+    style: {
+      background: "none",
+      border: "1px solid #ffffff40",
+      borderRadius: 6,
+      padding: "7px 14px",
+      fontSize: 12.5,
+      color: W,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Cancel")), selPerson && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       inset: 0,
@@ -7532,14 +7639,27 @@ function BDTracker({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "\u2713 Done")))), /*#__PURE__*/React.createElement("h1", {
+  }, "\u2713 Done")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("h1", {
     style: {
       fontSize: 26,
       fontWeight: 700,
       color: NAVY,
-      margin: "0 0 6px"
+      margin: 0
     }
-  }, "Follow-ups"), /*#__PURE__*/React.createElement("p", {
+  }, "Follow-ups"), all.length > 0 && /*#__PURE__*/React.createElement(Btn, {
+    variant: bulkMode ? "primary" : "ghost",
+    small: true,
+    onClick: function () {
+      if (bulkMode) exitBulkFollowups();else setBulkMode(true);
+    }
+  }, bulkMode ? "Done" : "Bulk reschedule")), /*#__PURE__*/React.createElement("p", {
     style: {
       color: G600,
       fontSize: 14,
@@ -7555,7 +7675,7 @@ function BDTracker({
       fontSize: 13,
       color: NAVY
     }
-  }, "Log an activity in ", /*#__PURE__*/React.createElement("strong", null, "BD Pipeline"), " to set a follow-up \u2014 it will appear here when due."), !all.length && /*#__PURE__*/React.createElement("div", {
+  }, "Set a next action and due date on ", /*#__PURE__*/React.createElement("strong", null, "any person's Follow-ups tab"), " \u2014 whether or not they're on the BD Pipeline \u2014 and it will appear here when due."), !all.length && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
       padding: "60px 0",
@@ -10454,6 +10574,33 @@ function BDPipelineView({
   const [sel, setSel] = useState(null);
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkRescheduleDate, setBulkRescheduleDate] = useState("");
+  function selectAllInStage(stageCards) {
+    setSelectedIds(function (prev) {
+      var merged = prev.slice();
+      stageCards.forEach(function (p) {
+        if (merged.indexOf(p.id) === -1) merged.push(p.id);
+      });
+      return merged;
+    });
+  }
+  function applyBulkReschedule(dateStr) {
+    if (!dateStr || selectedIds.length === 0) return;
+    var ids = selectedIds.slice();
+    var updated = people.map(function (p) {
+      return ids.indexOf(p.id) !== -1 ? Object.assign({}, p, { nextDue: dateStr }) : p;
+    });
+    setPeople(updated);
+    persist("people", updated);
+    setSelectedIds([]);
+    setBulkMode(false);
+    setBulkRescheduleDate("");
+  }
+  function twoWeeksFromToday() {
+    var d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  }
   const selP = sel ? people.find(function (p) {
     return p.id === sel;
   }) : null;
@@ -10780,7 +10927,23 @@ function BDPipelineView({
         fontSize: 11,
         fontWeight: 700
       }
-    }, cards.length))), /*#__PURE__*/React.createElement("div", {
+    }, cards.length)), bulkMode && cards.length > 0 && /*#__PURE__*/React.createElement("button", {
+      onClick: function () {
+        selectAllInStage(cards);
+      },
+      style: {
+        marginTop: 6,
+        background: "none",
+        border: "none",
+        color: TEAL,
+        fontSize: 11,
+        fontWeight: 600,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        padding: 0,
+        textDecoration: "underline"
+      }
+    }, "Select all " + cards.length)), /*#__PURE__*/React.createElement("div", {
       style: {
         flex: 1,
         overflowY: "auto",
@@ -11110,6 +11273,52 @@ function BDPipelineView({
       fontFamily: "inherit"
     }
   }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      applyBulkReschedule(twoWeeksFromToday());
+    },
+    style: {
+      background: "#ffffff20",
+      color: "#fff",
+      border: "1px solid #ffffff40",
+      borderRadius: 6,
+      padding: "7px 14px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap"
+    }
+  }, "\u23F1 +2 weeks"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: bulkRescheduleDate,
+    onChange: function (e) {
+      setBulkRescheduleDate(e.target.value);
+    },
+    style: {
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      fontSize: 12,
+      fontFamily: "inherit"
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      applyBulkReschedule(bulkRescheduleDate);
+    },
+    disabled: !bulkRescheduleDate,
+    style: {
+      background: bulkRescheduleDate ? TEAL : "#ffffff20",
+      color: "#fff",
+      border: "none",
+      borderRadius: 6,
+      padding: "7px 14px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      cursor: bulkRescheduleDate ? "pointer" : "default",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap"
+    }
+  }, "Move to date"), /*#__PURE__*/React.createElement("button", {
     onClick: function () {
       setSelectedIds([]);
     },
