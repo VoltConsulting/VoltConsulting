@@ -1357,7 +1357,18 @@ function ActivityHistoryList({
         fontWeight: 600,
         color: NAVY
       }
-    }, entry.label), /*#__PURE__*/React.createElement("span", {
+    }, entry.label), entry.via === "outlook" && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9.5,
+        fontWeight: 700,
+        color: "#1a7f37",
+        background: "#dafbe1",
+        border: "1px solid #b4f0c4",
+        borderRadius: 3,
+        padding: "1px 5px",
+        letterSpacing: "0.02em"
+      }
+    }, "\u2713 Sent"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 11,
         color: G600,
@@ -4845,16 +4856,49 @@ function PeopleView({
   const [bulkIds, setBulkIds] = useState([]);
   const [bulkOwner, setBulkOwner] = useState("");
   const [bulkType, setBulkType] = useState("");
-  const [bulkSeniority, setBulkSeniority] = useState("");
-  const [bulkSector, setBulkSector] = useState("");
+  const [bulkSendMode, setBulkSendMode] = useState(false);
+  const [sendModal, setSendModal] = useState(null);
+  function saveTemplate(t) {
+    const updated = [t, ...(templates || [])];
+    setTemplates(updated);
+    persist("templates", updated);
+  }
+  function deleteTemplate(t) {
+    const updated = (templates || []).filter(function (x) {
+      return x.id !== t.id;
+    });
+    setTemplates(updated);
+    if (t._recId) atDelete(t._recId).catch(function (e) {
+      console.warn("Template delete failed", e);
+    });
+  }
+  // A verified Outlook send from People applies to one contact at a time
+  // (SendMailModal calls onSent once per successful recipient). Anyone
+  // without a BD stage yet is dropped straight into "Contacted" so they
+  // show up on the BD Pipeline / Follow-ups board immediately — a cold
+  // prospect you've just emailed shouldn't need a separate manual step
+  // to start being tracked.
+  function applySentActivity(person, entry) {
+    const updated = people.map(function (p) {
+      if (p.id !== person.id) return p;
+      var upd = {
+        activityLog: [entry, ...(p.activityLog || [])],
+        lastContacted: today,
+        emailStage: (p.emailStage || 0) + 1
+      };
+      if (!p.bdStage || !p.bdStage.trim()) upd.bdStage = "Contacted";
+      return Object.assign({}, p, upd);
+    });
+    setPeople(updated);
+    persist("people", updated);
+  }
   const toggleBulk = id => setBulkIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
   const exitBulkMode = () => {
     setBulkMode(false);
+    setBulkSendMode(false);
     setBulkIds([]);
     setBulkOwner("");
     setBulkType("");
-    setBulkSeniority("");
-    setBulkSector("");
   };
   const applyBulk = () => {
     if (bulkIds.length === 0) return;
@@ -4867,11 +4911,6 @@ function PeopleView({
         next.owners = cur.includes(bulkOwner) ? cur : [...cur, bulkOwner];
       }
       if (bulkType) next.type = bulkType;
-      if (bulkSeniority) next.seniority = bulkSeniority;
-      if (bulkSector.trim()) {
-        const cur = p.sectors || [];
-        next.sectors = cur.some(x => x.toLowerCase() === bulkSector.trim().toLowerCase()) ? cur : [...cur, bulkSector.trim()];
-      }
       return next;
     });
     setPeople(u);
@@ -4895,6 +4934,16 @@ function PeopleView({
     return Array.from(s).sort();
   }, [people]);
   const activeMoreCount = (titleF.trim() ? 1 : 0) + (seniorityF !== "all" ? 1 : 0) + (discF !== "all" ? 1 : 0);
+  const anyFilterActive = typeF !== "all" || relF !== "all" || sectorF !== "all" || !!locF.trim() || activeMoreCount > 0;
+  const clearAllFilters = () => {
+    setTypeF("all");
+    setRelF("all");
+    setSectorF("all");
+    setLocF("");
+    setTitleF("");
+    setSeniorityF("all");
+    setDiscF("all");
+  };
   const selP = people.find(p => p.id === sel);
   const commitBoth = (np, nc) => {
     setPeople(np);
@@ -4964,7 +5013,19 @@ function PeopleView({
       height: "100%",
       minHeight: 0
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: sendModal,
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    onSent: function (p, entry) {
+      applySentActivity(p, entry);
+    },
+    onClose: function () {
+      setSendModal(null);
+      setBulkIds([]);
+      setBulkMode(false);
+    }
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 320,
       flexShrink: 0,
@@ -5004,8 +5065,31 @@ function PeopleView({
   }, "\u2B06 Import CSV"), /*#__PURE__*/React.createElement(Btn, {
     variant: bulkMode ? "primary" : "ghost",
     small: true,
-    onClick: () => bulkMode ? exitBulkMode() : setBulkMode(true)
-  }, bulkMode ? "Done" : "Bulk tag")), /*#__PURE__*/React.createElement("div", {
+    onClick: () => {
+      if (bulkMode) exitBulkMode();else {
+        setBulkSendMode(false);
+        setBulkMode(true);
+      }
+    }
+  }, bulkMode ? "Done" : "Bulk tag"), /*#__PURE__*/React.createElement(Btn, {
+    variant: bulkSendMode ? "primary" : "ghost",
+    small: true,
+    onClick: () => {
+      if (bulkSendMode) exitBulkMode();else {
+        setBulkMode(false);
+        setBulkSendMode(true);
+      }
+    }
+  }, bulkSendMode ? "Done" : "\u2709 Bulk send")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9.5,
+      fontWeight: 700,
+      color: G400,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 3
+    }
+  }, "Type"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -5014,16 +5098,34 @@ function PeopleView({
     }
   }, filterBtn("all", "All", TEAL, typeF, setTypeF), filterBtn("contact", "Contacts", TEAL, typeF, setTypeF), filterBtn("candidate", "Candidates", "#7c3aed", typeF, setTypeF), filterBtn("bd-target", "BD Targets", "#0284c7", typeF, setTypeF), filterBtn("client", "Clients", OK, typeF, setTypeF)), /*#__PURE__*/React.createElement("div", {
     style: {
+      fontSize: 9.5,
+      fontWeight: 700,
+      color: G400,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 3
+    }
+  }, "Status"), /*#__PURE__*/React.createElement("div", {
+    style: {
       display: "flex",
       gap: 5,
       flexWrap: "wrap"
     }
   }, ["all", "Active", "Passive"].map(r => filterBtn(r, r === "all" ? "All" : r, REL[r] || TEAL, relF, setRelF))), /*#__PURE__*/React.createElement("div", {
     style: {
+      fontSize: 9.5,
+      fontWeight: 700,
+      color: G400,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 3,
+      marginTop: 8
+    }
+  }, "Sector"), /*#__PURE__*/React.createElement("div", {
+    style: {
       display: "flex",
       gap: 5,
-      flexWrap: "wrap",
-      marginTop: 8
+      flexWrap: "wrap"
     }
   }, filterBtn("all", "All sectors", "#0d9488", sectorF, setSectorF), HEADLINE_SECTORS.map(s => filterBtn(s, s, "#0d9488", sectorF, setSectorF))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5064,7 +5166,20 @@ function PeopleView({
       fontFamily: "inherit",
       whiteSpace: "nowrap"
     }
-  }, moreOpen ? "Fewer filters \u2212" : ("More filters" + (activeMoreCount > 0 ? " (" + activeMoreCount + ")" : "") + " +"))), moreOpen && /*#__PURE__*/React.createElement("div", {
+  }, moreOpen ? "Fewer filters \u2212" : ("More filters" + (activeMoreCount > 0 ? " (" + activeMoreCount + ")" : "") + " +")), anyFilterActive && /*#__PURE__*/React.createElement("button", {
+    onClick: clearAllFilters,
+    style: {
+      background: "transparent",
+      border: "none",
+      color: G600,
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap",
+      textDecoration: "underline"
+    }
+  }, "Clear filters")), moreOpen && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -5135,16 +5250,17 @@ function PeopleView({
     const isSel = sel === p.id,
       ac = p.type === "contact" ? "#6f42c1" : TEAL;
     const isChecked = bulkIds.includes(p.id);
+    const isSelecting = bulkMode || bulkSendMode;
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
-      onClick: () => bulkMode ? toggleBulk(p.id) : setSel(p.id),
+      onClick: () => isSelecting ? toggleBulk(p.id) : setSel(p.id),
       style: {
         padding: "11px 12px",
         borderRadius: 8,
         marginBottom: 4,
         cursor: "pointer",
-        background: bulkMode ? (isChecked ? TL : "transparent") : isSel ? TL : "transparent",
-        border: "1px solid " + (bulkMode ? (isChecked ? TM : G200) : isSel ? TM : "transparent"),
+        background: isSelecting ? (isChecked ? TL : "transparent") : isSel ? TL : "transparent",
+        border: "1px solid " + (isSelecting ? (isChecked ? TM : G200) : isSel ? TM : "transparent"),
         transition: "all 0.1s"
       }
     }, /*#__PURE__*/React.createElement("div", {
@@ -5153,7 +5269,7 @@ function PeopleView({
         gap: 10,
         alignItems: "center"
       }
-    }, bulkMode && /*#__PURE__*/React.createElement("input", {
+    }, isSelecting && /*#__PURE__*/React.createElement("input", {
       type: "checkbox",
       checked: isChecked,
       onChange: () => toggleBulk(p.id),
@@ -5295,36 +5411,7 @@ function PeopleView({
       fontFamily: "inherit",
       cursor: "pointer"
     }
-  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set type\u2026"), /*#__PURE__*/React.createElement("option", { key: "contact", value: "contact" }, "Contact"), /*#__PURE__*/React.createElement("option", { key: "candidate", value: "candidate" }, "Candidate"), /*#__PURE__*/React.createElement("option", { key: "client", value: "client" }, "Client")]), /*#__PURE__*/React.createElement("select", {
-    value: bulkSeniority,
-    onChange: e => setBulkSeniority(e.target.value),
-    style: {
-      border: "none",
-      borderRadius: 6,
-      padding: "6px 8px",
-      fontSize: 12,
-      fontFamily: "inherit",
-      cursor: "pointer"
-    }
-  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set seniority\u2026")].concat(SENIORITY_GROUPS.map(g => /*#__PURE__*/React.createElement("optgroup", {
-    key: g.group,
-    label: g.group
-  }, g.items.map(o => /*#__PURE__*/React.createElement("option", {
-    key: o,
-    value: o
-  }, o)))))), /*#__PURE__*/React.createElement("input", {
-    value: bulkSector,
-    onChange: e => setBulkSector(e.target.value),
-    placeholder: "+ Discipline\u2026",
-    style: {
-      border: "none",
-      borderRadius: 6,
-      padding: "6px 8px",
-      fontSize: 12,
-      fontFamily: "inherit",
-      width: 130
-    }
-  }), /*#__PURE__*/React.createElement(Btn, {
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set type\u2026"), /*#__PURE__*/React.createElement("option", { key: "contact", value: "contact" }, "Contact"), /*#__PURE__*/React.createElement("option", { key: "candidate", value: "candidate" }, "Candidate"), /*#__PURE__*/React.createElement("option", { key: "client", value: "client" }, "Client")]), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: applyBulk
   }, "Apply to " + bulkIds.length), /*#__PURE__*/React.createElement("button", {
@@ -5337,7 +5424,60 @@ function PeopleView({
       fontSize: 12,
       fontFamily: "inherit"
     }
-  }, "Cancel")), modal === "add" && /*#__PURE__*/React.createElement(ModalEl, {
+  }, "Cancel")), bulkSendMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      left: "50%",
+      transform: "translateX(-50%)",
+      bottom: 20,
+      zIndex: 600,
+      background: NAVY,
+      borderRadius: 12,
+      padding: "12px 16px",
+      boxShadow: "0 8px 30px #0004",
+      display: "flex",
+      gap: 10,
+      alignItems: "center",
+      flexWrap: "wrap",
+      maxWidth: "90vw"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: W,
+      fontSize: 12.5,
+      fontWeight: 700,
+      whiteSpace: "nowrap"
+    }
+  }, bulkIds.length + " selected"), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setSendModal(people.filter(function (p) {
+        return bulkIds.indexOf(p.id) !== -1;
+      }));
+    },
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "7px 16px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+    onClick: exitBulkMode,
+    style: {
+      background: "none",
+      border: "1px solid #ffffff40",
+      borderRadius: 6,
+      padding: "7px 14px",
+      fontSize: 12.5,
+      color: W,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Clear")), modal === "add" && /*#__PURE__*/React.createElement(ModalEl, {
     title: "Add Person",
     onClose: () => setModal(null),
     wide: true
@@ -9381,7 +9521,8 @@ function SendMailModal({
           label: actLabel.label,
           note: (personalSubject ? "Subject: " + personalSubject + "\n\n" : "") + personalBody.trim(),
           date: ts,
-          by: ""
+          by: "",
+          via: "outlook"
         };
         onSent(p, entry);
         ok.push(p);
@@ -12611,7 +12752,7 @@ function CandidateSearch({
     onFocus: function () {
       setOpen(true);
     },
-    placeholder: "Type to search candidates...",
+    placeholder: "Search candidate and add to this vacancy...",
     style: {
       fontSize: 12,
       border: "1px solid " + G300,
@@ -12619,7 +12760,7 @@ function CandidateSearch({
       padding: "5px 10px",
       outline: "none",
       fontFamily: "inherit",
-      width: 260
+      width: 320
     }
   }), open && filtered.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -12696,11 +12837,13 @@ const STAGE_COLORS = {
   "Screened": TEAL,
   "Shortlisted": "#0891b2",
   "Submitted": "#7c3aed",
-  "Interview": WARN,
   "Offer": OK,
   "Placed": "#166534",
   "Lost": DANGER
 };
+INTERVIEW_STAGES.forEach(function (s) {
+  STAGE_COLORS[s] = WARN;
+});
 function fmtFee(vac) {
   if (!vac) return "—";
   if (vac.type === "VoltTEAMbuild") return vac.flatFee ? "£" + Number(vac.flatFee).toLocaleString() + " flat fee" : "Fee TBC";
@@ -13310,7 +13453,9 @@ function VacanciesView({
   people,
   setPeople,
   persist,
-  ownerFilter
+  ownerFilter,
+  templates,
+  setTemplates
 }) {
   var [sel, setSel] = useState(null);
   var [showForm, setShowForm] = useState(false);
@@ -13319,6 +13464,40 @@ function VacanciesView({
   var [filterStatus, setFilterStatus] = useState("Active");
   var [search, setSearch] = useState("");
   var [kanbanView, setKanbanView] = useState(false);
+  var [candBulkMode, setCandBulkMode] = useState(false);
+  var [candBulkIds, setCandBulkIds] = useState([]);
+  var [vacSendModal, setVacSendModal] = useState(null);
+  function toggleCandBulk(personId) {
+    setCandBulkIds(function (ids) {
+      return ids.indexOf(personId) !== -1 ? ids.filter(function (x) { return x !== personId; }) : ids.concat([personId]);
+    });
+  }
+  function exitCandBulkMode() {
+    setCandBulkMode(false);
+    setCandBulkIds([]);
+  }
+  function saveVacTemplate(t) {
+    const updated = [t, ...(templates || [])];
+    setTemplates(updated);
+    persist("templates", updated);
+  }
+  // Same verified-send accounting as People/BD Pipeline: log the entry on
+  // the person's own record and stamp lastContacted. The vacancy candidate
+  // row itself doesn't need a separate "sent" field — the person's activity
+  // history (visible from their own record) is the single source of truth,
+  // consistent with every other send path in the app.
+  function applyVacSentActivity(person, entry) {
+    const updated = people.map(function (p) {
+      if (p.id !== person.id) return p;
+      return Object.assign({}, p, {
+        activityLog: [entry, ...(p.activityLog || [])],
+        lastContacted: today,
+        emailStage: (p.emailStage || 0) + 1
+      });
+    });
+    setPeople(updated);
+    persist("people", updated);
+  }
   function saveVacancy(v) {
     var list = vacancies || [];
     var isNew = !v.id || v.id === 0;
@@ -13470,7 +13649,69 @@ function VacanciesView({
       setShowForm(false);
       setEditVac(null);
     }
-  }), /*#__PURE__*/React.createElement("div", {
+  }), vacSendModal && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: vacSendModal,
+    templates: templates,
+    onSaveTemplate: saveVacTemplate,
+    onSent: function (p, entry) {
+      applyVacSentActivity(p, entry);
+    },
+    onClose: function () {
+      setVacSendModal(null);
+      exitCandBulkMode();
+    }
+  }), candBulkMode && candBulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      bottom: 20,
+      left: "50%",
+      transform: "translateX(-50%)",
+      background: NAVY,
+      borderRadius: 10,
+      padding: "10px 14px",
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      boxShadow: "0 8px 24px #0004",
+      zIndex: 200
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: W,
+      fontSize: 12.5,
+      fontWeight: 700,
+      whiteSpace: "nowrap"
+    }
+  }, candBulkIds.length + " selected"), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setVacSendModal(people.filter(function (p) {
+        return candBulkIds.indexOf(p.id) !== -1;
+      }));
+    },
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "7px 16px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+    onClick: exitCandBulkMode,
+    style: {
+      background: "none",
+      border: "1px solid #ffffff40",
+      borderRadius: 6,
+      padding: "7px 14px",
+      fontSize: 12.5,
+      color: W,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Clear")), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 300,
       borderRight: "1px solid " + G200,
@@ -14134,12 +14375,33 @@ function VacanciesView({
       textTransform: "uppercase",
       letterSpacing: "0.06em"
     }
-  }, "Candidates (", (selVac.candidates || []).length, ")"), /*#__PURE__*/React.createElement(CandidateSearch, {
+  }, "Candidates (", (selVac.candidates || []).length, ")"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      if (candBulkMode) exitCandBulkMode();else setCandBulkMode(true);
+    },
+    style: {
+      background: candBulkMode ? TEAL : TL,
+      color: candBulkMode ? W : TEAL,
+      border: "1px solid " + TM,
+      borderRadius: 6,
+      padding: "5px 12px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, candBulkMode ? "Done" : "Bulk send"), /*#__PURE__*/React.createElement(CandidateSearch, {
     people: notInVac,
     onSelect: function (p) {
       addCandidate(selVac, p.id);
     }
-  })), (selVac.candidates || []).length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }))), (selVac.candidates || []).length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "24px",
       textAlign: "center",
@@ -14149,7 +14411,7 @@ function VacanciesView({
   }, "No candidates yet. Add from People above or switch to Kanban view.") : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1.5fr 1fr 1fr 1fr auto",
+      gridTemplateColumns: candBulkMode ? "auto 1.5fr 1fr 1fr auto" : "1.5fr 1fr 1fr auto",
       padding: "6px 14px",
       background: G50,
       borderBottom: "1px solid " + G200,
@@ -14159,24 +14421,30 @@ function VacanciesView({
       textTransform: "uppercase",
       letterSpacing: "0.05em"
     }
-  }, /*#__PURE__*/React.createElement("span", null, "Candidate"), /*#__PURE__*/React.createElement("span", null, "Stage"), /*#__PURE__*/React.createElement("span", null, "Interview"), /*#__PURE__*/React.createElement("span", null, "Notes"), /*#__PURE__*/React.createElement("span", null)), (selVac.candidates || []).map(function (cand) {
+  }, candBulkMode && /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("span", null, "Candidate"), /*#__PURE__*/React.createElement("span", null, "Stage"), /*#__PURE__*/React.createElement("span", null, "Notes"), /*#__PURE__*/React.createElement("span", null)), (selVac.candidates || []).map(function (cand) {
     var person = people.find(function (p) {
       return p.id === cand.personId;
     });
     if (!person) return null;
     var stageCol = STAGE_COLORS[cand.stage] || G400;
-    var isInterview = cand.stage === "Interview";
+    var isChecked = candBulkIds.indexOf(cand.personId) !== -1;
     return /*#__PURE__*/React.createElement("div", {
       key: cand.personId,
       style: {
         display: "grid",
-        gridTemplateColumns: "1.5fr 1fr 1fr 1fr auto",
+        gridTemplateColumns: candBulkMode ? "auto 1.5fr 1fr 1fr auto" : "1.5fr 1fr 1fr auto",
         padding: "8px 14px",
         borderBottom: "1px solid " + G100,
         alignItems: "center",
         background: cand.stage === "Placed" ? OK + "08" : cand.stage === "Lost" ? DANGER + "05" : W
       }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }, candBulkMode && /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: isChecked,
+      onChange: function () {
+        toggleCandBulk(cand.personId);
+      }
+    }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
         fontWeight: 600,
         color: NAVY,
@@ -14211,30 +14479,7 @@ function VacanciesView({
         key: s,
         value: s
       }, s);
-    })), /*#__PURE__*/React.createElement("div", null, isInterview && /*#__PURE__*/React.createElement("select", {
-      value: cand.interviewStage || "",
-      onChange: function (e) {
-        updateCandidate(selVac, cand.personId, {
-          interviewStage: e.target.value
-        });
-      },
-      style: {
-        fontSize: 11,
-        border: "1px solid " + G300,
-        borderRadius: 5,
-        padding: "3px 6px",
-        outline: "none",
-        fontFamily: "inherit",
-        width: "100%"
-      }
-    }, /*#__PURE__*/React.createElement("option", {
-      value: ""
-    }, "Select"), INTERVIEW_STAGES.map(function (s) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: s,
-        value: s
-      }, s);
-    }))), /*#__PURE__*/React.createElement("input", {
+    })), /*#__PURE__*/React.createElement("input", {
       defaultValue: cand.notes || "",
       onBlur: function (e) {
         updateCandidate(selVac, cand.personId, {
@@ -15390,7 +15635,9 @@ function App() {
     people: people,
     setPeople: setPeople,
     persist: persist,
-    ownerFilter: ownerFilter
+    ownerFilter: ownerFilter,
+    templates: templates,
+    setTemplates: setTemplates
   }), view === "specouts" && /*#__PURE__*/React.createElement(SpecOutsView, {
     specOuts: specOuts,
     setSpecOuts: setSpecOuts,
