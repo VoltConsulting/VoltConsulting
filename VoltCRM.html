@@ -3110,7 +3110,20 @@ function OverviewTab({
       minWidth: 90
     }
   }, "Remote"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => save("remote", !selP.remote),
+    onClick: () => save("remote", false),
+    style: {
+      background: !selP.remote ? TL : "transparent",
+      color: !selP.remote ? TEAL : G400,
+      border: "1px solid " + (!selP.remote ? TM : G300),
+      borderRadius: 12,
+      padding: "3px 12px",
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, !selP.remote ? "\u2713 Office-based" : "Office-based"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => save("remote", true),
     style: {
       background: selP.remote ? WARN + "20" : "transparent",
       color: selP.remote ? "#854f0b" : G400,
@@ -3122,7 +3135,63 @@ function OverviewTab({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, selP.remote ? "\u2713 Remote worker" : "Office-based")), /*#__PURE__*/React.createElement(InlineField, {
+  }, selP.remote ? "\u2713 Fully remote" : "Fully remote")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "10px 0",
+      borderBottom: "1px solid " + G200
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.05em",
+      minWidth: 90
+    }
+  }, "Map City"), /*#__PURE__*/React.createElement("select", {
+    value: selP.mapCity || "",
+    onChange: e => {
+      const v = e.target.value;
+      if (v === "__request__") {
+        const suggestion = window.prompt("Which city or hub should we add to the map? (This just leaves a note for now \u2014 it'll show up on the Market Map's request list.)");
+        if (suggestion && suggestion.trim()) save("mapCityRequest", suggestion.trim());
+        return;
+      }
+      // Set mapCity and clear any pending request note in one combined
+      // update — save() itself only handles one field at a time and
+      // reads from a stale closure, so two save() calls back-to-back
+      // here would silently lose the first change.
+      const updated = people.map(p => p.id === selP.id ? Object.assign({}, p, {
+        mapCity: v,
+        mapCityRequest: v ? "" : p.mapCityRequest
+      }) : p);
+      setPeople(updated);
+      persist("people", updated);
+    },
+    style: {
+      fontSize: 12,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "5px 8px",
+      outline: "none",
+      fontFamily: "inherit",
+      flex: 1
+    }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "\u2014 Not set \u2014")].concat(
+    MAP_CITY_OPTIONS.map(o => /*#__PURE__*/React.createElement("option", { key: o.value, value: o.value }, o.label))
+  ).concat([/*#__PURE__*/React.createElement("option", { key: "__request__", value: "__request__" }, "+ Not listed \u2014 suggest one")]))), selP.mapCityRequest && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#854f0b",
+      fontStyle: "italic",
+      padding: "4px 0 10px",
+      borderBottom: "1px solid " + G200
+    }
+  }, "Suggested for the map: \u201c" + selP.mapCityRequest + "\u201d (not added yet)"), /*#__PURE__*/React.createElement(InlineField, {
     label: "Title",
     value: selP.title,
     onChange: v => save("title", v)
@@ -4839,6 +4908,7 @@ function PeopleView({
   ownerFilter,
   onBack,
   onBackLabel,
+  clearBackNav,
   vacancies,
   setVacancies,
   specOuts,
@@ -5077,18 +5147,24 @@ function PeopleView({
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "flex",
-      gap: 8,
-      marginBottom: 10
+      marginBottom: 8
     }
   }, /*#__PURE__*/React.createElement(Inp, {
     value: search,
     onChange: setSearch,
     placeholder: "Filter people\u2026",
     style: {
-      fontSize: 12
+      fontSize: 12,
+      width: "100%"
     }
-  }), /*#__PURE__*/React.createElement(Btn, {
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginBottom: 10,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: () => {
       setPrefill(null);
@@ -5289,7 +5365,7 @@ function PeopleView({
     const isSelecting = bulkMode || bulkSendMode;
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
-      onClick: () => isSelecting ? toggleBulk(p.id) : setSel(p.id),
+      onClick: () => isSelecting ? toggleBulk(p.id) : (clearBackNav && clearBackNav(), setSel(p.id)),
       style: {
         padding: "11px 12px",
         borderRadius: 8,
@@ -5584,7 +5660,15 @@ function CompanyForm({
   }));
   const allCompanyLocations = useMemo(() => {
     const set = new Set();
-    (companies || []).forEach(c => (c.locations || []).forEach(l => set.add(l)));
+    // Existing `locations` tags (rare so far) and `hq` values (what most
+    // real records actually use) both feed the suggestion list, plus the
+    // full curated hub list — so a known real hub always suggests even
+    // before anyone's typed it anywhere yet.
+    (companies || []).forEach(c => {
+      (c.locations || []).forEach(l => set.add(l));
+      if (c.hq) set.add(c.hq);
+    });
+    MAP_CITY_OPTIONS.forEach(o => set.add(o.label));
     return Array.from(set).sort();
   }, [companies]);
   const handleSave = () => {
@@ -6091,6 +6175,7 @@ function CompaniesView({
   onNavigatePerson,
   onBack,
   onBackLabel = null,
+  clearBackNav,
   ownerFilter,
   vacancies,
   specOuts = [],
@@ -6098,6 +6183,7 @@ function CompaniesView({
 }) {
   const [search, setSearch] = useState("");
   const [tierF, setTierF] = useState("all");
+  const [pillarF, setPillarF] = useState("all");
   const [sel, setSel] = useState(initialSel || null);
   const prevSelRefC = useRef(sel);
   const [selHistoryC, setSelHistoryC] = useState([]);
@@ -6173,9 +6259,9 @@ function CompaniesView({
   useEffect(() => {
     if (initialSel) setSel(initialSel);
   }, [initialSel]);
-  const list = useMemo(() => companies.filter(c => (tierF === "all" || c.tier === tierF) && (!ownerFilter || migrateOwners(c.owners, c.owner).includes(ownerFilter) || people.some(function (p) {
+  const list = useMemo(() => companies.filter(c => (tierF === "all" || c.tier === tierF) && (pillarF === "all" || c.pillar === pillarF) && (!ownerFilter || migrateOwners(c.owners, c.owner).includes(ownerFilter) || people.some(function (p) {
     return p.companyId === c.id && migrateOwners(p.owners, p.owner).includes(ownerFilter);
-  })) && (c.name + c.type + c.hq).toLowerCase().includes(search.toLowerCase())), [companies, people, search, tierF, ownerFilter]);
+  })) && (c.name + c.type + c.hq).toLowerCase().includes(search.toLowerCase())), [companies, people, search, tierF, pillarF, ownerFilter]);
   const selC = companies.find(c => c.id === sel);
   const linked = selC ? people.filter(p => p.companyId === selC.id) : [];
   const receivedSpecs = selC ? specOuts.filter(s => s.companyId === selC.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || "")) : [];
@@ -6275,6 +6361,45 @@ function CompaniesView({
     onClick: () => bulkMode ? exitBulkMode() : setBulkMode(true)
   }, bulkMode ? "Done" : "Bulk tag")), /*#__PURE__*/React.createElement("div", {
     style: {
+      fontSize: 9.5,
+      fontWeight: 700,
+      color: G400,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 3
+    }
+  }, "Pillar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 5,
+      flexWrap: "wrap",
+      marginBottom: 8
+    }
+  }, ["all"].concat(PILLARS).map(p => /*#__PURE__*/React.createElement("button", {
+    key: p,
+    onClick: () => setPillarF(p),
+    style: {
+      background: pillarF === p ? (PILLAR_COLORS[p] || TEAL) + "15" : "transparent",
+      color: pillarF === p ? PILLAR_COLORS[p] || TEAL : G600,
+      border: "1px solid " + (pillarF === p ? (PILLAR_COLORS[p] || TEAL) + "40" : G300),
+      borderRadius: 20,
+      padding: "3px 11px",
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, p === "all" ? "All" : p))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9.5,
+      fontWeight: 700,
+      color: G400,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 3
+    }
+  }, "Tier"), /*#__PURE__*/React.createElement("div", {
+    style: {
       display: "flex",
       gap: 5,
       flexWrap: "wrap"
@@ -6306,7 +6431,7 @@ function CompaniesView({
     const isChecked = bulkIds.includes(c.id);
     return /*#__PURE__*/React.createElement("div", {
       key: c.id,
-      onClick: () => bulkMode ? toggleBulk(c.id) : setSel(c.id),
+      onClick: () => bulkMode ? toggleBulk(c.id) : (clearBackNav && clearBackNav(), setSel(c.id)),
       style: {
         padding: "11px 12px",
         borderRadius: 8,
@@ -6622,7 +6747,17 @@ function CompaniesView({
   }, /*#__PURE__*/React.createElement(Badge, {
     label: p.type === "candidate" ? "Candidate" : "Contact",
     color: p.type === "contact" ? "#6f42c1" : TEAL
-  }), /*#__PURE__*/React.createElement(RelDot, {
+  }), p.location && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: G600,
+      background: G50,
+      border: "1px solid " + G200,
+      borderRadius: 10,
+      padding: "1px 8px",
+      whiteSpace: "nowrap"
+    }
+  }, p.location), /*#__PURE__*/React.createElement(RelDot, {
     rel: p.relationship
   })), /*#__PURE__*/React.createElement("span", {
     style: {
@@ -7764,10 +7899,131 @@ const CITY_COORDS = {
   "tokyo": [35.6762, 139.6503], "shanghai": [31.2304, 121.4737], "beijing": [39.9042, 116.4074],
   "sydney": [-33.8688, 151.2093], "melbourne": [-37.8136, 144.9631]
 };
+// Country-level fallback for entries that are too vague to pin to a
+// city ("Switzerland", "Germany") — better to show a country-centre pin
+// than to silently drop the location or count it as unmapped.
+const COUNTRY_COORDS = {
+  "uk": [54.0, -2.5], "united kingdom": [54.0, -2.5], "england": [52.5, -1.5],
+  "usa": [39.8, -98.6], "us": [39.8, -98.6], "united states": [39.8, -98.6],
+  "germany": [51.1, 10.4], "france": [46.2, 2.2], "switzerland": [46.8, 8.2],
+  "netherlands": [52.1, 5.3], "belgium": [50.5, 4.5], "austria": [47.5, 14.6],
+  "italy": [42.8, 12.6], "spain": [40.4, -3.7], "portugal": [39.4, -8.2],
+  "sweden": [62.0, 15.0], "norway": [60.5, 8.5], "denmark": [56.0, 10.0],
+  "finland": [64.0, 26.0], "ireland": [53.4, -8.0], "poland": [51.9, 19.1],
+  "canada": [56.1, -106.3], "singapore": [1.35, 103.8], "japan": [36.2, 138.3],
+  "china": [35.9, 104.2], "australia": [-25.3, 133.8], "india": [20.6, 79.0]
+};
+// Nearby towns that should count as their metro hub rather than needing
+// their own separate pin — e.g. someone who works from Boston but lives
+// in Needham shouldn't be invisible on the map just because their profile
+// says "Needham" literally. Add to this as real near-misses come up;
+// it's meant to grow with actual data, not be exhaustive up front.
+const SUBURB_ALIASES = {
+  "needham": "boston", "newton": "boston", "cambridge, ma": "boston",
+  "brookline": "boston", "somerville": "boston", "waltham": "boston",
+  "jersey city": "new york", "brooklyn": "new york", "hoboken": "new york",
+  "richmond": "london", "croydon": "london", "greenwich": "london"
+};
 function geocodeCity(name) {
   if (!name) return null;
-  const key = name.trim().toLowerCase();
-  return CITY_COORDS[key] || null;
+  const rawKey = name.trim().toLowerCase();
+  const key = SUBURB_ALIASES[rawKey] || rawKey;
+  if (CITY_COORDS[key]) return CITY_COORDS[key];
+  // Some hq values are written as "Boston US" rather than "Boston, US" —
+  // try stripping a trailing country abbreviation (with or without a
+  // preceding comma) before giving up on the city-level match.
+  const stripped = key.replace(/[\s,]+(us|usa|uk)$/i, "").trim();
+  if (stripped !== key && CITY_COORDS[stripped]) return CITY_COORDS[stripped];
+  if (COUNTRY_COORDS[key]) return COUNTRY_COORDS[key];
+  return null;
+}
+// A person's own `location` field is often a full "City, Region, Country"
+// string (this is how it comes through on LinkedIn-imported contacts —
+// e.g. "Paris, Ile-de-France, France"), not a bare city name. Matching a
+// pin only against an exact full-string match meant almost no one could
+// ever match their own company's office, even when the office itself
+// geocoded correctly. This also checks just the part before the first
+// comma, and resolves suburb aliases both ways, so "Needham,
+// Massachusetts, United States" matches a "Boston" pin.
+function locationMatchesPin(location, pinKey) {
+  if (!location || !pinKey) return false;
+  const norm = location.trim().toLowerCase();
+  const canonical = SUBURB_ALIASES[norm] || norm;
+  if (canonical === pinKey) return true;
+  const firstPart = norm.split(",")[0].trim();
+  const canonicalFirst = SUBURB_ALIASES[firstPart] || firstPart;
+  return canonicalFirst === pinKey;
+}
+// Curated dropdown for the dedicated "Map City" field — a small, known
+// list of business hubs, not an attempt to cover every possible town.
+// `value` matches a CITY_COORDS/COUNTRY_COORDS key directly.
+const MAP_CITY_OPTIONS = [
+  { value: "london", label: "London, UK" }, { value: "manchester", label: "Manchester, UK" },
+  { value: "birmingham", label: "Birmingham, UK" }, { value: "edinburgh", label: "Edinburgh, UK" },
+  { value: "glasgow", label: "Glasgow, UK" }, { value: "warrington", label: "Warrington, UK" },
+  { value: "leeds", label: "Leeds, UK" }, { value: "bristol", label: "Bristol, UK" },
+  { value: "cambridge", label: "Cambridge, UK" }, { value: "oxford", label: "Oxford, UK" },
+  { value: "dublin", label: "Dublin, Ireland" },
+  { value: "boston", label: "Boston, US" }, { value: "new york", label: "New York, US" },
+  { value: "chicago", label: "Chicago, US" }, { value: "san francisco", label: "San Francisco, US" },
+  { value: "los angeles", label: "Los Angeles, US" }, { value: "philadelphia", label: "Philadelphia, US" },
+  { value: "washington dc", label: "Washington DC, US" }, { value: "san diego", label: "San Diego, US" },
+  { value: "seattle", label: "Seattle, US" }, { value: "austin", label: "Austin, US" },
+  { value: "houston", label: "Houston, US" }, { value: "atlanta", label: "Atlanta, US" },
+  { value: "new jersey", label: "New Jersey, US" }, { value: "princeton", label: "Princeton, US" },
+  { value: "raleigh", label: "Raleigh, US" }, { value: "durham", label: "Durham, US" },
+  { value: "denver", label: "Denver, US" }, { value: "minneapolis", label: "Minneapolis, US" },
+  { value: "toronto", label: "Toronto, Canada" },
+  { value: "basel", label: "Basel, Switzerland" }, { value: "zurich", label: "Zurich, Switzerland" },
+  { value: "geneva", label: "Geneva, Switzerland" }, { value: "amsterdam", label: "Amsterdam, Netherlands" },
+  { value: "paris", label: "Paris, France" }, { value: "munich", label: "Munich, Germany" },
+  { value: "berlin", label: "Berlin, Germany" }, { value: "frankfurt", label: "Frankfurt, Germany" },
+  { value: "stockholm", label: "Stockholm, Sweden" }, { value: "copenhagen", label: "Copenhagen, Denmark" },
+  { value: "milan", label: "Milan, Italy" }, { value: "madrid", label: "Madrid, Spain" },
+  { value: "barcelona", label: "Barcelona, Spain" }, { value: "brussels", label: "Brussels, Belgium" },
+  { value: "vienna", label: "Vienna, Austria" },
+  { value: "singapore", label: "Singapore" }, { value: "hong kong", label: "Hong Kong" },
+  { value: "tokyo", label: "Tokyo, Japan" }, { value: "shanghai", label: "Shanghai, China" },
+  { value: "beijing", label: "Beijing, China" }, { value: "sydney", label: "Sydney, Australia" },
+  { value: "melbourne", label: "Melbourne, Australia" },
+  { value: "uk", label: "UK (country-wide, no specific city)" },
+  { value: "usa", label: "USA (country-wide, no specific city)" },
+  { value: "germany", label: "Germany (country-wide, no specific city)" },
+  { value: "france", label: "France (country-wide, no specific city)" },
+  { value: "switzerland", label: "Switzerland (country-wide, no specific city)" },
+  { value: "netherlands", label: "Netherlands (country-wide, no specific city)" },
+  { value: "belgium", label: "Belgium (country-wide, no specific city)" },
+  { value: "austria", label: "Austria (country-wide, no specific city)" },
+  { value: "italy", label: "Italy (country-wide, no specific city)" },
+  { value: "spain", label: "Spain (country-wide, no specific city)" },
+  { value: "portugal", label: "Portugal (country-wide, no specific city)" },
+  { value: "sweden", label: "Sweden (country-wide, no specific city)" },
+  { value: "norway", label: "Norway (country-wide, no specific city)" },
+  { value: "denmark", label: "Denmark (country-wide, no specific city)" },
+  { value: "finland", label: "Finland (country-wide, no specific city)" },
+  { value: "ireland", label: "Ireland (country-wide, no specific city)" },
+  { value: "poland", label: "Poland (country-wide, no specific city)" },
+  { value: "canada", label: "Canada (country-wide, no specific city)" },
+  { value: "japan", label: "Japan (country-wide, no specific city)" },
+  { value: "china", label: "China (country-wide, no specific city)" },
+  { value: "australia", label: "Australia (country-wide, no specific city)" },
+  { value: "india", label: "India (country-wide, no specific city)" }
+];
+// Resolves a free-text Location into a canonical Map City key, used for
+// the one-time backfill against existing records. Same underlying rules
+// as geocodeCity/locationMatchesPin, consolidated to return the key
+// itself (needed to actually set mapCity, not just coordinates/booleans).
+function resolveLocationKey(location) {
+  if (!location) return null;
+  const norm = location.trim().toLowerCase();
+  const direct = SUBURB_ALIASES[norm] || norm;
+  if (CITY_COORDS[direct] || COUNTRY_COORDS[direct]) return direct;
+  const stripped = direct.replace(/[\s,]+(us|usa|uk)$/i, "").trim();
+  if (stripped !== direct && (CITY_COORDS[stripped] || COUNTRY_COORDS[stripped])) return stripped;
+  const firstPart = norm.split(",")[0].trim();
+  const firstKey = SUBURB_ALIASES[firstPart] || firstPart;
+  if (CITY_COORDS[firstKey] || COUNTRY_COORDS[firstKey]) return firstKey;
+  return null;
 }
 
 // Region colouring for the Market Map — country name (as it appears in the
@@ -8137,7 +8393,7 @@ function MarketMap({
       padding: "16px 28px",
       display: "flex"
     }
-  }, /*#__PURE__*/React.createElement(MarketMapGeo, {
+  }, /*#__PURE__*/React.createElement(MapErrorBoundary, null, /*#__PURE__*/React.createElement(MarketMapGeo, {
     people: people,
     setPeople: setPeople,
     companies: companies,
@@ -8147,7 +8403,7 @@ function MarketMap({
     templates: templates,
     setTemplates: setTemplates,
     onNavigate: onNavigate
-  })), /*#__PURE__*/React.createElement("div", {
+  }))), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflowY: "auto",
@@ -8734,6 +8990,47 @@ const ACT_TYPES = [{
 // to match — the "who's near here regardless of who they work
 // for" matching use case. Locations that don't geocode (not in
 // CITY_COORDS) are counted but never silently dropped.
+// Error boundary — hooks can't catch render errors, only a class
+// component's componentDidCatch can. Without this, any uncaught error
+// inside the map (or anywhere else it's used) blanks the entire React
+// root with no recovery path, forcing a full page reload/relogin. This
+// scopes a crash to just this section and gives a way back in-app.
+class MapErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error, info) {
+    console.error("Market Map crashed:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return /*#__PURE__*/React.createElement("div", {
+        style: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: G600 }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: { fontSize: 14, fontWeight: 600 }
+      }, "Something went wrong loading the map."), /*#__PURE__*/React.createElement("button", {
+        onClick: () => this.setState({ hasError: false }),
+        style: {
+          background: TEAL,
+          color: "#fff",
+          border: "none",
+          borderRadius: 6,
+          padding: "8px 18px",
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: "pointer",
+          fontFamily: "inherit"
+        }
+      }, "Try again"));
+    }
+    return this.props.children;
+  }
+}
+
 function MarketMapGeo({
   people,
   setPeople,
@@ -8749,8 +9046,32 @@ function MarketMapGeo({
   const [selectedPin, setSelectedPin] = useState(null);
   const [sendModal, setSendModal] = useState(null);
   const [selectedPersonIds, setSelectedPersonIds] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [backfillMessage, setBackfillMessage] = useState("");
   function togglePersonSelected(id) {
     setSelectedPersonIds(ids => ids.indexOf(id) !== -1 ? ids.filter(x => x !== id) : ids.concat([id]));
+  }
+  // One-time pass: for anyone without a Map City set yet, try resolving
+  // one from their existing free-text Location using the same rules the
+  // map already applies (city/suburb/country matching). Never overwrites
+  // a Map City someone's already deliberately set. Leaves a summary so
+  // it's clear how many still need a manual look, rather than silently
+  // guessing for everyone.
+  function backfillMapCities() {
+    let updated = 0, unresolved = 0;
+    const next = people.map(p => {
+      if (p.mapCity) return p;
+      const key = resolveLocationKey(p.location);
+      if (key) {
+        updated++;
+        return Object.assign({}, p, { mapCity: key });
+      }
+      unresolved++;
+      return p;
+    });
+    setPeople(next);
+    persist("people", next);
+    setBackfillMessage("Set Map City for " + updated + " " + (updated === 1 ? "person" : "people") + " from their existing Location. " + unresolved + " still need a manual pick.");
   }
   // Zoom/pan for the SVG map — applied as a transform on a wrapping <g>,
   // independent of the underlying projection. Needed because several real
@@ -8760,6 +9081,7 @@ function MarketMapGeo({
   const [zoom, setZoom] = useState({ scale: 1, tx: 0, ty: 0 });
   const svgRef = useRef(null);
   const dragRef = useRef(null);
+  const rafRef = useRef(null);
   function svgPointFromEvent(e) {
     const svg = svgRef.current;
     if (!svg) return null;
@@ -8793,16 +9115,33 @@ function MarketMapGeo({
     if (!pt) return;
     dragRef.current = { startX: pt.x, startY: pt.y, origTx: zoom.tx, origTy: zoom.ty };
   }
+  // Mousemove can fire far more often than the screen can actually
+  // redraw (sometimes hundreds of times a second depending on the mouse
+  // and OS). Collapsing to one committed update per animation frame,
+  // rather than one per raw event, is standard practice for drag
+  // handlers and directly reduces how much work the tab does during a
+  // fast drag — independent of whatever else may have contributed to
+  // the freeze reported.
   function handleMouseMove(e) {
     if (!dragRef.current) return;
     const pt = svgPointFromEvent(e);
     if (!pt) return;
     const dx = pt.x - dragRef.current.startX;
     const dy = pt.y - dragRef.current.startY;
-    setZoom(z => ({ ...z, tx: dragRef.current.origTx + dx, ty: dragRef.current.origTy + dy }));
+    const origTx = dragRef.current.origTx;
+    const origTy = dragRef.current.origTy;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      setZoom(z => ({ ...z, tx: origTx + dx, ty: origTy + dy }));
+    });
   }
   function endDrag() {
     dragRef.current = null;
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
   }
   function resetZoom() {
     setZoom({ scale: 1, tx: 0, ty: 0 });
@@ -8878,22 +9217,38 @@ function MarketMapGeo({
   // when they're company-affiliated but not personally confirmed at this
   // office (e.g. someone at a multi-office firm based elsewhere) rather
   // than that looking like a data error.
+  // If mapCity is explicitly set, it's authoritative — it's a deliberate
+  // "this person belongs to this hub" call (handles remote workers tied
+  // to an office they don't literally live in). Only falls back to
+  // parsing the free-text Location when mapCity hasn't been set yet.
+  function personMatchesPin(p, pinKey) {
+    if (p.mapCity) return p.mapCity.trim().toLowerCase() === pinKey;
+    return locationMatchesPin(p.location, pinKey);
+  }
   const companiesHere = useMemo(() => {
     if (!selectedPinData) return [];
+    // Only people whose OWN location matches this pin — being employed by
+    // a company that has an office here isn't enough on its own, since
+    // that would put every employee of a multi-office firm under every
+    // one of its pins regardless of where they actually sit.
     return selectedPinData.companies.map(c => ({
       company: c,
-      people: people.filter(p => p.companyId === c.id)
+      people: people.filter(p => p.companyId === c.id && personMatchesPin(p, selectedPinData.key))
     }));
   }, [selectedPinData, people]);
   const nearby = useMemo(() => {
     if (!selectedPinData) return [];
     const companyIds = new Set(selectedPinData.companies.map(c => c.id));
-    return people.filter(p => !companyIds.has(p.companyId) && p.location && p.location.trim().toLowerCase() === selectedPinData.key);
+    return people.filter(p => !companyIds.has(p.companyId) && personMatchesPin(p, selectedPinData.key));
   }, [selectedPinData, people]);
   const allPeopleHere = useMemo(() => companiesHere.reduce((a, g) => a.concat(g.people), []).concat(nearby), [companiesHere, nearby]);
   const projection = useMemo(() => {
     if (!window.d3) return null;
-    return window.d3.geoNaturalEarth1().scale(150).translate([420, 240]);
+    // Centred on the North Atlantic and scaled up so the UK/Europe/US
+    // footprint fills the view by default, rather than the whole world
+    // at a distance — zoom out with the − button or scroll wheel to see
+    // APAC pins, which still exist, just outside the default frame.
+    return window.d3.geoNaturalEarth1().center([-25, 45]).scale(340).translate([450, 230]);
   }, []);
   // These were being recomputed from raw map topology on every render —
   // including every mousemove tick while dragging, which fires dozens of
@@ -8901,9 +9256,15 @@ function MarketMapGeo({
   // the tab solid. Memoizing so this only runs once when the map data
   // actually changes, never during pan/zoom.
   const path = useMemo(() => (projection && window.d3 ? window.d3.geoPath(projection) : null), [projection]);
-  const countryFeatures = useMemo(() => (
-    world && window.topojson ? window.topojson.feature(world, world.objects.countries).features : []
-  ), [world]);
+  const countryFeatures = useMemo(() => {
+    if (!world || !window.topojson) return [];
+    const all = window.topojson.feature(world, world.objects.countries).features;
+    // Only render the regions covered by COUNTRY_REGION (VoltConsulting's
+    // actual UK/US/Europe/APAC footprint) — cuts roughly 250 country
+    // shapes down to ~45, genuinely less for the browser to draw, and a
+    // visually cleaner map matching where the business actually is.
+    return all.filter(f => f.properties && COUNTRY_REGION[f.properties.name]);
+  }, [world]);
   const countryPathData = useMemo(() => {
     if (!path) return [];
     return countryFeatures.map(f => ({
@@ -8911,6 +9272,22 @@ function MarketMapGeo({
       fill: REGION_COLORS[COUNTRY_REGION[f.properties && f.properties.name]] || REGION_COLORS.default
     }));
   }, [countryFeatures, path]);
+  const searchMatches = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return pins.filter(p => p.name.toLowerCase().includes(q)).slice(0, 8);
+  }, [searchQuery, pins]);
+  const pendingRequestsCount = useMemo(() => people.filter(p => p.mapCityRequest && p.mapCityRequest.trim()).length, [people]);
+  function jumpToPin(pin) {
+    if (!projection) return;
+    const p = projection([pin.lon, pin.lat]);
+    if (!p) return;
+    const targetScale = Math.max(zoom.scale, 4);
+    setZoom({ scale: targetScale, tx: 450 - p[0] * targetScale, ty: 230 - p[1] * targetScale });
+    setSelectedPin(pin.key);
+    setSelectedPersonIds([]);
+    setSearchQuery("");
+  }
   function PersonRow(p) {
     const isChecked = selectedPersonIds.indexOf(p.id) !== -1;
     return /*#__PURE__*/React.createElement("div", {
@@ -8936,9 +9313,21 @@ function MarketMapGeo({
       style: { flex: 1, cursor: "pointer" }
     }, /*#__PURE__*/React.createElement("div", {
       style: { fontSize: 12.5, fontWeight: 600, color: NAVY }
-    }, p.name), /*#__PURE__*/React.createElement("div", {
-      style: { fontSize: 11, color: G600 }
-    }, [p.title, p.location || "Location not set"].filter(Boolean).join(" \u00b7 "))), p.remote && /*#__PURE__*/React.createElement("span", {
+    }, p.name), p.title && /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 11, color: G600, marginTop: 1 }
+    }, p.title), /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "inline-block",
+        marginTop: 3,
+        fontSize: 9.5,
+        fontWeight: 700,
+        color: p.location ? "#1a7f37" : "#854f0b",
+        background: p.location ? "#dafbe1" : WARN + "20",
+        border: "1px solid " + (p.location ? "#b4f0c4" : WARN + "60"),
+        borderRadius: 10,
+        padding: "1px 8px"
+      }
+    }, p.location ? "\u2713 " + p.location : "Location not set")), p.remote && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9.5,
         fontWeight: 700,
@@ -8961,7 +9350,61 @@ function MarketMapGeo({
     onClose: function () { setSendModal(null); }
   }), /*#__PURE__*/React.createElement("div", {
     style: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }
-  }, unmapped.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 8, marginBottom: 10, flexShrink: 0, alignItems: "flex-start" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { position: "relative", flex: 1 }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: searchQuery,
+    onChange: e => setSearchQuery(e.target.value),
+    placeholder: "Search a city or country\u2026",
+    style: {
+      width: "100%",
+      fontSize: 12.5,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "7px 10px",
+      outline: "none",
+      fontFamily: "inherit"
+    }
+  }), searchMatches.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      marginTop: 2,
+      zIndex: 20,
+      boxShadow: "0 4px 12px #0002"
+    }
+  }, searchMatches.map(pin => /*#__PURE__*/React.createElement("div", {
+    key: pin.key,
+    onClick: () => jumpToPin(pin),
+    style: { padding: "7px 10px", fontSize: 12.5, cursor: "pointer", borderBottom: "1px solid " + G100 }
+  }, pin.name + " (" + pin.companies.length + ")")))), /*#__PURE__*/React.createElement("button", {
+    onClick: backfillMapCities,
+    title: "One-time pass: fills Map City from existing Location text where it can confidently match",
+    style: {
+      flexShrink: 0,
+      background: TL,
+      color: TEAL,
+      border: "1px solid " + TM,
+      borderRadius: 6,
+      padding: "7px 12px",
+      fontSize: 11.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap"
+    }
+  }, "Backfill Map City")), backfillMessage && /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 11.5, color: G600, marginBottom: 8, flexShrink: 0 }
+  }, backfillMessage), pendingRequestsCount > 0 && /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 11.5, color: "#854f0b", marginBottom: 8, flexShrink: 0 }
+  }, pendingRequestsCount + " suggested " + (pendingRequestsCount === 1 ? "city" : "cities") + " waiting to be added to the map"), unmapped.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11.5,
       color: G600,
@@ -8989,7 +9432,8 @@ function MarketMapGeo({
     onMouseUp: endDrag,
     onMouseLeave: endDrag
   }, /*#__PURE__*/React.createElement("g", {
-    transform: "translate(" + zoom.tx + "," + zoom.ty + ") scale(" + zoom.scale + ")"
+    transform: "translate(" + zoom.tx + "," + zoom.ty + ") scale(" + zoom.scale + ")",
+    style: { willChange: "transform" }
   }, countryPathData.map((cd, i) => /*#__PURE__*/React.createElement("path", {
     key: i,
     d: cd.d,
@@ -9074,7 +9518,7 @@ function MarketMapGeo({
       style: { fontSize: 12.5, fontWeight: 700, color: TEAL, cursor: "pointer", marginBottom: 6 }
     }, group.company.name), group.people.length === 0 ? /*#__PURE__*/React.createElement("div", {
       style: { fontSize: 12, color: G400 }
-    }, "No contacts logged for this company") : /*#__PURE__*/React.createElement("div", null, group.people.map(PersonRow)));
+    }, "No contacts confirmed at this office yet") : /*#__PURE__*/React.createElement("div", null, group.people.map(PersonRow)));
   }), /*#__PURE__*/React.createElement("div", {
     style: { fontSize: 10.5, fontWeight: 700, color: G600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, marginTop: 4 }
   }, "Located nearby, other companies (" + nearby.length + ")"), nearby.length === 0 ? /*#__PURE__*/React.createElement("div", {
@@ -16296,6 +16740,7 @@ function App() {
     ownerFilter: ownerFilter,
     onBack: backToNavFrom,
     onBackLabel: backToNavFromLabel,
+    clearBackNav: () => setNavFrom(null),
     vacancies: vacancies,
     setVacancies: setVacancies,
     specOuts: specOuts,
@@ -16314,6 +16759,7 @@ function App() {
     },
     onBack: backToNavFrom,
     onBackLabel: backToNavFromLabel,
+    clearBackNav: () => setNavFrom(null),
     ownerFilter: ownerFilter,
     vacancies: vacancies,
     specOuts: specOuts,
@@ -16345,7 +16791,7 @@ function App() {
     setNetwork: setNetwork,
     persist: persist,
     ownerFilter: ownerFilter
-  }), view === "map" && /*#__PURE__*/React.createElement(MarketMap, {
+  }), view === "map" && /*#__PURE__*/React.createElement(MapErrorBoundary, null, /*#__PURE__*/React.createElement(MarketMap, {
     people: people,
     setPeople: setPeople,
     companies: companies,
@@ -16376,7 +16822,7 @@ function App() {
     setPillarF: setMmPillarF,
     templates: templates,
     setTemplates: setTemplates
-  }))), /*#__PURE__*/React.createElement("div", {
+  })))), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       bottom: 18,
