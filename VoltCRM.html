@@ -7770,6 +7770,30 @@ function geocodeCity(name) {
   return CITY_COORDS[key] || null;
 }
 
+// Region colouring for the Market Map — country name (as it appears in the
+// world-atlas topology's `properties.name`) mapped to a broad region, then
+// each region gets its own colour. Anything not listed falls back to a
+// neutral default rather than breaking.
+const COUNTRY_REGION = {
+  "United States of America": "na", "Canada": "na", "Mexico": "na",
+  "United Kingdom": "uk", "Ireland": "uk",
+  "Sweden": "nordics", "Norway": "nordics", "Denmark": "nordics", "Finland": "nordics", "Iceland": "nordics",
+  "Germany": "eu", "France": "eu", "Switzerland": "eu", "Netherlands": "eu", "Belgium": "eu",
+  "Austria": "eu", "Italy": "eu", "Spain": "eu", "Portugal": "eu", "Poland": "eu", "Czechia": "eu",
+  "Luxembourg": "eu", "Hungary": "eu", "Slovakia": "eu", "Slovenia": "eu", "Croatia": "eu",
+  "Romania": "eu", "Bulgaria": "eu", "Greece": "eu", "Estonia": "eu", "Latvia": "eu", "Lithuania": "eu",
+  "Japan": "apac", "China": "apac", "Singapore": "apac", "South Korea": "apac", "India": "apac",
+  "Australia": "apac", "New Zealand": "apac", "Hong Kong": "apac", "Taiwan": "apac"
+};
+const REGION_COLORS = {
+  na: "#6fae95",
+  uk: "#d99b4e",
+  nordics: "#6a95c4",
+  eu: "#a389bd",
+  apac: "#c76b6b",
+  default: "#a9bfa0"
+};
+
 function MarketMap({
   people,
   setPeople,
@@ -8724,6 +8748,10 @@ function MarketMapGeo({
   const [world, setWorld] = useState(null);
   const [selectedPin, setSelectedPin] = useState(null);
   const [sendModal, setSendModal] = useState(null);
+  const [selectedPersonIds, setSelectedPersonIds] = useState([]);
+  function togglePersonSelected(id) {
+    setSelectedPersonIds(ids => ids.indexOf(id) !== -1 ? ids.filter(x => x !== id) : ids.concat([id]));
+  }
   // Zoom/pan for the SVG map — applied as a transform on a wrapping <g>,
   // independent of the underlying projection. Needed because several real
   // hubs (Basel, Zurich, Frankfurt, Berlin, Copenhagen, London...) sit
@@ -8878,23 +8906,35 @@ function MarketMapGeo({
   ), [world]);
   const countryPathData = useMemo(() => {
     if (!path) return [];
-    return countryFeatures.map(f => path(f));
+    return countryFeatures.map(f => ({
+      d: path(f),
+      fill: REGION_COLORS[COUNTRY_REGION[f.properties && f.properties.name]] || REGION_COLORS.default
+    }));
   }, [countryFeatures, path]);
   function PersonRow(p) {
+    const isChecked = selectedPersonIds.indexOf(p.id) !== -1;
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
-      onClick: () => onNavigate && onNavigate("people", p.id, "map"),
       style: {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
+        gap: 8,
         padding: "7px 10px",
         borderRadius: 6,
-        cursor: "pointer",
-        background: W,
+        background: isChecked ? TL : W,
+        border: "1px solid " + (isChecked ? TM : "transparent"),
         marginBottom: 4
       }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: isChecked,
+      onChange: () => togglePersonSelected(p.id),
+      style: { flexShrink: 0, cursor: "pointer" }
+    }), /*#__PURE__*/React.createElement("div", {
+      onClick: () => onNavigate && onNavigate("people", p.id, "map"),
+      style: { flex: 1, cursor: "pointer" }
+    }, /*#__PURE__*/React.createElement("div", {
       style: { fontSize: 12.5, fontWeight: 600, color: NAVY }
     }, p.name), /*#__PURE__*/React.createElement("div", {
       style: { fontSize: 11, color: G600 }
@@ -8906,7 +8946,8 @@ function MarketMapGeo({
         background: WARN + "20",
         border: "1px solid " + WARN + "60",
         borderRadius: 10,
-        padding: "1px 8px"
+        padding: "1px 8px",
+        flexShrink: 0
       }
     }, "Remote"));
   }
@@ -8949,10 +8990,10 @@ function MarketMapGeo({
     onMouseLeave: endDrag
   }, /*#__PURE__*/React.createElement("g", {
     transform: "translate(" + zoom.tx + "," + zoom.ty + ") scale(" + zoom.scale + ")"
-  }, countryPathData.map((d, i) => /*#__PURE__*/React.createElement("path", {
+  }, countryPathData.map((cd, i) => /*#__PURE__*/React.createElement("path", {
     key: i,
-    d: d,
-    fill: "#8fb99c",
+    d: cd.d,
+    fill: cd.fill,
     stroke: "#eef7f0",
     strokeWidth: 0.6 / zoom.scale
   })), pins.map(pin => {
@@ -8969,6 +9010,7 @@ function MarketMapGeo({
       onClick: e => {
         e.stopPropagation();
         setSelectedPin(isSel ? null : pin.key);
+        setSelectedPersonIds([]);
       }
     }, /*#__PURE__*/React.createElement("circle", {
       r: (isSel ? 9 : 6) * inv,
@@ -9008,8 +9050,22 @@ function MarketMapGeo({
   }, "Click a pin to see who's there") : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: { fontSize: 15, fontWeight: 700, color: NAVY, marginBottom: 2 }
   }, selectedPinData.name), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 11.5, color: G600, marginBottom: 14 }
-  }, selectedPinData.companies.length + " compan" + (selectedPinData.companies.length === 1 ? "y" : "ies")), companiesHere.map(function (group) {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 11.5, color: G600 }
+  }, selectedPinData.companies.length + " compan" + (selectedPinData.companies.length === 1 ? "y" : "ies")), allPeopleHere.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setSelectedPersonIds(selectedPersonIds.length === allPeopleHere.length ? [] : allPeopleHere.map(p => p.id)),
+    style: {
+      background: "none",
+      border: "none",
+      color: TEAL,
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      textDecoration: "underline"
+    }
+  }, selectedPersonIds.length === allPeopleHere.length ? "Clear selection" : "Select all " + allPeopleHere.length)), companiesHere.map(function (group) {
     return /*#__PURE__*/React.createElement("div", {
       key: group.company.id,
       style: { marginBottom: 16 }
@@ -9025,21 +9081,22 @@ function MarketMapGeo({
     style: { fontSize: 12, color: G400, marginBottom: 14 }
   }, "Nobody else logged at this location") : /*#__PURE__*/React.createElement("div", {
     style: { marginBottom: 14 }
-  }, nearby.map(PersonRow)), allPeopleHere.length > 0 && /*#__PURE__*/React.createElement("button", {
-    onClick: () => setSendModal(allPeopleHere),
+  }, nearby.map(PersonRow)), /*#__PURE__*/React.createElement("button", {
+    disabled: selectedPersonIds.length === 0,
+    onClick: () => setSendModal(allPeopleHere.filter(p => selectedPersonIds.indexOf(p.id) !== -1)),
     style: {
       width: "100%",
-      background: TEAL,
-      color: W,
+      background: selectedPersonIds.length > 0 ? TEAL : G200,
+      color: selectedPersonIds.length > 0 ? W : G400,
       border: "none",
       borderRadius: 6,
       padding: "8px 12px",
       fontSize: 12.5,
       fontWeight: 700,
-      cursor: "pointer",
+      cursor: selectedPersonIds.length > 0 ? "pointer" : "default",
       fontFamily: "inherit"
     }
-  }, "\u2709 Bulk send to all " + allPeopleHere.length))));
+  }, selectedPersonIds.length > 0 ? "\u2709 Bulk send to " + selectedPersonIds.length + " selected" : "Select people to send to"))));
 }
 
 
