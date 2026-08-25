@@ -8744,11 +8744,20 @@ function MarketMapGeo({
   }), [ownerCompanies, pillarF]);
   // Group companies into pins by geocoded city. Also track every
   // location string that failed to geocode, for the unmapped count.
+  // Real company records store their office under the legacy free-text
+  // `hq` field ("Boston", "Boston / global") — the newer `locations`
+  // array exists in the schema but isn't populated on most records yet.
+  // Read locations first when present, otherwise fall back to parsing hq.
+  function officeStringsForCompany(c) {
+    if (c.locations && c.locations.length) return c.locations;
+    if (!c.hq) return [];
+    return c.hq.split(/[\/,&]|\band\b/i).map(s => s.trim()).filter(Boolean);
+  }
   const { pins, unmapped } = useMemo(() => {
     const pinMap = {};
     const unmappedSet = new Set();
     filteredCompanies.forEach(c => {
-      (c.locations || []).forEach(loc => {
+      officeStringsForCompany(c).forEach(loc => {
         const coords = geocodeCity(loc);
         if (!coords) {
           unmappedSet.add(loc);
