@@ -8867,8 +8867,19 @@ function MarketMapGeo({
     if (!window.d3) return null;
     return window.d3.geoNaturalEarth1().scale(150).translate([420, 240]);
   }, []);
-  const path = projection && window.d3 ? window.d3.geoPath(projection) : null;
-  const countryFeatures = world && window.topojson ? window.topojson.feature(world, world.objects.countries).features : [];
+  // These were being recomputed from raw map topology on every render —
+  // including every mousemove tick while dragging, which fires dozens of
+  // times per second. Re-deriving ~250 country shapes that often froze
+  // the tab solid. Memoizing so this only runs once when the map data
+  // actually changes, never during pan/zoom.
+  const path = useMemo(() => (projection && window.d3 ? window.d3.geoPath(projection) : null), [projection]);
+  const countryFeatures = useMemo(() => (
+    world && window.topojson ? window.topojson.feature(world, world.objects.countries).features : []
+  ), [world]);
+  const countryPathData = useMemo(() => {
+    if (!path) return [];
+    return countryFeatures.map(f => path(f));
+  }, [countryFeatures, path]);
   function PersonRow(p) {
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
@@ -8930,7 +8941,7 @@ function MarketMapGeo({
     height: "100%",
     viewBox: "0 0 900 460",
     preserveAspectRatio: "xMidYMid meet",
-    style: { background: G50, borderRadius: 8, border: "1px solid " + G200, display: "block", cursor: dragRef.current ? "grabbing" : "grab" },
+    style: { background: "#d9ecf2", borderRadius: 8, border: "1px solid " + G200, display: "block", cursor: dragRef.current ? "grabbing" : "grab" },
     onWheel: handleWheel,
     onMouseDown: handleMouseDown,
     onMouseMove: handleMouseMove,
@@ -8938,12 +8949,12 @@ function MarketMapGeo({
     onMouseLeave: endDrag
   }, /*#__PURE__*/React.createElement("g", {
     transform: "translate(" + zoom.tx + "," + zoom.ty + ") scale(" + zoom.scale + ")"
-  }, countryFeatures.map((f, i) => /*#__PURE__*/React.createElement("path", {
+  }, countryPathData.map((d, i) => /*#__PURE__*/React.createElement("path", {
     key: i,
-    d: path(f),
-    fill: "#e1e0d9",
-    stroke: "#fcfcfb",
-    strokeWidth: 0.5 / zoom.scale
+    d: d,
+    fill: "#8fb99c",
+    stroke: "#eef7f0",
+    strokeWidth: 0.6 / zoom.scale
   })), pins.map(pin => {
     const p = projection([pin.lon, pin.lat]);
     if (!p) return null;
