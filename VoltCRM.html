@@ -6,6 +6,8 @@
   <title>VoltConsulting CRM</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson-client/3.1.0/topojson-client.min.js"></script>
   <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
   <script>
     // If the primary CDN region didn't respond, fall back to the
@@ -3090,7 +3092,37 @@ function OverviewTab({
     label: "Location",
     value: selP.location,
     onChange: v => save("location", v)
-  }), /*#__PURE__*/React.createElement(InlineField, {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "10px 0",
+      borderBottom: "1px solid " + G200
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.05em",
+      minWidth: 90
+    }
+  }, "Remote"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => save("remote", !selP.remote),
+    style: {
+      background: selP.remote ? WARN + "20" : "transparent",
+      color: selP.remote ? "#854f0b" : G400,
+      border: "1px solid " + (selP.remote ? WARN : G300),
+      borderRadius: 12,
+      padding: "3px 12px",
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, selP.remote ? "\u2713 Remote worker" : "Office-based")), /*#__PURE__*/React.createElement(InlineField, {
     label: "Title",
     value: selP.title,
     onChange: v => save("title", v)
@@ -7706,6 +7738,38 @@ function BDTracker({
 }
 
 // ── MARKET MAP ────────────────────────────────────────────────
+// Static city coordinate lookup for the Market Map geo view. No live
+// geocoding API is wired up (avoids external rate limits/ToS issues for
+// an internal tool) — this table covers the hubs that come up in practice.
+// A location that isn't in here shows up as "unmapped" rather than being
+// silently dropped or guessed at.
+const CITY_COORDS = {
+  "london": [51.5074, -0.1278], "manchester": [53.4808, -2.2426], "birmingham": [52.4862, -1.8904],
+  "edinburgh": [55.9533, -3.1883], "glasgow": [55.8642, -4.2518], "warrington": [53.3900, -2.5970],
+  "leeds": [53.8008, -1.5491], "bristol": [51.4545, -2.5879], "cambridge": [52.2053, 0.1218],
+  "oxford": [51.7520, -1.2577], "dublin": [53.3498, -6.2603],
+  "boston": [42.3601, -71.0589], "cambridge, ma": [42.3736, -71.1097], "new york": [40.7128, -74.0060],
+  "chicago": [41.8781, -87.6298], "san francisco": [37.7749, -122.4194], "los angeles": [34.0522, -118.2437],
+  "philadelphia": [39.9526, -75.1652], "washington dc": [38.9072, -77.0369], "washington, dc": [38.9072, -77.0369],
+  "san diego": [32.7157, -117.1611], "seattle": [47.6062, -122.3321], "austin": [30.2672, -97.7431],
+  "houston": [29.7604, -95.3698], "atlanta": [33.7490, -84.3880], "new jersey": [40.0583, -74.4057],
+  "princeton": [40.3573, -74.6672], "raleigh": [35.7796, -78.6382], "durham": [35.9940, -78.8986],
+  "denver": [39.7392, -104.9903], "minneapolis": [44.9778, -93.2650],
+  "basel": [47.5596, 7.5886], "zurich": [47.3769, 8.5417], "geneva": [46.2044, 6.1432],
+  "amsterdam": [52.3676, 4.9041], "paris": [48.8566, 2.3522], "munich": [48.1351, 11.5820],
+  "berlin": [52.5200, 13.4050], "frankfurt": [50.1109, 8.6821], "stockholm": [59.3293, 18.0686],
+  "copenhagen": [55.6761, 12.5683], "milan": [45.4642, 9.1900], "madrid": [40.4168, -3.7038],
+  "barcelona": [41.3874, 2.1686], "brussels": [50.8503, 4.3517], "vienna": [48.2082, 16.3738],
+  "toronto": [43.6532, -79.3832], "singapore": [1.3521, 103.8198], "hong kong": [22.3193, 114.1694],
+  "tokyo": [35.6762, 139.6503], "shanghai": [31.2304, 121.4737], "beijing": [39.9042, 116.4074],
+  "sydney": [-33.8688, 151.2093], "melbourne": [-37.8136, 144.9631]
+};
+function geocodeCity(name) {
+  if (!name) return null;
+  const key = name.trim().toLowerCase();
+  return CITY_COORDS[key] || null;
+}
+
 function MarketMap({
   people,
   setPeople,
@@ -7734,7 +7798,9 @@ function MarketMap({
   mapView,
   setMapView,
   pillarF,
-  setPillarF
+  setPillarF,
+  templates,
+  setTemplates
 }) {
   const quickTagPillar = (companyId, pillar) => {
     const updated = companies.map(c => c.id === companyId ? {
@@ -7917,7 +7983,7 @@ function MarketMap({
       display: "flex",
       gap: 5
     }
-  }, ["people", "companies"].map(v => /*#__PURE__*/React.createElement("button", {
+  }, ["people", "companies", "geo"].map(v => /*#__PURE__*/React.createElement("button", {
     key: v,
     onClick: () => setMapView(v),
     style: {
@@ -7932,7 +7998,17 @@ function MarketMap({
       fontFamily: "inherit",
       textTransform: "capitalize"
     }
-  }, v)))), mapView === "people" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, v)))), mapView === "geo" && /*#__PURE__*/React.createElement(MarketMapGeo, {
+    people: people,
+    setPeople: setPeople,
+    companies: companies,
+    ownerFilter: ownerFilter,
+    pillarF: pillarF,
+    persist: persist,
+    templates: templates,
+    setTemplates: setTemplates,
+    onNavigate: onNavigate
+  }), mapView === "people" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: G400,
@@ -8617,7 +8693,223 @@ const ACT_TYPES = [{
   icon: "📝"
 }];
 
-// ── Spec Outs — top-level tab ────────────────────────────────
+// ── Market Map — geographic view ─────────────────────────────
+// Plots company office locations on a real world map (fetched
+// topology, not drawn). Each pin aggregates every company whose
+// `locations` tag matches that city. Clicking a pin shows two
+// distinct groups per David's spec: people tied to a company at
+// that office, and people (any type) whose own location happens
+// to match — the "who's near here regardless of who they work
+// for" matching use case. Locations that don't geocode (not in
+// CITY_COORDS) are counted but never silently dropped.
+function MarketMapGeo({
+  people,
+  setPeople,
+  companies,
+  ownerFilter,
+  pillarF,
+  persist,
+  templates,
+  setTemplates,
+  onNavigate
+}) {
+  const [world, setWorld] = useState(null);
+  const [selectedPin, setSelectedPin] = useState(null);
+  const [sendModal, setSendModal] = useState(null);
+  useEffect(() => {
+    if (world) return;
+    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(r => r.json()).then(setWorld).catch(() => {});
+  }, [world]);
+  function saveTemplate(t) {
+    const updated = [t, ...(templates || [])];
+    setTemplates(updated);
+    persist("templates", updated);
+  }
+  function applySentActivity(person, entry) {
+    const updated = people.map(function (p) {
+      if (p.id !== person.id) return p;
+      return Object.assign({}, p, {
+        activityLog: [entry, ...(p.activityLog || [])],
+        lastContacted: today
+      });
+    });
+    setPeople(updated);
+    persist("people", updated);
+  }
+  const ownerCompanies = useMemo(() => companies.filter(c => !ownerFilter || migrateOwners(c.owners, c.owner).includes(ownerFilter)), [companies, ownerFilter]);
+  const filteredCompanies = useMemo(() => ownerCompanies.filter(c => {
+    if (pillarF === "Unassigned" && c.pillar) return false;
+    if (pillarF !== "All" && pillarF !== "Unassigned" && c.pillar !== pillarF) return false;
+    return true;
+  }), [ownerCompanies, pillarF]);
+  // Group companies into pins by geocoded city. Also track every
+  // location string that failed to geocode, for the unmapped count.
+  const { pins, unmapped } = useMemo(() => {
+    const pinMap = {};
+    const unmappedSet = new Set();
+    filteredCompanies.forEach(c => {
+      (c.locations || []).forEach(loc => {
+        const coords = geocodeCity(loc);
+        if (!coords) {
+          unmappedSet.add(loc);
+          return;
+        }
+        const key = loc.trim().toLowerCase();
+        if (!pinMap[key]) pinMap[key] = { key, name: loc.trim(), lat: coords[0], lon: coords[1], companies: [] };
+        if (!pinMap[key].companies.some(x => x.id === c.id)) pinMap[key].companies.push(c);
+      });
+    });
+    return { pins: Object.values(pinMap), unmapped: Array.from(unmappedSet) };
+  }, [filteredCompanies]);
+  const selectedPinData = selectedPin ? pins.find(p => p.key === selectedPin) : null;
+  // "Tied to this office" — people at a company that has an office here.
+  // "Located nearby" — anyone at all whose own location text matches this
+  // city, regardless of company, deduped against the tied list.
+  const { tied, nearby } = useMemo(() => {
+    if (!selectedPinData) return { tied: [], nearby: [] };
+    const companyIds = new Set(selectedPinData.companies.map(c => c.id));
+    const tiedPeople = people.filter(p => companyIds.has(p.companyId));
+    const tiedIds = new Set(tiedPeople.map(p => p.id));
+    const nearbyPeople = people.filter(p => !tiedIds.has(p.id) && p.location && p.location.trim().toLowerCase() === selectedPinData.key);
+    return { tied: tiedPeople, nearby: nearbyPeople };
+  }, [selectedPinData, people]);
+  const projection = useMemo(() => {
+    if (!window.d3) return null;
+    return window.d3.geoNaturalEarth1().scale(150).translate([420, 240]);
+  }, []);
+  const path = projection && window.d3 ? window.d3.geoPath(projection) : null;
+  const countryFeatures = world && window.topojson ? window.topojson.feature(world, world.objects.countries).features : [];
+  function PersonRow(p) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: p.id,
+      onClick: () => onNavigate && onNavigate("people", p.id, "map"),
+      style: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "7px 10px",
+        borderRadius: 6,
+        cursor: "pointer",
+        background: W,
+        marginBottom: 4
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 12.5, fontWeight: 600, color: NAVY }
+    }, p.name), /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 11, color: G600 }
+    }, [p.title, p.company].filter(Boolean).join(" \u00b7 "))), p.remote && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9.5,
+        fontWeight: 700,
+        color: "#854f0b",
+        background: WARN + "20",
+        border: "1px solid " + WARN + "60",
+        borderRadius: 10,
+        padding: "1px 8px"
+      }
+    }, "Remote"));
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 16, alignItems: "flex-start" }
+  }, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: sendModal,
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    onSent: function (p, entry) { applySentActivity(p, entry); },
+    onClose: function () { setSendModal(null); }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: { flex: 1, minWidth: 0 }
+  }, unmapped.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11.5,
+      color: G600,
+      background: G50,
+      border: "1px solid " + G200,
+      borderRadius: 6,
+      padding: "6px 10px",
+      marginBottom: 10
+    }
+  }, unmapped.length + " location" + (unmapped.length === 1 ? "" : "s") + " not yet mapped: " + unmapped.slice(0, 6).join(", ") + (unmapped.length > 6 ? "\u2026" : "")), !world && /*#__PURE__*/React.createElement("div", {
+    style: { padding: 40, textAlign: "center", color: G400, fontSize: 13 }
+  }, "Loading map\u2026"), world && /*#__PURE__*/React.createElement("svg", {
+    width: "100%",
+    viewBox: "0 0 900 460",
+    style: { background: G50, borderRadius: 8, border: "1px solid " + G200 }
+  }, countryFeatures.map((f, i) => /*#__PURE__*/React.createElement("path", {
+    key: i,
+    d: path(f),
+    fill: "#e1e0d9",
+    stroke: "#fcfcfb",
+    strokeWidth: 0.5
+  })), pins.map(pin => {
+    const p = projection([pin.lon, pin.lat]);
+    if (!p) return null;
+    const pillars = new Set(pin.companies.map(c => c.pillar).filter(Boolean));
+    const color = pillars.size === 1 ? PILLAR_COLORS[Array.from(pillars)[0]] || TEAL : pillars.size > 1 ? G600 : G400;
+    const isSel = selectedPin === pin.key;
+    return /*#__PURE__*/React.createElement("g", {
+      key: pin.key,
+      transform: "translate(" + p[0] + "," + p[1] + ")",
+      style: { cursor: "pointer" },
+      onClick: () => setSelectedPin(isSel ? null : pin.key)
+    }, /*#__PURE__*/React.createElement("circle", {
+      r: isSel ? 9 : 6,
+      fill: color,
+      stroke: W,
+      strokeWidth: 1.5
+    }), /*#__PURE__*/React.createElement("text", {
+      x: 10,
+      y: 4,
+      fontSize: 11,
+      fill: G600
+    }, pin.name + " (" + pin.companies.length + ")"));
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 300,
+      flexShrink: 0,
+      background: W,
+      border: "1px solid " + G200,
+      borderRadius: 8,
+      padding: 14,
+      maxHeight: 500,
+      overflowY: "auto"
+    }
+  }, !selectedPinData ? /*#__PURE__*/React.createElement("div", {
+    style: { color: G400, fontSize: 13, textAlign: "center", padding: 30 }
+  }, "Click a pin to see who's there") : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 15, fontWeight: 700, color: NAVY, marginBottom: 2 }
+  }, selectedPinData.name), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 11.5, color: G600, marginBottom: 12 }
+  }, selectedPinData.companies.length + " compan" + (selectedPinData.companies.length === 1 ? "y" : "ies")), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 10.5, fontWeight: 700, color: G600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }
+  }, "Tied to this office (" + tied.length + ")"), tied.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12, color: G400, marginBottom: 14 }
+  }, "No contacts logged here yet") : /*#__PURE__*/React.createElement("div", {
+    style: { marginBottom: 14 }
+  }, tied.map(PersonRow)), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 10.5, fontWeight: 700, color: G600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }
+  }, "Located nearby (" + nearby.length + ")"), nearby.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12, color: G400, marginBottom: 14 }
+  }, "Nobody else logged at this location") : /*#__PURE__*/React.createElement("div", {
+    style: { marginBottom: 14 }
+  }, nearby.map(PersonRow)), (tied.length + nearby.length) > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setSendModal(tied.concat(nearby)),
+    style: {
+      width: "100%",
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 6,
+      padding: "8px 12px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\u2709 Bulk send to all " + (tied.length + nearby.length)))));
+}
+
+
 // Same underlying SPECOUT records as the per-person Spec Outs
 // tab, viewed as one master list across every candidate and
 // target company so David can see where speculative approaches
@@ -15891,7 +16183,9 @@ function App() {
     mapView: mmMapView,
     setMapView: setMmMapView,
     pillarF: mmPillarF,
-    setPillarF: setMmPillarF
+    setPillarF: setMmPillarF,
+    templates: templates,
+    setTemplates: setTemplates
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
