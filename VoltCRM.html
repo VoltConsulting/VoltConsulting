@@ -9203,8 +9203,16 @@ function MarketMapGeo({
           unmappedSet.add(loc);
           return;
         }
-        const key = loc.trim().toLowerCase();
-        if (!pinMap[key]) pinMap[key] = { key, name: loc.trim(), lat: coords[0], lon: coords[1], companies: [] };
+        // Group by the canonical resolved key, not the raw text — "Boston",
+        // "Boston US" and "Cambridge, MA" (aliased) all geocode to the same
+        // coordinates but were previously treated as separate pins with
+        // different raw-text keys, rendering directly on top of each other.
+        const key = resolveLocationKey(loc) || loc.trim().toLowerCase();
+        if (!pinMap[key]) {
+          const opt = MAP_CITY_OPTIONS.find(o => o.value === key);
+          const label = opt ? opt.label.split(",")[0].trim() : loc.trim();
+          pinMap[key] = { key, name: label, lat: coords[0], lon: coords[1], companies: [] };
+        }
         if (!pinMap[key].companies.some(x => x.id === c.id)) pinMap[key].companies.push(c);
       });
     });
