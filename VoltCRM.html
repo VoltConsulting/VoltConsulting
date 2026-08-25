@@ -8724,9 +8724,74 @@ function MarketMapGeo({
   const [world, setWorld] = useState(null);
   const [selectedPin, setSelectedPin] = useState(null);
   const [sendModal, setSendModal] = useState(null);
+  // Zoom/pan for the SVG map — applied as a transform on a wrapping <g>,
+  // independent of the underlying projection. Needed because several real
+  // hubs (Basel, Zurich, Frankfurt, Berlin, Copenhagen, London...) sit
+  // within a few pixels of each other at world scale and are otherwise
+  // unreadable no matter how accurate the coordinates are.
+  const [zoom, setZoom] = useState({ scale: 1, tx: 0, ty: 0 });
+  const svgRef = useRef(null);
+  const dragRef = useRef(null);
+  function svgPointFromEvent(e) {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const vbScaleX = 900 / rect.width;
+    const vbScaleY = 460 / rect.height;
+    return {
+      x: (e.clientX - rect.left) * vbScaleX,
+      y: (e.clientY - rect.top) * vbScaleY
+    };
+  }
+  function handleWheel(e) {
+    e.preventDefault();
+    const pt = svgPointFromEvent(e);
+    if (!pt) return;
+    setZoom(z => {
+      const factor = e.deltaY < 0 ? 1.25 : 0.8;
+      const newScale = Math.min(10, Math.max(1, z.scale * factor));
+      // Keep the point under the cursor fixed while scaling.
+      const worldX = (pt.x - z.tx) / z.scale;
+      const worldY = (pt.y - z.ty) / z.scale;
+      return {
+        scale: newScale,
+        tx: pt.x - worldX * newScale,
+        ty: pt.y - worldY * newScale
+      };
+    });
+  }
+  function handleMouseDown(e) {
+    const pt = svgPointFromEvent(e);
+    if (!pt) return;
+    dragRef.current = { startX: pt.x, startY: pt.y, origTx: zoom.tx, origTy: zoom.ty };
+  }
+  function handleMouseMove(e) {
+    if (!dragRef.current) return;
+    const pt = svgPointFromEvent(e);
+    if (!pt) return;
+    const dx = pt.x - dragRef.current.startX;
+    const dy = pt.y - dragRef.current.startY;
+    setZoom(z => ({ ...z, tx: dragRef.current.origTx + dx, ty: dragRef.current.origTy + dy }));
+  }
+  function endDrag() {
+    dragRef.current = null;
+  }
+  function resetZoom() {
+    setZoom({ scale: 1, tx: 0, ty: 0 });
+  }
+  function zoomBy(factor) {
+    setZoom(z => {
+      const newScale = Math.min(10, Math.max(1, z.scale * factor));
+      // Zoom toward the center of the view.
+      const cx = 450, cy = 230;
+      const worldX = (cx - z.tx) / z.scale;
+      const worldY = (cy - z.ty) / z.scale;
+      return { scale: newScale, tx: cx - worldX * newScale, ty: cy - worldY * newScale };
+    });
+  }
   useEffect(() => {
     if (world) return;
-    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(r => r.json()).then(setWorld).catch(() => {});
+    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json").then(r => r.json()).then(setWorld).catch(() => {});
   }, [world]);
   function saveTemplate(t) {
     const updated = [t, ...(templates || [])];
@@ -8779,17 +8844,25 @@ function MarketMapGeo({
     return { pins: Object.values(pinMap), unmapped: Array.from(unmappedSet) };
   }, [filteredCompanies]);
   const selectedPinData = selectedPin ? pins.find(p => p.key === selectedPin) : null;
-  // "Tied to this office" — people at a company that has an office here.
-  // "Located nearby" — anyone at all whose own location text matches this
-  // city, regardless of company, deduped against the tied list.
-  const { tied, nearby } = useMemo(() => {
-    if (!selectedPinData) return { tied: [], nearby: [] };
-    const companyIds = new Set(selectedPinData.companies.map(c => c.id));
-    const tiedPeople = people.filter(p => companyIds.has(p.companyId));
-    const tiedIds = new Set(tiedPeople.map(p => p.id));
-    const nearbyPeople = people.filter(p => !tiedIds.has(p.id) && p.location && p.location.trim().toLowerCase() === selectedPinData.key);
-    return { tied: tiedPeople, nearby: nearbyPeople };
+  // Grouped by company, per David's spec: each company at this pin gets
+  // its own heading with its own people underneath — not a flattened list.
+  // A person's own `location` is shown alongside them so it's obvious
+  // when they're company-affiliated but not personally confirmed at this
+  // office (e.g. someone at a multi-office firm based elsewhere) rather
+  // than that looking like a data error.
+  const companiesHere = useMemo(() => {
+    if (!selectedPinData) return [];
+    return selectedPinData.companies.map(c => ({
+      company: c,
+      people: people.filter(p => p.companyId === c.id)
+    }));
   }, [selectedPinData, people]);
+  const nearby = useMemo(() => {
+    if (!selectedPinData) return [];
+    const companyIds = new Set(selectedPinData.companies.map(c => c.id));
+    return people.filter(p => !companyIds.has(p.companyId) && p.location && p.location.trim().toLowerCase() === selectedPinData.key);
+  }, [selectedPinData, people]);
+  const allPeopleHere = useMemo(() => companiesHere.reduce((a, g) => a.concat(g.people), []).concat(nearby), [companiesHere, nearby]);
   const projection = useMemo(() => {
     if (!window.d3) return null;
     return window.d3.geoNaturalEarth1().scale(150).translate([420, 240]);
@@ -8814,7 +8887,7 @@ function MarketMapGeo({
       style: { fontSize: 12.5, fontWeight: 600, color: NAVY }
     }, p.name), /*#__PURE__*/React.createElement("div", {
       style: { fontSize: 11, color: G600 }
-    }, [p.title, p.company].filter(Boolean).join(" \u00b7 "))), p.remote && /*#__PURE__*/React.createElement("span", {
+    }, [p.title, p.location || "Location not set"].filter(Boolean).join(" \u00b7 "))), p.remote && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9.5,
         fontWeight: 700,
@@ -8849,41 +8922,66 @@ function MarketMapGeo({
     }
   }, unmapped.length + " location" + (unmapped.length === 1 ? "" : "s") + " not yet mapped: " + unmapped.slice(0, 6).join(", ") + (unmapped.length > 6 ? "\u2026" : "")), !world && /*#__PURE__*/React.createElement("div", {
     style: { padding: 40, textAlign: "center", color: G400, fontSize: 13 }
-  }, "Loading map\u2026"), world && /*#__PURE__*/React.createElement("svg", {
+  }, "Loading map\u2026"), world && /*#__PURE__*/React.createElement("div", {
+    style: { position: "relative", flex: 1, minHeight: 0 }
+  }, /*#__PURE__*/React.createElement("svg", {
+    ref: svgRef,
     width: "100%",
     height: "100%",
     viewBox: "0 0 900 460",
     preserveAspectRatio: "xMidYMid meet",
-    style: { background: G50, borderRadius: 8, border: "1px solid " + G200, flex: 1, minHeight: 0 }
+    style: { background: G50, borderRadius: 8, border: "1px solid " + G200, display: "block", cursor: dragRef.current ? "grabbing" : "grab" },
+    onWheel: handleWheel,
+    onMouseDown: handleMouseDown,
+    onMouseMove: handleMouseMove,
+    onMouseUp: endDrag,
+    onMouseLeave: endDrag
+  }, /*#__PURE__*/React.createElement("g", {
+    transform: "translate(" + zoom.tx + "," + zoom.ty + ") scale(" + zoom.scale + ")"
   }, countryFeatures.map((f, i) => /*#__PURE__*/React.createElement("path", {
     key: i,
     d: path(f),
     fill: "#e1e0d9",
     stroke: "#fcfcfb",
-    strokeWidth: 0.5
+    strokeWidth: 0.5 / zoom.scale
   })), pins.map(pin => {
     const p = projection([pin.lon, pin.lat]);
     if (!p) return null;
     const pillars = new Set(pin.companies.map(c => c.pillar).filter(Boolean));
     const color = pillars.size === 1 ? PILLAR_COLORS[Array.from(pillars)[0]] || TEAL : pillars.size > 1 ? G600 : G400;
     const isSel = selectedPin === pin.key;
+    const inv = 1 / zoom.scale;
     return /*#__PURE__*/React.createElement("g", {
       key: pin.key,
       transform: "translate(" + p[0] + "," + p[1] + ")",
       style: { cursor: "pointer" },
-      onClick: () => setSelectedPin(isSel ? null : pin.key)
+      onClick: e => {
+        e.stopPropagation();
+        setSelectedPin(isSel ? null : pin.key);
+      }
     }, /*#__PURE__*/React.createElement("circle", {
-      r: isSel ? 9 : 6,
+      r: (isSel ? 9 : 6) * inv,
       fill: color,
       stroke: W,
-      strokeWidth: 1.5
+      strokeWidth: 1.5 * inv
     }), /*#__PURE__*/React.createElement("text", {
-      x: 10,
-      y: 4,
-      fontSize: 11,
+      x: 10 * inv,
+      y: 4 * inv,
+      fontSize: 11 * inv,
       fill: G600
     }, pin.name + " (" + pin.companies.length + ")"));
   }))), /*#__PURE__*/React.createElement("div", {
+    style: { position: "absolute", top: 10, right: 10, display: "flex", flexDirection: "column", gap: 4 }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => zoomBy(1.5),
+    style: { width: 28, height: 28, border: "1px solid " + G300, background: W, borderRadius: 5, fontSize: 15, fontWeight: 700, cursor: "pointer", color: G700 }
+  }, "+"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => zoomBy(0.67),
+    style: { width: 28, height: 28, border: "1px solid " + G300, background: W, borderRadius: 5, fontSize: 15, fontWeight: 700, cursor: "pointer", color: G700 }
+  }, "\u2212"), /*#__PURE__*/React.createElement("button", {
+    onClick: resetZoom,
+    style: { width: 28, height: 28, border: "1px solid " + G300, background: W, borderRadius: 5, fontSize: 9, fontWeight: 700, cursor: "pointer", color: G700 }
+  }, "Reset")))), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 300,
       flexShrink: 0,
@@ -8899,21 +8997,25 @@ function MarketMapGeo({
   }, "Click a pin to see who's there") : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: { fontSize: 15, fontWeight: 700, color: NAVY, marginBottom: 2 }
   }, selectedPinData.name), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 11.5, color: G600, marginBottom: 12 }
-  }, selectedPinData.companies.length + " compan" + (selectedPinData.companies.length === 1 ? "y" : "ies")), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 10.5, fontWeight: 700, color: G600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }
-  }, "Tied to this office (" + tied.length + ")"), tied.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 12, color: G400, marginBottom: 14 }
-  }, "No contacts logged here yet") : /*#__PURE__*/React.createElement("div", {
-    style: { marginBottom: 14 }
-  }, tied.map(PersonRow)), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 10.5, fontWeight: 700, color: G600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }
-  }, "Located nearby (" + nearby.length + ")"), nearby.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 11.5, color: G600, marginBottom: 14 }
+  }, selectedPinData.companies.length + " compan" + (selectedPinData.companies.length === 1 ? "y" : "ies")), companiesHere.map(function (group) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: group.company.id,
+      style: { marginBottom: 16 }
+    }, /*#__PURE__*/React.createElement("div", {
+      onClick: function () { onNavigate && onNavigate("companies", group.company.id, "map"); },
+      style: { fontSize: 12.5, fontWeight: 700, color: TEAL, cursor: "pointer", marginBottom: 6 }
+    }, group.company.name), group.people.length === 0 ? /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 12, color: G400 }
+    }, "No contacts logged for this company") : /*#__PURE__*/React.createElement("div", null, group.people.map(PersonRow)));
+  }), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 10.5, fontWeight: 700, color: G600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, marginTop: 4 }
+  }, "Located nearby, other companies (" + nearby.length + ")"), nearby.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: { fontSize: 12, color: G400, marginBottom: 14 }
   }, "Nobody else logged at this location") : /*#__PURE__*/React.createElement("div", {
     style: { marginBottom: 14 }
-  }, nearby.map(PersonRow)), (tied.length + nearby.length) > 0 && /*#__PURE__*/React.createElement("button", {
-    onClick: () => setSendModal(tied.concat(nearby)),
+  }, nearby.map(PersonRow)), allPeopleHere.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setSendModal(allPeopleHere),
     style: {
       width: "100%",
       background: TEAL,
@@ -8926,7 +9028,7 @@ function MarketMapGeo({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "\u2709 Bulk send to all " + (tied.length + nearby.length)))));
+  }, "\u2709 Bulk send to all " + allPeopleHere.length))));
 }
 
 
