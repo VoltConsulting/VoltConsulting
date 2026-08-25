@@ -63,6 +63,60 @@ var AT_URL = "https://api.airtable.com/v0/" + AT_BASE + "/" + AT_TABLE;
 var TEAM = ["David", "Lauren", "Brinda"];
 var STAGES = [1, 2, 3, 4, 5];
 var HEADLINE_SECTORS = ["Life Sciences Consulting", "Energy Consulting", "Pharma Services", "Pharma", "Biotech", "MedTech", "Investor / VC", "Other"];
+// Kept in sync with MAP_CITY_OPTIONS in VoltCRM.html — same values, so a
+// location picked here matches the map exactly, with no parsing needed.
+var MAP_CITY_OPTIONS = [
+  { value: "london", label: "London, UK" }, { value: "manchester", label: "Manchester, UK" },
+  { value: "birmingham", label: "Birmingham, UK" }, { value: "edinburgh", label: "Edinburgh, UK" },
+  { value: "glasgow", label: "Glasgow, UK" }, { value: "warrington", label: "Warrington, UK" },
+  { value: "leeds", label: "Leeds, UK" }, { value: "bristol", label: "Bristol, UK" },
+  { value: "cambridge", label: "Cambridge, UK" }, { value: "oxford", label: "Oxford, UK" },
+  { value: "dublin", label: "Dublin, Ireland" },
+  { value: "boston", label: "Boston, US" }, { value: "new york", label: "New York, US" },
+  { value: "chicago", label: "Chicago, US" }, { value: "san francisco", label: "San Francisco, US" },
+  { value: "los angeles", label: "Los Angeles, US" }, { value: "philadelphia", label: "Philadelphia, US" },
+  { value: "washington dc", label: "Washington DC, US" }, { value: "san diego", label: "San Diego, US" },
+  { value: "seattle", label: "Seattle, US" }, { value: "austin", label: "Austin, US" },
+  { value: "houston", label: "Houston, US" }, { value: "atlanta", label: "Atlanta, US" },
+  { value: "new jersey", label: "New Jersey, US" }, { value: "princeton", label: "Princeton, US" },
+  { value: "raleigh", label: "Raleigh, US" }, { value: "durham", label: "Durham, US" },
+  { value: "denver", label: "Denver, US" }, { value: "minneapolis", label: "Minneapolis, US" },
+  { value: "toronto", label: "Toronto, Canada" },
+  { value: "basel", label: "Basel, Switzerland" }, { value: "zurich", label: "Zurich, Switzerland" },
+  { value: "geneva", label: "Geneva, Switzerland" }, { value: "amsterdam", label: "Amsterdam, Netherlands" },
+  { value: "paris", label: "Paris, France" }, { value: "munich", label: "Munich, Germany" },
+  { value: "berlin", label: "Berlin, Germany" }, { value: "frankfurt", label: "Frankfurt, Germany" },
+  { value: "stockholm", label: "Stockholm, Sweden" }, { value: "copenhagen", label: "Copenhagen, Denmark" },
+  { value: "milan", label: "Milan, Italy" }, { value: "madrid", label: "Madrid, Spain" },
+  { value: "barcelona", label: "Barcelona, Spain" }, { value: "brussels", label: "Brussels, Belgium" },
+  { value: "vienna", label: "Vienna, Austria" },
+  { value: "singapore", label: "Singapore" }, { value: "hong kong", label: "Hong Kong" },
+  { value: "tokyo", label: "Tokyo, Japan" }, { value: "shanghai", label: "Shanghai, China" },
+  { value: "beijing", label: "Beijing, China" }, { value: "sydney", label: "Sydney, Australia" },
+  { value: "melbourne", label: "Melbourne, Australia" },
+  { value: "uk", label: "UK (country-wide, no specific city)" },
+  { value: "usa", label: "USA (country-wide, no specific city)" },
+  { value: "germany", label: "Germany (country-wide, no specific city)" },
+  { value: "france", label: "France (country-wide, no specific city)" },
+  { value: "switzerland", label: "Switzerland (country-wide, no specific city)" },
+  { value: "netherlands", label: "Netherlands (country-wide, no specific city)" },
+  { value: "belgium", label: "Belgium (country-wide, no specific city)" },
+  { value: "austria", label: "Austria (country-wide, no specific city)" },
+  { value: "italy", label: "Italy (country-wide, no specific city)" },
+  { value: "spain", label: "Spain (country-wide, no specific city)" },
+  { value: "portugal", label: "Portugal (country-wide, no specific city)" },
+  { value: "sweden", label: "Sweden (country-wide, no specific city)" },
+  { value: "norway", label: "Norway (country-wide, no specific city)" },
+  { value: "denmark", label: "Denmark (country-wide, no specific city)" },
+  { value: "finland", label: "Finland (country-wide, no specific city)" },
+  { value: "ireland", label: "Ireland (country-wide, no specific city)" },
+  { value: "poland", label: "Poland (country-wide, no specific city)" },
+  { value: "canada", label: "Canada (country-wide, no specific city)" },
+  { value: "japan", label: "Japan (country-wide, no specific city)" },
+  { value: "china", label: "China (country-wide, no specific city)" },
+  { value: "australia", label: "Australia (country-wide, no specific city)" },
+  { value: "india", label: "India (country-wide, no specific city)" }
+];
 var DISCIPLINES = ["Strategy", "Commercial", "Market Access", "Pricing", "HEOR/RWE", "Medical Affairs", "Regulatory", "Clinical/R&D", "BD/Licensing", "Data & Analytics", "Digital Health", "Operations", "Other"];
 var ENERGY_DISCIPLINES = ["Economist", "Expert Witness", "Energy Markets & Trading", "Power & Utilities", "Oil & Gas", "Renewables", "Wind", "Solar", "Nuclear", "Hydrogen", "Energy Transition / Decarbonisation", "Mining & Metals", "Other"];
 
@@ -156,7 +210,7 @@ function App() {
 function Capture(props) {
   var me = props.me;
   var tb = React.useState("bd"), tab = tb[0], setTab = tb[1];
-  var f = React.useState({ name: "", company: "", title: "", linkedin: "", location: "", note: "" });
+  var f = React.useState({ name: "", company: "", title: "", linkedin: "", location: "", mapCity: "", locationOther: "", note: "" });
   var form = f[0], setForm = f[1];
   var hs = React.useState(""), headline = hs[0], setHeadline = hs[1];
   var dc = React.useState(""), disc = dc[0], setDisc = dc[1];
@@ -171,7 +225,7 @@ function Capture(props) {
   function upd(k) { return function (ev) { setForm(Object.assign({}, form, { [k]: ev.target.value })); }; }
 
   function resetForm() {
-    setForm({ name: "", company: "", title: "", linkedin: "", location: "", note: "" });
+    setForm({ name: "", company: "", title: "", linkedin: "", location: "", mapCity: "", locationOther: "", note: "" });
     setHeadline(""); setDisc(""); setStage(0); setChase(5); setCustomDate(""); setFound(null);
     if (nameRef.current) nameRef.current.focus();
   }
@@ -188,12 +242,25 @@ function Capture(props) {
     } catch (er) { setFound(null); }
   }
 
+  function resolvedLocation() {
+    if (form.mapCity === "__other__") {
+      return { label: form.locationOther.trim(), mapCity: "" };
+    }
+    if (form.mapCity) {
+      var opt = MAP_CITY_OPTIONS.filter(function (o) { return o.value === form.mapCity; })[0];
+      return { label: opt ? opt.label : "", mapCity: form.mapCity };
+    }
+    return { label: "", mapCity: "" };
+  }
+
   function applyCommon(rec) {
     if (headline) rec.headlineSector = headline;
     if (disc) { var s = rec.sectors || []; if (s.indexOf(disc) === -1) s.push(disc); rec.sectors = s; }
     if (form.title.trim() && !rec.title) rec.title = form.title.trim();
     if (form.linkedin.trim() && !rec.linkedin) rec.linkedin = form.linkedin.trim();
-    if (form.location.trim() && !rec.location) rec.location = form.location.trim();
+    var loc = resolvedLocation();
+    if (loc.label && !rec.location) rec.location = loc.label;
+    if (loc.mapCity && !rec.mapCity) rec.mapCity = loc.mapCity;
     if (form.note.trim()) rec.notes = (form.note.trim() + "\n" + (rec.notes || "")).trim();
     rec.lastContacted = todayStr();
   }
@@ -247,11 +314,12 @@ function Capture(props) {
   }
 
   function newPerson() {
+    var loc = resolvedLocation();
     var p = {
       id: Date.now() + Math.random(), type: "Contact",
       name: form.name.trim(), firstName: "", lastName: "",
       title: form.title.trim(), company: form.company.trim(),
-      location: form.location.trim(), seniority: "", headlineSector: headline || "",
+      location: loc.label, mapCity: loc.mapCity, seniority: "", headlineSector: headline || "",
       sectors: disc ? [disc] : [], linkedin: form.linkedin.trim(),
       email: "", phone: "", lastContacted: todayStr(),
       nextAction: "", nextDue: "", relationship: "", notes: form.note.trim(),
@@ -288,7 +356,12 @@ function Capture(props) {
       ),
       e("div", { className: "field" },
         e("label", null, "Location"),
-        e("input", { value: form.location, onChange: upd("location"), placeholder: "City, e.g. Boston or Basel" })
+        e("select", { value: form.mapCity, onChange: upd("mapCity"), className: "sel" },
+          e("option", { value: "" }, "Select location\u2026"),
+          MAP_CITY_OPTIONS.map(function (o) { return e("option", { key: o.value, value: o.value }, o.label); }),
+          e("option", { value: "__other__" }, "Other \u2014 not listed")
+        ),
+        form.mapCity === "__other__" ? e("input", { value: form.locationOther, onChange: upd("locationOther"), placeholder: "Type the city or region", style: { marginTop: 6 } }) : null
       ),
       e("div", { className: "field" },
         e("label", null, "LinkedIn URL"),
