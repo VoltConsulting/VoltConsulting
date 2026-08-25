@@ -4962,6 +4962,8 @@ function PeopleView({
   const [bulkIds, setBulkIds] = useState([]);
   const [bulkOwner, setBulkOwner] = useState("");
   const [bulkType, setBulkType] = useState("");
+  const [bulkMapCity, setBulkMapCity] = useState("");
+  const [noMapCityF, setNoMapCityF] = useState(false);
   const [bulkSendMode, setBulkSendMode] = useState(false);
   const [sendModal, setSendModal] = useState(null);
   function saveTemplate(t) {
@@ -5005,6 +5007,7 @@ function PeopleView({
     setBulkIds([]);
     setBulkOwner("");
     setBulkType("");
+    setBulkMapCity("");
   };
   const applyBulk = () => {
     if (bulkIds.length === 0) return;
@@ -5017,6 +5020,7 @@ function PeopleView({
         next.owners = cur.includes(bulkOwner) ? cur : [...cur, bulkOwner];
       }
       if (bulkType) next.type = bulkType;
+      if (bulkMapCity) next.mapCity = bulkMapCity;
       return next;
     });
     setPeople(u);
@@ -5026,7 +5030,7 @@ function PeopleView({
   useEffect(() => {
     if (initialSel) setSel(initialSel);
   }, [initialSel]);
-  const list = useMemo(() => people.filter(p => (typeF === "all" || p.type === typeF) && (relF === "all" || p.relationship === relF) && (sectorF === "all" || p.headlineSector === sectorF) && (!locF.trim() || (p.location || "").toLowerCase().includes(locF.trim().toLowerCase())) && (!titleF.trim() || (p.title || "").toLowerCase().includes(titleF.trim().toLowerCase())) && (seniorityF === "all" || p.seniority === seniorityF) && (discF === "all" || (p.sectors || []).includes(discF)) && (!ownerFilter || migrateOwners(p.owners, p.owner).includes(ownerFilter)) && (p.name + p.company + p.title + (p.sectors || []).join(" ")).toLowerCase().includes(search.toLowerCase())), [people, search, typeF, relF, sectorF, locF, titleF, seniorityF, discF, ownerFilter]);
+  const list = useMemo(() => people.filter(p => (typeF === "all" || p.type === typeF) && (relF === "all" || p.relationship === relF) && (sectorF === "all" || p.headlineSector === sectorF) && (!locF.trim() || (p.location || "").toLowerCase().includes(locF.trim().toLowerCase())) && (!titleF.trim() || (p.title || "").toLowerCase().includes(titleF.trim().toLowerCase())) && (seniorityF === "all" || p.seniority === seniorityF) && (discF === "all" || (p.sectors || []).includes(discF)) && (!noMapCityF || !p.mapCity) && (!ownerFilter || migrateOwners(p.owners, p.owner).includes(ownerFilter)) && (p.name + p.company + p.title + (p.sectors || []).join(" ")).toLowerCase().includes(search.toLowerCase())), [people, search, typeF, relF, sectorF, locF, titleF, seniorityF, discF, noMapCityF, ownerFilter]);
   const allLocations = useMemo(() => {
     const s = new Set();
     people.forEach(p => {
@@ -5040,7 +5044,7 @@ function PeopleView({
     return Array.from(s).sort();
   }, [people]);
   const activeMoreCount = (titleF.trim() ? 1 : 0) + (seniorityF !== "all" ? 1 : 0) + (discF !== "all" ? 1 : 0);
-  const anyFilterActive = typeF !== "all" || relF !== "all" || sectorF !== "all" || !!locF.trim() || activeMoreCount > 0;
+  const anyFilterActive = typeF !== "all" || relF !== "all" || sectorF !== "all" || !!locF.trim() || activeMoreCount > 0 || noMapCityF;
   const clearAllFilters = () => {
     setTypeF("all");
     setRelF("all");
@@ -5049,6 +5053,7 @@ function PeopleView({
     setTitleF("");
     setSeniorityF("all");
     setDiscF("all");
+    setNoMapCityF(false);
   };
   const selP = people.find(p => p.id === sel);
   const commitBoth = (np, nc) => {
@@ -5267,6 +5272,20 @@ function PeopleView({
     key: loc,
     value: loc
   }))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setNoMapCityF(v => !v),
+    style: {
+      background: noMapCityF ? WARN + "20" : "transparent",
+      color: noMapCityF ? "#854f0b" : G600,
+      border: "1px solid " + (noMapCityF ? WARN : G300),
+      borderRadius: 20,
+      padding: "5px 12px",
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap"
+    }
+  }, noMapCityF ? "\u2713 Missing Map City" : "Missing Map City"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setMoreOpen(o => !o),
     style: {
       background: "transparent",
@@ -5523,7 +5542,22 @@ function PeopleView({
       fontFamily: "inherit",
       cursor: "pointer"
     }
-  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set type\u2026"), /*#__PURE__*/React.createElement("option", { key: "contact", value: "contact" }, "Contact"), /*#__PURE__*/React.createElement("option", { key: "candidate", value: "candidate" }, "Candidate"), /*#__PURE__*/React.createElement("option", { key: "client", value: "client" }, "Client")]), /*#__PURE__*/React.createElement(Btn, {
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set type\u2026"), /*#__PURE__*/React.createElement("option", { key: "contact", value: "contact" }, "Contact"), /*#__PURE__*/React.createElement("option", { key: "candidate", value: "candidate" }, "Candidate"), /*#__PURE__*/React.createElement("option", { key: "client", value: "client" }, "Client")]), /*#__PURE__*/React.createElement("select", {
+    value: bulkMapCity,
+    onChange: e => setBulkMapCity(e.target.value),
+    style: {
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      fontSize: 12,
+      fontFamily: "inherit",
+      cursor: "pointer",
+      maxWidth: 160
+    }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set Map City\u2026")].concat(MAP_CITY_OPTIONS.map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.value,
+    value: o.value
+  }, o.label)))), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: applyBulk
   }, "Apply to " + bulkIds.length), /*#__PURE__*/React.createElement("button", {
@@ -9321,9 +9355,9 @@ function MarketMapGeo({
       style: { flex: 1, cursor: "pointer" }
     }, /*#__PURE__*/React.createElement("div", {
       style: { fontSize: 12.5, fontWeight: 600, color: NAVY }
-    }, p.name), p.title && /*#__PURE__*/React.createElement("div", {
+    }, p.name), (p.title || p.company) && /*#__PURE__*/React.createElement("div", {
       style: { fontSize: 11, color: G600, marginTop: 1 }
-    }, p.title), /*#__PURE__*/React.createElement("span", {
+    }, [p.title, p.company].filter(Boolean).join(" \u00b7 ")), /*#__PURE__*/React.createElement("span", {
       style: {
         display: "inline-block",
         marginTop: 3,
