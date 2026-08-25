@@ -156,7 +156,7 @@ function App() {
 function Capture(props) {
   var me = props.me;
   var tb = React.useState("bd"), tab = tb[0], setTab = tb[1];
-  var f = React.useState({ name: "", company: "", title: "", linkedin: "", note: "" });
+  var f = React.useState({ name: "", company: "", title: "", linkedin: "", location: "", note: "" });
   var form = f[0], setForm = f[1];
   var hs = React.useState(""), headline = hs[0], setHeadline = hs[1];
   var dc = React.useState(""), disc = dc[0], setDisc = dc[1];
@@ -171,7 +171,7 @@ function Capture(props) {
   function upd(k) { return function (ev) { setForm(Object.assign({}, form, { [k]: ev.target.value })); }; }
 
   function resetForm() {
-    setForm({ name: "", company: "", title: "", linkedin: "", note: "" });
+    setForm({ name: "", company: "", title: "", linkedin: "", location: "", note: "" });
     setHeadline(""); setDisc(""); setStage(0); setChase(5); setCustomDate(""); setFound(null);
     if (nameRef.current) nameRef.current.focus();
   }
@@ -193,6 +193,7 @@ function Capture(props) {
     if (disc) { var s = rec.sectors || []; if (s.indexOf(disc) === -1) s.push(disc); rec.sectors = s; }
     if (form.title.trim() && !rec.title) rec.title = form.title.trim();
     if (form.linkedin.trim() && !rec.linkedin) rec.linkedin = form.linkedin.trim();
+    if (form.location.trim() && !rec.location) rec.location = form.location.trim();
     if (form.note.trim()) rec.notes = (form.note.trim() + "\n" + (rec.notes || "")).trim();
     rec.lastContacted = todayStr();
   }
@@ -250,7 +251,7 @@ function Capture(props) {
       id: Date.now() + Math.random(), type: "Contact",
       name: form.name.trim(), firstName: "", lastName: "",
       title: form.title.trim(), company: form.company.trim(),
-      location: "", seniority: "", headlineSector: headline || "",
+      location: form.location.trim(), seniority: "", headlineSector: headline || "",
       sectors: disc ? [disc] : [], linkedin: form.linkedin.trim(),
       email: "", phone: "", lastContacted: todayStr(),
       nextAction: "", nextDue: "", relationship: "", notes: form.note.trim(),
@@ -284,6 +285,10 @@ function Capture(props) {
       e("div", { className: "two" },
         e("div", { className: "field" }, e("label", null, "Company"), e("input", { value: form.company, onChange: upd("company"), placeholder: "Company" })),
         e("div", { className: "field" }, e("label", null, "Title"), e("input", { value: form.title, onChange: upd("title"), placeholder: "optional" }))
+      ),
+      e("div", { className: "field" },
+        e("label", null, "Location"),
+        e("input", { value: form.location, onChange: upd("location"), placeholder: "City, e.g. Boston or Basel" })
       ),
       e("div", { className: "field" },
         e("label", null, "LinkedIn URL"),
