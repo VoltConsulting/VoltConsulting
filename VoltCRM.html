@@ -7,7 +7,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson-client/3.1.0/topojson-client.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
   <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
   <script>
     // If the primary CDN region didn't respond, fall back to the
@@ -7998,17 +7998,7 @@ function MarketMap({
       fontFamily: "inherit",
       textTransform: "capitalize"
     }
-  }, v)))), mapView === "geo" && /*#__PURE__*/React.createElement(MarketMapGeo, {
-    people: people,
-    setPeople: setPeople,
-    companies: companies,
-    ownerFilter: ownerFilter,
-    pillarF: pillarF,
-    persist: persist,
-    templates: templates,
-    setTemplates: setTemplates,
-    onNavigate: onNavigate
-  }), mapView === "people" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, v)))), mapView === "people" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: G400,
@@ -8075,7 +8065,7 @@ function MarketMap({
     options: allSectors.slice(0, 8),
     value: sectorF,
     onChange: setSectorF
-  })))), mapView === "companies" && /*#__PURE__*/React.createElement("div", {
+  })))), (mapView === "companies" || mapView === "geo") && /*#__PURE__*/React.createElement("div", {
     style: {
       background: W,
       borderBottom: "1px solid " + G200,
@@ -8116,11 +8106,29 @@ function MarketMap({
         fontWeight: 800
       }
     }, count));
+  })), mapView === "geo" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minHeight: 0,
+      padding: "16px 28px",
+      display: "flex"
+    }
+  }, /*#__PURE__*/React.createElement(MarketMapGeo, {
+    people: people,
+    setPeople: setPeople,
+    companies: companies,
+    ownerFilter: ownerFilter,
+    pillarF: pillarF,
+    persist: persist,
+    templates: templates,
+    setTemplates: setTemplates,
+    onNavigate: onNavigate
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflowY: "auto",
-      padding: "24px 28px"
+      padding: "24px 28px",
+      display: mapView === "geo" ? "none" : "block"
     }
   }, mapView === "companies" && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8819,7 +8827,7 @@ function MarketMapGeo({
     }, "Remote"));
   }
   return /*#__PURE__*/React.createElement("div", {
-    style: { display: "flex", gap: 16, alignItems: "flex-start" }
+    style: { display: "flex", gap: 16, alignItems: "stretch", width: "100%", height: "100%" }
   }, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
     people: sendModal,
     templates: templates,
@@ -8827,7 +8835,7 @@ function MarketMapGeo({
     onSent: function (p, entry) { applySentActivity(p, entry); },
     onClose: function () { setSendModal(null); }
   }), /*#__PURE__*/React.createElement("div", {
-    style: { flex: 1, minWidth: 0 }
+    style: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }
   }, unmapped.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11.5,
@@ -8836,14 +8844,17 @@ function MarketMapGeo({
       border: "1px solid " + G200,
       borderRadius: 6,
       padding: "6px 10px",
-      marginBottom: 10
+      marginBottom: 10,
+      flexShrink: 0
     }
   }, unmapped.length + " location" + (unmapped.length === 1 ? "" : "s") + " not yet mapped: " + unmapped.slice(0, 6).join(", ") + (unmapped.length > 6 ? "\u2026" : "")), !world && /*#__PURE__*/React.createElement("div", {
     style: { padding: 40, textAlign: "center", color: G400, fontSize: 13 }
   }, "Loading map\u2026"), world && /*#__PURE__*/React.createElement("svg", {
     width: "100%",
+    height: "100%",
     viewBox: "0 0 900 460",
-    style: { background: G50, borderRadius: 8, border: "1px solid " + G200 }
+    preserveAspectRatio: "xMidYMid meet",
+    style: { background: G50, borderRadius: 8, border: "1px solid " + G200, flex: 1, minHeight: 0 }
   }, countryFeatures.map((f, i) => /*#__PURE__*/React.createElement("path", {
     key: i,
     d: path(f),
@@ -8880,7 +8891,7 @@ function MarketMapGeo({
       border: "1px solid " + G200,
       borderRadius: 8,
       padding: 14,
-      maxHeight: 500,
+      height: "100%",
       overflowY: "auto"
     }
   }, !selectedPinData ? /*#__PURE__*/React.createElement("div", {
