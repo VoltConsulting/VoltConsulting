@@ -7976,23 +7976,6 @@ function geocodeCity(name) {
   if (COUNTRY_COORDS[key]) return COUNTRY_COORDS[key];
   return null;
 }
-// A person's own `location` field is often a full "City, Region, Country"
-// string (this is how it comes through on LinkedIn-imported contacts —
-// e.g. "Paris, Ile-de-France, France"), not a bare city name. Matching a
-// pin only against an exact full-string match meant almost no one could
-// ever match their own company's office, even when the office itself
-// geocoded correctly. This also checks just the part before the first
-// comma, and resolves suburb aliases both ways, so "Needham,
-// Massachusetts, United States" matches a "Boston" pin.
-function locationMatchesPin(location, pinKey) {
-  if (!location || !pinKey) return false;
-  const norm = location.trim().toLowerCase();
-  const canonical = SUBURB_ALIASES[norm] || norm;
-  if (canonical === pinKey) return true;
-  const firstPart = norm.split(",")[0].trim();
-  const canonicalFirst = SUBURB_ALIASES[firstPart] || firstPart;
-  return canonicalFirst === pinKey;
-}
 // Curated dropdown for the dedicated "Map City" field — a small, known
 // list of business hubs, not an attempt to cover every possible town.
 // `value` matches a CITY_COORDS/COUNTRY_COORDS key directly.
@@ -8065,10 +8048,24 @@ function resolveLocationKey(location) {
   if (CITY_COORDS[direct] || COUNTRY_COORDS[direct]) return direct;
   const stripped = direct.replace(/[\s,]+(us|usa|uk)$/i, "").trim();
   if (stripped !== direct && (CITY_COORDS[stripped] || COUNTRY_COORDS[stripped])) return stripped;
-  const firstPart = norm.split(",")[0].trim();
-  const firstKey = SUBURB_ALIASES[firstPart] || firstPart;
-  if (CITY_COORDS[firstKey] || COUNTRY_COORDS[firstKey]) return firstKey;
+  const parts = norm.split(",").map(s => s.trim()).filter(Boolean);
+  if (parts.length > 1) {
+    const firstKey = SUBURB_ALIASES[parts[0]] || parts[0];
+    if (CITY_COORDS[firstKey] || COUNTRY_COORDS[firstKey]) return firstKey;
+    // "Farnborough, England, United Kingdom" — the town itself often
+    // isn't a tracked hub, but the last segment usually is the country,
+    // which still gives a real (country-level) match instead of nothing.
+    const lastKey = SUBURB_ALIASES[parts[parts.length - 1]] || parts[parts.length - 1];
+    if (CITY_COORDS[lastKey] || COUNTRY_COORDS[lastKey]) return lastKey;
+  }
   return null;
+}
+// Kept as a thin wrapper over resolveLocationKey rather than a second,
+// separately-maintained matching implementation — the two drifting apart
+// was exactly how the earlier three-part-address gap went unnoticed.
+function locationMatchesPin(location, pinKey) {
+  if (!pinKey) return false;
+  return resolveLocationKey(location) === pinKey;
 }
 
 // Region colouring for the Market Map — country name (as it appears in the
@@ -8154,14 +8151,17 @@ function MarketMap({
     return ["All", ...Array.from(s).sort()];
   }, [people]);
   const filteredPeople = useMemo(() => people.filter(p => {
-    if (ownerFilter && !migrateOwners(p.owners, p.owner).includes(ownerFilter)) return false;
     if (sectorF !== "All" && !(p.sectors || []).includes(sectorF)) return false;
     if (seniorityF !== "All" && p.seniority !== seniorityF) return false;
     if (relF !== "All" && p.relationship !== relF) return false;
     if (typeF !== "All" && p.type !== typeF) return false;
     return true;
   }), [people, sectorF, seniorityF, relF, typeF]);
-  const ownerCompanies = useMemo(() => companies.filter(c => !ownerFilter || migrateOwners(c.owners, c.owner).includes(ownerFilter)), [companies, ownerFilter]);
+  // Market Map intentionally ignores ownerFilter (which team member is
+  // selected in the sidebar) — its purpose is showing the whole tracked
+  // market at once. The pillar/tier/type filters above are how you narrow
+  // it down, not who's logged in.
+  const ownerCompanies = useMemo(() => companies, [companies]);
   const preDisciplineCompanies = useMemo(() => ownerCompanies.filter(c => {
     if (pillarF === "Unassigned" && c.pillar) return false;
     if (pillarF !== "All" && pillarF !== "Unassigned" && c.pillar !== pillarF) return false;
@@ -9221,7 +9221,9 @@ function MarketMapGeo({
     setPeople(updated);
     persist("people", updated);
   }
-  const ownerCompanies = useMemo(() => companies.filter(c => !ownerFilter || migrateOwners(c.owners, c.owner).includes(ownerFilter)), [companies, ownerFilter]);
+  // Same reasoning as MarketMap's own ownerCompanies — the geo view shows
+  // the whole tracked market, narrowed by the pillar tabs, not by login.
+  const ownerCompanies = useMemo(() => companies, [companies]);
   const filteredCompanies = useMemo(() => ownerCompanies.filter(c => {
     if (pillarF === "Unassigned" && c.pillar) return false;
     if (pillarF !== "All" && pillarF !== "Unassigned" && c.pillar !== pillarF) return false;
