@@ -3019,7 +3019,7 @@ function OverviewTab({
     persist("templates", updated);
   }
   return /*#__PURE__*/React.createElement("div", null, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
-    people: [selP],
+    people: [Object.assign({}, selP, { email: sendModal === "personal" ? selP.personalEmail : selP.email })],
     templates: templates,
     onSaveTemplate: saveTemplate,
     onSent: function (p, entry) {
@@ -3053,14 +3053,14 @@ function OverviewTab({
       gap: "0 24px"
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(InlineField, {
-    label: "Email",
+    label: "Work Email",
     value: selP.email,
     onChange: v => save("email", v),
     type: "email",
     href: selP.email ? "mailto:" + selP.email : null
   }), selP.email && /*#__PURE__*/React.createElement("button", {
     onClick: function () {
-      setSendModal(true);
+      setSendModal("work");
     },
     style: {
       background: TL,
@@ -3075,12 +3075,41 @@ function OverviewTab({
       marginTop: -4,
       marginBottom: 10
     }
-  }, "\u2709 Send via Outlook")), /*#__PURE__*/React.createElement(InlineField, {
-    label: "Phone",
+  }, "\u2709 Send via Outlook")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(InlineField, {
+    label: "Personal Email",
+    value: selP.personalEmail,
+    onChange: v => save("personalEmail", v),
+    type: "email",
+    href: selP.personalEmail ? "mailto:" + selP.personalEmail : null
+  }), selP.personalEmail && /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setSendModal("personal");
+    },
+    style: {
+      background: TL,
+      color: TEAL,
+      border: "1px solid " + TM,
+      borderRadius: 5,
+      padding: "4px 10px",
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      marginTop: -4,
+      marginBottom: 10
+    }
+  }, "\u2709 Send via Outlook (personal)")), /*#__PURE__*/React.createElement(InlineField, {
+    label: "Office Number",
     value: selP.phone,
     onChange: v => save("phone", v),
     type: "tel",
     href: selP.phone ? "tel:" + selP.phone : null
+  }), /*#__PURE__*/React.createElement(InlineField, {
+    label: "Mobile Number",
+    value: selP.mobilePhone,
+    onChange: v => save("mobilePhone", v),
+    type: "tel",
+    href: selP.mobilePhone ? "tel:" + selP.mobilePhone : null
   }), /*#__PURE__*/React.createElement(InlineField, {
     label: "LinkedIn",
     value: selP.linkedin,
@@ -3088,7 +3117,19 @@ function OverviewTab({
     type: "url",
     href: selP.linkedin || null,
     linkLabel: "View profile \u2197"
-  }), /*#__PURE__*/React.createElement(InlineField, {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      gridColumn: "1 / -1",
+      fontSize: 10.5,
+      fontWeight: 700,
+      color: G400,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginTop: 10,
+      paddingTop: 10,
+      borderTop: "1px solid " + G100
+    }
+  }, "Location"), /*#__PURE__*/React.createElement(InlineField, {
     label: "Location",
     value: selP.location,
     onChange: v => save("location", v)
@@ -3098,7 +3139,8 @@ function OverviewTab({
       alignItems: "center",
       gap: 8,
       padding: "10px 0",
-      borderBottom: "1px solid " + G200
+      borderBottom: "1px solid " + G200,
+      flexWrap: "wrap"
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -3109,33 +3151,40 @@ function OverviewTab({
       letterSpacing: "0.05em",
       minWidth: 90
     }
-  }, "Remote"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => save("remote", false),
-    style: {
-      background: !selP.remote ? TL : "transparent",
-      color: !selP.remote ? TEAL : G400,
-      border: "1px solid " + (!selP.remote ? TM : G300),
-      borderRadius: 12,
-      padding: "3px 12px",
-      fontSize: 11,
-      fontWeight: 700,
-      cursor: "pointer",
-      fontFamily: "inherit"
+  }, "Work Style"), (() => {
+    // workStyle is the source of truth going forward; falls back to the
+    // old boolean `remote` field for anyone set before this existed, so
+    // nothing already saved looks wrong or resets to a default.
+    const style = selP.workStyle || (selP.remote ? "remote" : "office");
+    function setStyle(v) {
+      const updated = people.map(p => p.id === selP.id ? Object.assign({}, p, {
+        workStyle: v,
+        remote: v === "remote"
+      }) : p);
+      setPeople(updated);
+      persist("people", updated);
     }
-  }, !selP.remote ? "\u2713 Office-based" : "Office-based"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => save("remote", true),
-    style: {
-      background: selP.remote ? WARN + "20" : "transparent",
-      color: selP.remote ? "#854f0b" : G400,
-      border: "1px solid " + (selP.remote ? WARN : G300),
-      borderRadius: 12,
-      padding: "3px 12px",
-      fontSize: 11,
-      fontWeight: 700,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
-  }, selP.remote ? "\u2713 Fully remote" : "Fully remote")), /*#__PURE__*/React.createElement("div", {
+    const opts = [
+      { key: "office", label: "Office-based", bg: TL, fg: TEAL, border: TM },
+      { key: "hybrid", label: "Hybrid", bg: "#EEEDFE", fg: "#3C3489", border: "#CECBF6" },
+      { key: "remote", label: "Fully remote", bg: WARN + "20", fg: "#854f0b", border: WARN }
+    ];
+    return opts.map(o => /*#__PURE__*/React.createElement("button", {
+      key: o.key,
+      onClick: () => setStyle(o.key),
+      style: {
+        background: style === o.key ? o.bg : "transparent",
+        color: style === o.key ? o.fg : G400,
+        border: "1px solid " + (style === o.key ? o.border : G300),
+        borderRadius: 12,
+        padding: "3px 12px",
+        fontSize: 11,
+        fontWeight: 700,
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, style === o.key ? "\u2713 " + o.label : o.label));
+  })()), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -3191,7 +3240,19 @@ function OverviewTab({
       padding: "4px 0 10px",
       borderBottom: "1px solid " + G200
     }
-  }, "Suggested for the map: \u201c" + selP.mapCityRequest + "\u201d (not added yet)"), /*#__PURE__*/React.createElement(InlineField, {
+  }, "Suggested for the map: \u201c" + selP.mapCityRequest + "\u201d (not added yet)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      gridColumn: "1 / -1",
+      fontSize: 10.5,
+      fontWeight: 700,
+      color: G400,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginTop: 10,
+      paddingTop: 10,
+      borderTop: "1px solid " + G100
+    }
+  }, "Role"), /*#__PURE__*/React.createElement(InlineField, {
     label: "Title",
     value: selP.title,
     onChange: v => save("title", v)
@@ -3506,7 +3567,7 @@ function PersonDetail({
       alignItems: "center"
     }
   }, /*#__PURE__*/React.createElement(TabBar, {
-    tabs: ["Overview", "Follow-ups", "Notes", "Company", "Spec Outs"],
+    tabs: ["Overview", "Follow-ups", "Notes", "At the Company", "Spec Outs"],
     active: tab,
     onChange: setTab
   }), !selP.bdStage ? /*#__PURE__*/React.createElement("button", {
@@ -3601,17 +3662,18 @@ function PersonDetail({
       fontWeight: 700,
       marginRight: 8
     }
-  }, "\u2192"), selP.nextAction), /*#__PURE__*/React.createElement(ActivityHistoryList, {
-    person: selP
-  }), /*#__PURE__*/React.createElement(QuickLog, {
+  }, "\u2192"), selP.nextAction), /*#__PURE__*/React.createElement(QuickLog, {
     item: selP,
     onUpdate: logUpdate
-  })), tab === "Notes" && /*#__PURE__*/React.createElement("div", {
+  })), tab === "Notes" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(ActivityHistoryList, {
+    person: selP
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       background: W,
       borderRadius: 8,
       padding: "18px 20px",
-      border: "1px solid " + G200
+      border: "1px solid " + G200,
+      marginTop: 16
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3629,7 +3691,7 @@ function PersonDetail({
       lineHeight: 1.8,
       whiteSpace: "pre-wrap"
     }
-  }, selP.notes || "No notes yet. Use Follow-ups to log an interaction.")), tab === "Company" && /*#__PURE__*/React.createElement("div", null, co ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, selP.notes || "No notes yet."))), tab === "At the Company" && /*#__PURE__*/React.createElement("div", null, co ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       background: W,
       borderRadius: 8,
@@ -5244,20 +5306,14 @@ function PeopleView({
       gap: 5,
       flexWrap: "wrap"
     }
-  }, filterBtn("all", "All sectors", "#0d9488", sectorF, setSectorF), HEADLINE_SECTORS.map(s => filterBtn(s, s, "#0d9488", sectorF, setSectorF))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8,
-      marginTop: 8,
-      alignItems: "center"
-    }
-  }, /*#__PURE__*/React.createElement("input", {
+  }, filterBtn("all", "All sectors", "#0d9488", sectorF, setSectorF), HEADLINE_SECTORS.map(s => filterBtn(s, s, "#0d9488", sectorF, setSectorF))), /*#__PURE__*/React.createElement("input", {
     value: locF,
     onChange: e => setLocF(e.target.value),
     list: "people-locations",
     placeholder: "Location\u2026",
     style: {
-      flex: 1,
+      width: "100%",
+      marginTop: 8,
       background: W,
       border: "1px solid " + G300,
       borderRadius: 6,
@@ -5271,7 +5327,15 @@ function PeopleView({
   }, allLocations.map(loc => /*#__PURE__*/React.createElement("option", {
     key: loc,
     value: loc
-  }))), /*#__PURE__*/React.createElement("button", {
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginTop: 8,
+      alignItems: "center",
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setNoMapCityF(v => !v),
     style: {
       background: noMapCityF ? WARN + "20" : "transparent",
@@ -8121,6 +8185,8 @@ function MarketMap({
   setMapView,
   pillarF,
   setPillarF,
+  selectedPin,
+  setSelectedPin,
   templates,
   setTemplates
 }) {
@@ -8447,7 +8513,9 @@ function MarketMap({
     persist: persist,
     templates: templates,
     setTemplates: setTemplates,
-    onNavigate: onNavigate
+    onNavigate: onNavigate,
+    selectedPin: selectedPin,
+    setSelectedPin: setSelectedPin
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
@@ -9085,14 +9153,23 @@ function MarketMapGeo({
   persist,
   templates,
   setTemplates,
-  onNavigate
+  onNavigate,
+  selectedPin: selectedPinProp,
+  setSelectedPin: setSelectedPinProp
 }) {
   const [world, setWorld] = useState(null);
-  const [selectedPin, setSelectedPin] = useState(null);
+  const [selectedPinLocal, setSelectedPinLocal] = useState(null);
+  // Prefer the parent's state when it's passed in, so which pin was open
+  // survives navigating away (e.g. clicking into a company) and back —
+  // local-only state gets wiped on remount, which is exactly what made
+  // "Back to Market Map" dump you at the blank overview.
+  const selectedPin = setSelectedPinProp ? selectedPinProp : selectedPinLocal;
+  const setSelectedPin = setSelectedPinProp || setSelectedPinLocal;
   const [sendModal, setSendModal] = useState(null);
   const [selectedPersonIds, setSelectedPersonIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [backfillMessage, setBackfillMessage] = useState("");
+  const [unmappedExpanded, setUnmappedExpanded] = useState(false);
   function togglePersonSelected(id) {
     setSelectedPersonIds(ids => ids.indexOf(id) !== -1 ? ids.filter(x => x !== id) : ids.concat([id]));
   }
@@ -9382,18 +9459,18 @@ function MarketMapGeo({
         borderRadius: 10,
         padding: "1px 8px"
       }
-    }, p.location ? "\u2713 " + p.location : "Location not set")), p.remote && /*#__PURE__*/React.createElement("span", {
+    }, p.location ? "\u2713 " + p.location : "Location not set")), (p.workStyle === "hybrid" || (p.workStyle === "remote" || (!p.workStyle && p.remote))) && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 9.5,
         fontWeight: 700,
-        color: "#854f0b",
-        background: WARN + "20",
-        border: "1px solid " + WARN + "60",
+        color: p.workStyle === "hybrid" ? "#3C3489" : "#854f0b",
+        background: p.workStyle === "hybrid" ? "#EEEDFE" : WARN + "20",
+        border: "1px solid " + (p.workStyle === "hybrid" ? "#CECBF6" : WARN + "60"),
         borderRadius: 10,
         padding: "1px 8px",
         flexShrink: 0
       }
-    }, "Remote"));
+    }, p.workStyle === "hybrid" ? "Hybrid" : "Remote"));
   }
   return /*#__PURE__*/React.createElement("div", {
     style: { display: "flex", gap: 16, alignItems: "stretch", width: "100%", height: "100%" }
@@ -9470,7 +9547,10 @@ function MarketMapGeo({
       marginBottom: 10,
       flexShrink: 0
     }
-  }, unmapped.length + " location" + (unmapped.length === 1 ? "" : "s") + " not yet mapped: " + unmapped.slice(0, 6).join(", ") + (unmapped.length > 6 ? "\u2026" : "")), !world && /*#__PURE__*/React.createElement("div", {
+  }, unmapped.length + " location" + (unmapped.length === 1 ? "" : "s") + " not yet mapped: " + (unmappedExpanded ? unmapped.join(", ") : unmapped.slice(0, 6).join(", ")), unmapped.length > 6 && /*#__PURE__*/React.createElement("span", {
+    onClick: () => setUnmappedExpanded(v => !v),
+    style: { color: TEAL, fontWeight: 600, cursor: "pointer", marginLeft: 4, whiteSpace: "nowrap" }
+  }, unmappedExpanded ? " Show less" : " \u2026 show all " + unmapped.length)), !world && /*#__PURE__*/React.createElement("div", {
     style: { padding: 40, textAlign: "center", color: G400, fontSize: 13 }
   }, "Loading map\u2026"), world && /*#__PURE__*/React.createElement("div", {
     style: { position: "relative", flex: 1, minHeight: 0 }
@@ -16321,6 +16401,7 @@ function App() {
   const [mmCompanySort, setMmCompanySort] = useState("az");
   const [mmMapView, setMmMapView] = useState("people");
   const [mmPillarF, setMmPillarF] = useState("Consulting Firm");
+  const [mmSelectedPin, setMmSelectedPin] = useState(null);
   const [pipelineFilterCompany, setPipelineFilterCompany] = useState(null);
   const [people, setPeople] = useState(SEED_PEOPLE);
   const [companies, setCompanies] = useState(SEED_COMPANIES);
@@ -16944,6 +17025,8 @@ function App() {
     setMapView: setMmMapView,
     pillarF: mmPillarF,
     setPillarF: setMmPillarF,
+    selectedPin: mmSelectedPin,
+    setSelectedPin: setMmSelectedPin,
     templates: templates,
     setTemplates: setTemplates
   })))), /*#__PURE__*/React.createElement("div", {
