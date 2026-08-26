@@ -3479,10 +3479,13 @@ function PersonDetail({
   setTemplates = () => {},
   onBackToPrevPerson = null,
   prevPersonName = null,
-  hideVacancies = false
+  hideVacancies = false,
+  initialTab = "Overview"
 }) {
-  const [tab, setTab] = useState("Overview");
-  useEffect(() => setTab("Overview"), [selP ? selP.id : null]);
+  const [tab, setTab] = useState(initialTab);
+  useEffect(() => setTab(initialTab), [selP ? selP.id : null, initialTab]);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [draftNotes, setDraftNotes] = useState("");
   const companyPeople = selP && selP.companyId ? people.filter(p => p.companyId === selP.companyId && p.id !== selP.id) : [];
   const co = selP ? companies.find(c => c.id === selP.companyId) : null;
   const logUpdate = f => {
@@ -3739,14 +3742,74 @@ function PersonDetail({
       textTransform: "uppercase",
       letterSpacing: "0.06em"
     }
-  }, "Full Notes"), /*#__PURE__*/React.createElement("div", {
+  }, "Full Notes"), editingNotes ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("textarea", {
+    value: draftNotes,
+    onChange: function (e) {
+      setDraftNotes(e.target.value);
+    },
+    rows: 6,
     style: {
-      color: G800,
+      width: "100%",
+      border: "1.5px solid " + TEAL,
+      borderRadius: 6,
+      padding: "10px 12px",
+      color: G900,
+      fontSize: 14,
+      outline: "none",
+      fontFamily: "inherit",
+      resize: "vertical"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      logUpdate({ notes: draftNotes });
+      setEditingNotes(false);
+    },
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 5,
+      padding: "6px 16px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\u2713 Save"), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setEditingNotes(false);
+    },
+    style: {
+      background: "transparent",
+      color: G400,
+      border: "1px solid " + G300,
+      borderRadius: 5,
+      padding: "6px 14px",
+      fontSize: 12,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Cancel"))) : /*#__PURE__*/React.createElement("div", {
+    onClick: function () {
+      setDraftNotes(selP.notes || "");
+      setEditingNotes(true);
+    },
+    style: {
+      color: selP.notes ? G800 : G400,
+      fontStyle: selP.notes ? "normal" : "italic",
       fontSize: 14,
       lineHeight: 1.8,
-      whiteSpace: "pre-wrap"
+      whiteSpace: "pre-wrap",
+      cursor: "pointer",
+      minHeight: 24
     }
-  }, selP.notes || "No notes yet."))), tab === "At the Company" && /*#__PURE__*/React.createElement("div", null, co ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, selP.notes || "Click to add notes\u2026"))), tab === "At the Company" && /*#__PURE__*/React.createElement("div", null, co ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       background: W,
       borderRadius: 8,
@@ -11726,6 +11789,8 @@ function BDPipelineView({
   setTemplates
 }) {
   const [logModal, setLogModal] = useState(null);
+  const [touchpointsFor, setTouchpointsFor] = useState(null);
+  const [modalInitialTab, setModalInitialTab] = useState("Overview");
   const [sendModal, setSendModal] = useState(null);
   const [bulkModal, setBulkModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -11886,7 +11951,73 @@ function BDPipelineView({
     onClose: function () {
       setLogModal(null);
     }
-  }), bulkModal && /*#__PURE__*/React.createElement(ActivityLogModal, {
+  }), touchpointsFor && /*#__PURE__*/React.createElement("div", {
+    onClick: function () {
+      setTouchpointsFor(null);
+    },
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "#0006",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 300
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: function (e) {
+      e.stopPropagation();
+    },
+    style: {
+      position: "relative",
+      background: W,
+      borderRadius: 12,
+      padding: "22px 24px",
+      width: 440,
+      maxWidth: "94vw",
+      maxHeight: "80vh",
+      overflowY: "auto",
+      boxShadow: "0 20px 60px #0004"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setTouchpointsFor(null);
+    },
+    style: {
+      position: "absolute",
+      top: 14,
+      right: 16,
+      background: "none",
+      border: "none",
+      color: G400,
+      fontSize: 20,
+      cursor: "pointer",
+      lineHeight: 1,
+      fontFamily: "inherit"
+    }
+  }, "\u00d7"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 700,
+      color: NAVY,
+      marginBottom: 2
+    }
+  }, touchpointsFor.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      color: G600,
+      marginBottom: 16
+    }
+  }, [touchpointsFor.title, touchpointsFor.company].filter(Boolean).join(" \u00b7 ")), (function () {
+    var latest = people.find(function (x) { return x.id === touchpointsFor.id; }) || touchpointsFor;
+    var log = latest.activityLog || [];
+    if (log.length === 0) {
+      return /*#__PURE__*/React.createElement("div", {
+        style: { fontSize: 12.5, color: G400, textAlign: "center", padding: "16px 0" }
+      }, "No activity logged yet.");
+    }
+    return /*#__PURE__*/React.createElement(ActivityHistoryList, { person: latest });
+  })())), bulkModal && /*#__PURE__*/React.createElement(ActivityLogModal, {
     people: people.filter(function (p) {
       return selectedIds.indexOf(p.id) !== -1;
     }),
@@ -12381,7 +12512,26 @@ function BDPipelineView({
           cursor: "pointer",
           fontFamily: "inherit"
         }
-      }, "\u2709")), /*#__PURE__*/React.createElement("select", {
+      }, "\u2709")), /*#__PURE__*/React.createElement("button", {
+        onClick: function (e) {
+          e.stopPropagation();
+          setTouchpointsFor(p);
+        },
+        style: {
+          display: "block",
+          width: "100%",
+          marginTop: 6,
+          background: TL,
+          color: TEAL,
+          border: "1px solid " + TM,
+          borderRadius: 5,
+          padding: "4px 0",
+          fontSize: 11,
+          fontWeight: 700,
+          cursor: "pointer",
+          fontFamily: "inherit"
+        }
+      }, "All Touchpoints"), /*#__PURE__*/React.createElement("select", {
         value: p.bdStage || "Target",
         onClick: function (e) {
           e.stopPropagation();
@@ -12572,6 +12722,7 @@ function BDPipelineView({
   }, "Clear")), sel && /*#__PURE__*/React.createElement("div", {
     onClick: function () {
       setSel(null);
+      setModalInitialTab("Overview");
     },
     style: {
       position: "fixed",
@@ -12601,6 +12752,7 @@ function BDPipelineView({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: function () {
       setSel(null);
+      setModalInitialTab("Overview");
     },
     style: {
       position: "absolute",
@@ -12626,7 +12778,8 @@ function BDPipelineView({
     setVacancies: setVacancies,
     templates: templates,
     setTemplates: setTemplates,
-    hideVacancies: true
+    hideVacancies: true,
+    initialTab: modalInitialTab
   }))));
 }
 
