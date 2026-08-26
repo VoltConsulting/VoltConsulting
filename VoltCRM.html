@@ -4967,6 +4967,55 @@ function PersonForm({
     list: "people-locations",
     placeholder: "London, UK"
   })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Map City"
+  }, /*#__PURE__*/React.createElement("select", {
+    value: f.mapCity || "",
+    onChange: e => set("mapCity")(e.target.value),
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      color: G900,
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      width: "100%",
+      cursor: "pointer"
+    }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "\u2014 Not set \u2014")].concat(
+    MAP_CITY_OPTIONS.map(o => /*#__PURE__*/React.createElement("option", { key: o.value, value: o.value }, o.label))
+  ))), /*#__PURE__*/React.createElement(Fld, {
+    label: "Work Style",
+    span2: true
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 6 }
+  }, [{ key: "office", label: "Office-based" }, { key: "hybrid", label: "Hybrid" }, { key: "remote", label: "Fully remote" }].map(o => {
+    var active = (f.workStyle || (f.remote ? "remote" : "office")) === o.key;
+    return /*#__PURE__*/React.createElement("button", {
+      key: o.key,
+      type: "button",
+      onClick: function () {
+        setF(function (p) {
+          var n = Object.assign({}, p);
+          n.workStyle = o.key;
+          n.remote = o.key === "remote";
+          return n;
+        });
+      },
+      style: {
+        background: active ? TL : "transparent",
+        color: active ? TEAL : G600,
+        border: "1px solid " + (active ? TM : G300),
+        borderRadius: 6,
+        padding: "6px 14px",
+        fontSize: 12,
+        fontWeight: active ? 700 : 400,
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, active ? "\u2713 " + o.label : o.label);
+  }))), /*#__PURE__*/React.createElement(Fld, {
     label: "Seniority",
     span2: true
   }, /*#__PURE__*/React.createElement("select", {
@@ -5012,16 +5061,28 @@ function PersonForm({
     onChange: set("linkedin"),
     placeholder: "https://linkedin.com/in/\u2026"
   })), /*#__PURE__*/React.createElement(Fld, {
-    label: "Email"
+    label: "Work Email"
   }, /*#__PURE__*/React.createElement(Inp, {
     value: f.email,
     onChange: set("email"),
     placeholder: "name@example.com"
   })), /*#__PURE__*/React.createElement(Fld, {
-    label: "Phone"
+    label: "Personal Email"
+  }, /*#__PURE__*/React.createElement(Inp, {
+    value: f.personalEmail,
+    onChange: set("personalEmail"),
+    placeholder: "name@example.com"
+  })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Office Number"
   }, /*#__PURE__*/React.createElement(Inp, {
     value: f.phone,
     onChange: set("phone"),
+    placeholder: "+44 7700 900000"
+  })), /*#__PURE__*/React.createElement(Fld, {
+    label: "Mobile Number"
+  }, /*#__PURE__*/React.createElement(Inp, {
+    value: f.mobilePhone,
+    onChange: set("mobilePhone"),
     placeholder: "+44 7700 900000"
   })), /*#__PURE__*/React.createElement(Fld, {
     label: "Last Contacted"
@@ -6848,24 +6909,24 @@ function CompaniesView({
     }
   }, /*#__PURE__*/React.createElement(InfoCard, {
     label: "Key Contact"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: NAVY,
-      fontSize: 13,
-      fontWeight: 600
-    }
-  }, selC.keyContact || "—")), /*#__PURE__*/React.createElement(InfoCard, {
+  }, /*#__PURE__*/React.createElement(InlineField, {
+    label: "",
+    value: selC.keyContact,
+    onChange: v => commit(companies.map(c => c.id === sel ? Object.assign({}, c, { keyContact: v }) : c))
+  })), /*#__PURE__*/React.createElement(InfoCard, {
     label: "Last Contacted"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: NAVY,
-      fontSize: 13,
-      fontWeight: 600
-    }
-  }, selC.lastContacted || "—")), /*#__PURE__*/React.createElement(InfoCard, {
+  }, /*#__PURE__*/React.createElement(InlineField, {
+    label: "",
+    value: selC.lastContacted,
+    type: "date",
+    onChange: v => commit(companies.map(c => c.id === sel ? Object.assign({}, c, { lastContacted: v }) : c))
+  })), /*#__PURE__*/React.createElement(InfoCard, {
     label: "Due"
-  }, /*#__PURE__*/React.createElement(DueTag, {
-    due: selC.nextDue
+  }, /*#__PURE__*/React.createElement(InlineField, {
+    label: "",
+    value: selC.nextDue,
+    type: "date",
+    onChange: v => commit(companies.map(c => c.id === sel ? Object.assign({}, c, { nextDue: v }) : c))
   }))), selC.nextAction && /*#__PURE__*/React.createElement("div", {
     style: {
       background: TL,
@@ -6918,7 +6979,7 @@ function CompaniesView({
     }
   }, "No people linked yet. Click Add Person to link someone here."), linked.map(p => /*#__PURE__*/React.createElement("div", {
     key: p.id,
-    onClick: () => onNavigatePerson && onNavigatePerson(p.id),
+    onClick: () => onNavigatePerson && onNavigatePerson(p.id, selC.id),
     style: {
       display: "flex",
       gap: 12,
@@ -7042,19 +7103,7 @@ function CompaniesView({
     onUpdate: updateSpecFromCompany,
     onNavigatePerson: onNavigatePerson,
     onDelete: deleteSpecFromCompany
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 16
-    }
-  }, /*#__PURE__*/React.createElement(QuickLog, {
-    item: selC,
-    onUpdate: f => {
-      commit(companies.map(c => c.id === sel ? {
-        ...c,
-        ...f
-      } : c));
-    }
-  }))) : /*#__PURE__*/React.createElement("div", {
+  })))) : /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       display: "flex",
@@ -16652,6 +16701,7 @@ function App() {
   const [ownerFilter, setOwnerFilter] = useState(sessionStorage.getItem("volt_owner") || null);
   const [navSel, setNavSel] = useState(null);
   const [navFrom, setNavFrom] = useState(null);
+  const [returnToCompanyId, setReturnToCompanyId] = useState(null);
   const [mmSectorF, setMmSectorF] = useState("All");
   const [mmSeniorityF, setMmSeniorityF] = useState("All");
   const [mmRelF, setMmRelF] = useState("All");
@@ -16919,9 +16969,17 @@ function App() {
   // Generic "go back to wherever you came from" — works for any
   // origin view passed as the third argument to handleNavigate, not
   // just Market Map. Falls back to null (no button) if nothing set.
+  // Going back to Companies specifically also restores the exact
+  // company that was open, not just the bare list — navSel alone
+  // can't carry that far since it's deliberately cleared 500ms after
+  // arriving at the destination view, well before Back would be clicked.
   const backToNavFrom = navFrom ? () => {
     const target = navFrom;
     setNavFrom(null);
+    if (target === "companies" && returnToCompanyId != null) {
+      setNavSel(returnToCompanyId);
+      setTimeout(() => setNavSel(null), 500);
+    }
     setView(target);
   } : null;
   const backToNavFromLabel = navFrom ? NAV_LABELS[navFrom] || navFrom : null;
@@ -17220,7 +17278,8 @@ function App() {
     setPeople: setPeople,
     persist: persist,
     initialSel: navSel,
-    onNavigatePerson: id => {
+    onNavigatePerson: (id, companyId) => {
+      setReturnToCompanyId(companyId != null ? companyId : null);
       handleNavigate("people", id, "companies");
     },
     onBack: backToNavFrom,
