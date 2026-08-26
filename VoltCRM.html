@@ -11726,7 +11726,6 @@ function BDPipelineView({
   setTemplates
 }) {
   const [logModal, setLogModal] = useState(null);
-  const [viewActivityModal, setViewActivityModal] = useState(null);
   const [sendModal, setSendModal] = useState(null);
   const [bulkModal, setBulkModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -11887,45 +11886,7 @@ function BDPipelineView({
     onClose: function () {
       setLogModal(null);
     }
-  }), viewActivityModal && /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "fixed",
-      inset: 0,
-      background: "#0006",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 300
-    },
-    onClick: () => setViewActivityModal(null)
-  }, /*#__PURE__*/React.createElement("div", {
-    onClick: e => e.stopPropagation(),
-    style: {
-      background: W,
-      borderRadius: 12,
-      padding: "22px 24px",
-      width: 460,
-      maxHeight: "80vh",
-      overflowY: "auto",
-      boxShadow: "0 20px 60px #0004"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 16, fontWeight: 700, color: NAVY }
-  }, viewActivityModal.name), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 12.5, color: G600 }
-  }, viewActivityModal.title, viewActivityModal.company ? " \u00b7 " + viewActivityModal.company : "")), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setViewActivityModal(null),
-    style: { background: "none", border: "none", color: G400, fontSize: 20, cursor: "pointer", lineHeight: 1 }
-  }, "\u00d7")), /*#__PURE__*/React.createElement(TouchpointSummary, {
-    person: viewActivityModal
-  }), (() => {
-    const latest = people.find(p => p.id === viewActivityModal.id) || viewActivityModal;
-    return /*#__PURE__*/React.createElement(ActivityHistoryList, { person: latest });
-  })(), (!viewActivityModal.activityLog || viewActivityModal.activityLog.length === 0) && /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 12.5, color: G400, textAlign: "center", padding: "20px 0" }
-  }, "No activity logged yet.")))), bulkModal && /*#__PURE__*/React.createElement(ActivityLogModal, {
+  }), bulkModal && /*#__PURE__*/React.createElement(ActivityLogModal, {
     people: people.filter(function (p) {
       return selectedIds.indexOf(p.id) !== -1;
     }),
@@ -12403,24 +12364,7 @@ function BDPipelineView({
           cursor: "pointer",
           fontFamily: "inherit"
         }
-      }, "Log New Activity"), /*#__PURE__*/React.createElement("button", {
-        onClick: function (e) {
-          e.stopPropagation();
-          setViewActivityModal(p);
-        },
-        style: {
-          flex: 1,
-          background: TL,
-          color: TEAL,
-          border: "1px solid " + TM,
-          borderRadius: 5,
-          padding: "4px 0",
-          fontSize: 11,
-          fontWeight: 700,
-          cursor: "pointer",
-          fontFamily: "inherit"
-        }
-      }, "View All Activity"), p.email && /*#__PURE__*/React.createElement("button", {
+      }, "Log New Activity"), p.email && /*#__PURE__*/React.createElement("button", {
         onClick: function (e) {
           e.stopPropagation();
           setSendModal([p]);
@@ -12683,7 +12627,7 @@ function BDPipelineView({
     templates: templates,
     setTemplates: setTemplates,
     hideVacancies: true
-  })));
+  }))));
 }
 
 // ── Company CSV Importer ───────────────────────────────────────
