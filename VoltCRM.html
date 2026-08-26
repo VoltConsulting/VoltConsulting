@@ -1291,6 +1291,46 @@ function ordinal(n) {
   var v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
+// A simple at-a-glance "how many times have we touched this person" row —
+// linkedinStage/emailStage/callCount were already being tracked correctly
+// on every logged activity, just never shown anywhere. Meetings aren't
+// their own counter field, so counted directly from the activity log.
+function TouchpointSummary({ person }) {
+  const meetingCount = (person.activityLog || []).filter(e => e.type === "meeting").length;
+  const items = [
+    { label: "LinkedIn", count: person.linkedinStage || 0, color: "#0A66C2" },
+    { label: "Email", count: person.emailStage || 0, color: TEAL },
+    { label: "Called", count: person.callCount || 0, color: "#e8a020" },
+    { label: "Meetings", count: meetingCount, color: "#6f42c1" }
+  ];
+  const total = items.reduce((sum, i) => sum + i.count, 0);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      alignItems: "center",
+      marginBottom: 14,
+      padding: "10px 14px",
+      background: G50,
+      border: "1px solid " + G200,
+      borderRadius: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 10.5, fontWeight: 700, color: G600, textTransform: "uppercase", letterSpacing: "0.05em", marginRight: 4 }
+  }, total + " total touchpoint" + (total === 1 ? "" : "s")), items.map(i => /*#__PURE__*/React.createElement("span", {
+    key: i.label,
+    style: {
+      fontSize: 11.5,
+      fontWeight: 600,
+      color: i.count > 0 ? i.color : G400,
+      background: i.count > 0 ? i.color + "15" : "transparent",
+      border: "1px solid " + (i.count > 0 ? i.color + "40" : G300),
+      borderRadius: 12,
+      padding: "3px 10px"
+    }
+  }, i.label + " \u00d7" + i.count)));
+}
 function ActivityHistoryList({
   person
 }) {
@@ -2813,18 +2853,28 @@ function InlineField({
       flex: 1
     }
   }, linkLabel || value) : /*#__PURE__*/React.createElement("span", {
+    onClick: () => {
+      setDraft(value || "");
+      setEditing(true);
+    },
     style: {
       color: NAVY,
       fontSize: 13,
       fontWeight: 600,
-      flex: 1
+      flex: 1,
+      cursor: "pointer"
     }
   }, value) : /*#__PURE__*/React.createElement("span", {
+    onClick: () => {
+      setDraft("");
+      setEditing(true);
+    },
     style: {
       color: G300,
       fontSize: 13,
       fontStyle: "italic",
-      flex: 1
+      flex: 1,
+      cursor: "pointer"
     }
   }, "Click to add\u2026"), value && /*#__PURE__*/React.createElement("button", {
     onClick: copyVal,
@@ -2990,7 +3040,8 @@ function OverviewTab({
   vacancies,
   setVacancies,
   templates = [],
-  setTemplates = () => {}
+  setTemplates = () => {},
+  hideVacancies = false
 }) {
   const [sendModal, setSendModal] = useState(false);
   const save = (field, value) => {
@@ -3028,6 +3079,8 @@ function OverviewTab({
     onClose: function () {
       setSendModal(false);
     }
+  }), /*#__PURE__*/React.createElement(TouchpointSummary, {
+    person: selP
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       background: W,
@@ -3348,7 +3401,7 @@ function OverviewTab({
     }, s);
   })))), /*#__PURE__*/React.createElement(ChannelSummary, {
     p: selP
-  }), /*#__PURE__*/React.createElement(AddToVacancy, {
+  }), !hideVacancies && /*#__PURE__*/React.createElement(AddToVacancy, {
     selP: selP,
     vacancies: vacancies,
     setVacancies: setVacancies,
@@ -3425,7 +3478,8 @@ function PersonDetail({
   templates = [],
   setTemplates = () => {},
   onBackToPrevPerson = null,
-  prevPersonName = null
+  prevPersonName = null,
+  hideVacancies = false
 }) {
   const [tab, setTab] = useState("Overview");
   useEffect(() => setTab("Overview"), [selP ? selP.id : null]);
@@ -3618,7 +3672,8 @@ function PersonDetail({
     vacancies: vacancies,
     setVacancies: setVacancies,
     templates: templates,
-    setTemplates: setTemplates
+    setTemplates: setTemplates,
+    hideVacancies: hideVacancies
   }), tab === "Follow-ups" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -5009,15 +5064,21 @@ function PeopleView({
   }, [sel]);
   function goBackToPrevPerson() {
     setSelHistory(h => {
-      if (!h.length) return h;
-      setSel(h[h.length - 1]);
-      return h.slice(0, -1);
+      let idx = h.length - 1;
+      while (idx >= 0 && h[idx] === sel) idx--;
+      if (idx < 0) return h;
+      setSel(h[idx]);
+      return h.slice(0, idx);
     });
   }
-  const prevPersonName = selHistory.length ? (function () {
-    const p = people.find(x => x.id === selHistory[selHistory.length - 1]);
-    return p ? p.name : null;
-  })() : null;
+  const prevPersonName = (() => {
+    for (let i = selHistory.length - 1; i >= 0; i--) {
+      if (selHistory[i] === sel) continue;
+      const p = people.find(x => x.id === selHistory[i]);
+      return p ? p.name : null;
+    }
+    return null;
+  })();
   const [modal, setModal] = useState(null);
   const [prefill, setPrefill] = useState(null);
   const [bulkMode, setBulkMode] = useState(false);
@@ -6300,15 +6361,21 @@ function CompaniesView({
   }, [sel]);
   function goBackToPrevCompany() {
     setSelHistoryC(h => {
-      if (!h.length) return h;
-      setSel(h[h.length - 1]);
-      return h.slice(0, -1);
+      let idx = h.length - 1;
+      while (idx >= 0 && h[idx] === sel) idx--;
+      if (idx < 0) return h;
+      setSel(h[idx]);
+      return h.slice(0, idx);
     });
   }
-  const prevCompanyName = selHistoryC.length ? (function () {
-    const c = companies.find(x => x.id === selHistoryC[selHistoryC.length - 1]);
-    return c ? c.name : null;
-  })() : null;
+  const prevCompanyName = (() => {
+    for (let i = selHistoryC.length - 1; i >= 0; i--) {
+      if (selHistoryC[i] === sel) continue;
+      const c = companies.find(x => x.id === selHistoryC[i]);
+      return c ? c.name : null;
+    }
+    return null;
+  })();
   const [modal, setModal] = useState(null);
   const [linkedInPrefill, setLinkedInPrefill] = useState(null);
   const [bulkMode, setBulkMode] = useState(false);
@@ -9221,7 +9288,7 @@ function MarketMapGeo({
     if (!pt) return;
     setZoom(z => {
       const factor = e.deltaY < 0 ? 1.25 : 0.8;
-      const newScale = Math.min(10, Math.max(1, z.scale * factor));
+      const newScale = Math.min(24, Math.max(1, z.scale * factor));
       // Keep the point under the cursor fixed while scaling.
       const worldX = (pt.x - z.tx) / z.scale;
       const worldY = (pt.y - z.ty) / z.scale;
@@ -9270,7 +9337,7 @@ function MarketMapGeo({
   }
   function zoomBy(factor) {
     setZoom(z => {
-      const newScale = Math.min(10, Math.max(1, z.scale * factor));
+      const newScale = Math.min(24, Math.max(1, z.scale * factor));
       // Zoom toward the center of the view.
       const cx = 450, cy = 230;
       const worldX = (cx - z.tx) / z.scale;
@@ -9575,34 +9642,59 @@ function MarketMapGeo({
     fill: cd.fill,
     stroke: "#eef7f0",
     strokeWidth: 0.6 / zoom.scale
-  })), pins.map(pin => {
-    const p = projection([pin.lon, pin.lat]);
-    if (!p) return null;
-    const pillars = new Set(pin.companies.map(c => c.pillar).filter(Boolean));
-    const color = pillars.size === 1 ? PILLAR_COLORS[Array.from(pillars)[0]] || TEAL : pillars.size > 1 ? G600 : G400;
-    const isSel = selectedPin === pin.key;
+  })), (() => {
     const inv = 1 / zoom.scale;
-    return /*#__PURE__*/React.createElement("g", {
-      key: pin.key,
-      transform: "translate(" + p[0] + "," + p[1] + ")",
-      style: { cursor: "pointer" },
-      onClick: e => {
-        e.stopPropagation();
-        setSelectedPin(isSel ? null : pin.key);
-        setSelectedPersonIds([]);
+    // Real screen position after the current pan/zoom, not just the raw
+    // projected coordinate — needed to detect which labels would actually
+    // collide on screen right now, at whatever zoom level is active.
+    const placed = [];
+    pins.forEach(pin => {
+      const proj = projection([pin.lon, pin.lat]);
+      if (!proj) return;
+      const sx = zoom.tx + proj[0] * zoom.scale;
+      const sy = zoom.ty + proj[1] * zoom.scale;
+      // Two labels within ~55px of each other on screen would overlap —
+      // stagger the later one downward so both stay fully readable
+      // instead of relying on zooming in far enough to separate them.
+      let stagger = 0;
+      for (const other of placed) {
+        const dist = Math.hypot(sx - other.sx, sy - other.sy);
+        if (dist < 55) stagger = Math.max(stagger, other.stagger + 1);
       }
-    }, /*#__PURE__*/React.createElement("circle", {
-      r: (isSel ? 9 : 6) * inv,
-      fill: color,
-      stroke: W,
-      strokeWidth: 1.5 * inv
-    }), /*#__PURE__*/React.createElement("text", {
-      x: 10 * inv,
-      y: 4 * inv,
-      fontSize: 11 * inv,
-      fill: G600
-    }, pin.name + " (" + pin.companies.length + ")"));
-  }))), /*#__PURE__*/React.createElement("div", {
+      placed.push({ pin, proj, sx, sy, stagger });
+    });
+    return placed.map(({ pin, proj: p, stagger }) => {
+      const pillars = new Set(pin.companies.map(c => c.pillar).filter(Boolean));
+      const color = pillars.size === 1 ? PILLAR_COLORS[Array.from(pillars)[0]] || TEAL : pillars.size > 1 ? G600 : G400;
+      const isSel = selectedPin === pin.key;
+      return /*#__PURE__*/React.createElement("g", {
+        key: pin.key,
+        transform: "translate(" + p[0] + "," + p[1] + ")",
+        style: { cursor: "pointer" },
+        onClick: e => {
+          e.stopPropagation();
+          setSelectedPin(isSel ? null : pin.key);
+          setSelectedPersonIds([]);
+        }
+      }, stagger > 0 && /*#__PURE__*/React.createElement("line", {
+        x1: 0, y1: 0,
+        x2: 10 * inv, y2: (4 + stagger * 13 - 4) * inv,
+        stroke: G300,
+        strokeWidth: 1 * inv
+      }), /*#__PURE__*/React.createElement("circle", {
+        r: (isSel ? 9 : 6) * inv,
+        fill: color,
+        stroke: W,
+        strokeWidth: 1.5 * inv
+      }), /*#__PURE__*/React.createElement("text", {
+        x: 10 * inv,
+        y: (4 + stagger * 13) * inv,
+        fontSize: 11 * inv,
+        fontWeight: 700,
+        fill: G600
+      }, pin.name + " (" + pin.companies.length + ")"));
+    });
+  })())), /*#__PURE__*/React.createElement("div", {
     style: { position: "absolute", top: 10, right: 10, display: "flex", flexDirection: "column", gap: 4 }
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => zoomBy(1.5),
@@ -11634,6 +11726,7 @@ function BDPipelineView({
   setTemplates
 }) {
   const [logModal, setLogModal] = useState(null);
+  const [viewActivityModal, setViewActivityModal] = useState(null);
   const [sendModal, setSendModal] = useState(null);
   const [bulkModal, setBulkModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -11794,7 +11887,45 @@ function BDPipelineView({
     onClose: function () {
       setLogModal(null);
     }
-  }), bulkModal && /*#__PURE__*/React.createElement(ActivityLogModal, {
+  }), viewActivityModal && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "#0006",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 300
+    },
+    onClick: () => setViewActivityModal(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: {
+      background: W,
+      borderRadius: 12,
+      padding: "22px 24px",
+      width: 460,
+      maxHeight: "80vh",
+      overflowY: "auto",
+      boxShadow: "0 20px 60px #0004"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 16, fontWeight: 700, color: NAVY }
+  }, viewActivityModal.name), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12.5, color: G600 }
+  }, viewActivityModal.title, viewActivityModal.company ? " \u00b7 " + viewActivityModal.company : "")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setViewActivityModal(null),
+    style: { background: "none", border: "none", color: G400, fontSize: 20, cursor: "pointer", lineHeight: 1 }
+  }, "\u00d7")), /*#__PURE__*/React.createElement(TouchpointSummary, {
+    person: viewActivityModal
+  }), (() => {
+    const latest = people.find(p => p.id === viewActivityModal.id) || viewActivityModal;
+    return /*#__PURE__*/React.createElement(ActivityHistoryList, { person: latest });
+  })(), (!viewActivityModal.activityLog || viewActivityModal.activityLog.length === 0) && /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12.5, color: G400, textAlign: "center", padding: "20px 0" }
+  }, "No activity logged yet.")))), bulkModal && /*#__PURE__*/React.createElement(ActivityLogModal, {
     people: people.filter(function (p) {
       return selectedIds.indexOf(p.id) !== -1;
     }),
@@ -12213,9 +12344,24 @@ function BDPipelineView({
         style: {
           overflow: "hidden",
           textOverflow: "ellipsis",
-          whiteSpace: "nowrap"
+          whiteSpace: "nowrap",
+          flex: 1
         }
-      }, lastAct.label, " \xB7 ", lastAct.date.split(",")[0])), p.nextDue && /*#__PURE__*/React.createElement("div", {
+      }, lastAct.label, " \xB7 ", lastAct.date.split(",")[0]), (() => {
+        const total = (p.linkedinStage || 0) + (p.emailStage || 0) + (p.callCount || 0) + (p.activityLog || []).filter(e => e.type === "meeting").length;
+        return total > 1 && /*#__PURE__*/React.createElement("span", {
+          style: {
+            fontSize: 9.5,
+            fontWeight: 700,
+            color: G600,
+            background: W,
+            border: "1px solid " + G300,
+            borderRadius: 8,
+            padding: "1px 6px",
+            flexShrink: 0
+          }
+        }, total + " touches");
+      })()), p.nextDue && /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 11,
           fontWeight: 600,
@@ -12257,7 +12403,24 @@ function BDPipelineView({
           cursor: "pointer",
           fontFamily: "inherit"
         }
-      }, "Log Activity"), p.email && /*#__PURE__*/React.createElement("button", {
+      }, "Log New Activity"), /*#__PURE__*/React.createElement("button", {
+        onClick: function (e) {
+          e.stopPropagation();
+          setViewActivityModal(p);
+        },
+        style: {
+          flex: 1,
+          background: TL,
+          color: TEAL,
+          border: "1px solid " + TM,
+          borderRadius: 5,
+          padding: "4px 0",
+          fontSize: 11,
+          fontWeight: 700,
+          cursor: "pointer",
+          fontFamily: "inherit"
+        }
+      }, "View All Activity"), p.email && /*#__PURE__*/React.createElement("button", {
         onClick: function (e) {
           e.stopPropagation();
           setSendModal([p]);
@@ -12518,8 +12681,9 @@ function BDPipelineView({
     vacancies: vacancies,
     setVacancies: setVacancies,
     templates: templates,
-    setTemplates: setTemplates
-  }))));
+    setTemplates: setTemplates,
+    hideVacancies: true
+  })));
 }
 
 // ── Company CSV Importer ───────────────────────────────────────
