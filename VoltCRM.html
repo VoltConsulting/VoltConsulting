@@ -3045,24 +3045,28 @@ function OverviewTab({
 }) {
   const [sendModal, setSendModal] = useState(false);
   const save = (field, value) => {
-    const updated = people.map(p => p.id === selP.id ? {
-      ...p,
-      [field]: value
-    } : p);
-    setPeople(updated);
-    persist("people", updated);
+    setPeople(prev => {
+      const updated = prev.map(p => p.id === selP.id ? {
+        ...p,
+        [field]: value
+      } : p);
+      persist("people", updated);
+      return updated;
+    });
   };
   function applyEmailSend(entry) {
-    const updated = people.map(p => {
-      if (p.id !== selP.id) return p;
-      return Object.assign({}, p, {
-        activityLog: [entry, ...(p.activityLog || [])],
-        lastContacted: today,
-        emailStage: (p.emailStage || 0) + 1
+    setPeople(prev => {
+      const updated = prev.map(p => {
+        if (p.id !== selP.id) return p;
+        return Object.assign({}, p, {
+          activityLog: [entry, ...(p.activityLog || [])],
+          lastContacted: today,
+          emailStage: (p.emailStage || 0) + 1
+        });
       });
+      persist("people", updated);
+      return updated;
     });
-    setPeople(updated);
-    persist("people", updated);
   }
   function saveTemplate(t) {
     const updated = [t, ...(templates || [])];
@@ -3210,12 +3214,14 @@ function OverviewTab({
     // nothing already saved looks wrong or resets to a default.
     const style = selP.workStyle || (selP.remote ? "remote" : "office");
     function setStyle(v) {
-      const updated = people.map(p => p.id === selP.id ? Object.assign({}, p, {
-        workStyle: v,
-        remote: v === "remote"
-      }) : p);
-      setPeople(updated);
-      persist("people", updated);
+      setPeople(prev => {
+        const updated = prev.map(p => p.id === selP.id ? Object.assign({}, p, {
+          workStyle: v,
+          remote: v === "remote"
+        }) : p);
+        persist("people", updated);
+        return updated;
+      });
     }
     const opts = [
       { key: "office", label: "Office-based", bg: TL, fg: TEAL, border: TM },
@@ -3264,15 +3270,17 @@ function OverviewTab({
         return;
       }
       // Set mapCity and clear any pending request note in one combined
-      // update — save() itself only handles one field at a time and
-      // reads from a stale closure, so two save() calls back-to-back
-      // here would silently lose the first change.
-      const updated = people.map(p => p.id === selP.id ? Object.assign({}, p, {
-        mapCity: v,
-        mapCityRequest: v ? "" : p.mapCityRequest
-      }) : p);
-      setPeople(updated);
-      persist("people", updated);
+      // update, built from the freshest state via the functional
+      // setState form — protects against both a same-person double-save
+      // and another person's save happening moments earlier.
+      setPeople(prev => {
+        const updated = prev.map(p => p.id === selP.id ? Object.assign({}, p, {
+          mapCity: v,
+          mapCityRequest: v ? "" : p.mapCityRequest
+        }) : p);
+        persist("people", updated);
+        return updated;
+      });
     },
     style: {
       fontSize: 12,
@@ -3488,13 +3496,23 @@ function PersonDetail({
   const [draftNotes, setDraftNotes] = useState("");
   const companyPeople = selP && selP.companyId ? people.filter(p => p.companyId === selP.companyId && p.id !== selP.id) : [];
   const co = selP ? companies.find(c => c.id === selP.companyId) : null;
+  // Uses the functional setState form deliberately: two saves fired in
+  // quick succession (e.g. logging a follow-up for one person, then
+  // immediately another) must each build their update from the truly
+  // latest state, not a snapshot captured when this closure was created.
+  // Building from a stale `people` reference here silently reverts
+  // whichever other person's edit happened moments earlier, because the
+  // save mechanism resends everyone's data on every save, not just the
+  // one being edited.
   const logUpdate = f => {
-    const u = people.map(p => p.id === selP.id ? {
-      ...p,
-      ...f
-    } : p);
-    setPeople(u);
-    persist("people", u);
+    setPeople(prev => {
+      const u = prev.map(p => p.id === selP.id ? {
+        ...p,
+        ...f
+      } : p);
+      persist("people", u);
+      return u;
+    });
   };
   if (!selP) return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5234,18 +5252,20 @@ function PeopleView({
   // prospect you've just emailed shouldn't need a separate manual step
   // to start being tracked.
   function applySentActivity(person, entry) {
-    const updated = people.map(function (p) {
-      if (p.id !== person.id) return p;
-      var upd = {
-        activityLog: [entry, ...(p.activityLog || [])],
-        lastContacted: today,
-        emailStage: (p.emailStage || 0) + 1
-      };
-      if (!p.bdStage || !p.bdStage.trim()) upd.bdStage = "Contacted";
-      return Object.assign({}, p, upd);
+    setPeople(prev => {
+      const updated = prev.map(function (p) {
+        if (p.id !== person.id) return p;
+        var upd = {
+          activityLog: [entry, ...(p.activityLog || [])],
+          lastContacted: today,
+          emailStage: (p.emailStage || 0) + 1
+        };
+        if (!p.bdStage || !p.bdStage.trim()) upd.bdStage = "Contacted";
+        return Object.assign({}, p, upd);
+      });
+      persist("people", updated);
+      return updated;
     });
-    setPeople(updated);
-    persist("people", updated);
   }
   const toggleBulk = id => setBulkIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
   const exitBulkMode = () => {
@@ -5259,19 +5279,21 @@ function PeopleView({
   const applyBulk = () => {
     if (bulkIds.length === 0) return;
     const idSet = new Set(bulkIds);
-    const u = people.map(p => {
-      if (!idSet.has(p.id)) return p;
-      const next = { ...p };
-      if (bulkOwner) {
-        const cur = migrateOwners(p.owners, p.owner);
-        next.owners = cur.includes(bulkOwner) ? cur : [...cur, bulkOwner];
-      }
-      if (bulkType) next.type = bulkType;
-      if (bulkMapCity) next.mapCity = bulkMapCity;
-      return next;
+    setPeople(prev => {
+      const u = prev.map(p => {
+        if (!idSet.has(p.id)) return p;
+        const next = { ...p };
+        if (bulkOwner) {
+          const cur = migrateOwners(p.owners, p.owner);
+          next.owners = cur.includes(bulkOwner) ? cur : [...cur, bulkOwner];
+        }
+        if (bulkType) next.type = bulkType;
+        if (bulkMapCity) next.mapCity = bulkMapCity;
+        return next;
+      });
+      persist("people", u);
+      return u;
     });
-    setPeople(u);
-    persist("people", u);
     exitBulkMode();
   };
   useEffect(() => {
@@ -5345,9 +5367,11 @@ function PeopleView({
         console.warn("Delete from Airtable failed", e);
       });
     }
-    var u = people.filter(p => p.id !== sel);
-    setPeople(u);
-    persist("people", u);
+    setPeople(prev => {
+      var u = prev.filter(p => p.id !== sel);
+      persist("people", u);
+      return u;
+    });
     setSel(null);
   };
   const filterBtn = (v, l, c, cur, set) => /*#__PURE__*/React.createElement("button", {
@@ -6522,27 +6546,29 @@ function CompaniesView({
   const applyBulk = () => {
     if (bulkIds.length === 0) return;
     const idSet = new Set(bulkIds);
-    const u = companies.map(c => {
-      if (!idSet.has(c.id)) return c;
-      const next = { ...c };
-      if (bulkOwner) {
-        const cur = migrateOwners(c.owners, c.owner);
-        next.owners = cur.includes(bulkOwner) ? cur : [...cur, bulkOwner];
-      }
-      if (bulkPillar) next.pillar = bulkPillar;
-      if (bulkTier) next.tier = bulkTier;
-      if (bulkDiscipline.trim()) {
-        const cur = c.disciplines || [];
-        next.disciplines = cur.some(d => d.toLowerCase() === bulkDiscipline.trim().toLowerCase()) ? cur : [...cur, bulkDiscipline.trim()];
-      }
-      if (bulkLocation.trim()) {
-        const cur = c.locations || [];
-        next.locations = cur.some(l => l.toLowerCase() === bulkLocation.trim().toLowerCase()) ? cur : [...cur, bulkLocation.trim()];
-      }
-      return next;
+    setCompanies(prev => {
+      const u = prev.map(c => {
+        if (!idSet.has(c.id)) return c;
+        const next = { ...c };
+        if (bulkOwner) {
+          const cur = migrateOwners(c.owners, c.owner);
+          next.owners = cur.includes(bulkOwner) ? cur : [...cur, bulkOwner];
+        }
+        if (bulkPillar) next.pillar = bulkPillar;
+        if (bulkTier) next.tier = bulkTier;
+        if (bulkDiscipline.trim()) {
+          const cur = c.disciplines || [];
+          next.disciplines = cur.some(d => d.toLowerCase() === bulkDiscipline.trim().toLowerCase()) ? cur : [...cur, bulkDiscipline.trim()];
+        }
+        if (bulkLocation.trim()) {
+          const cur = c.locations || [];
+          next.locations = cur.some(l => l.toLowerCase() === bulkLocation.trim().toLowerCase()) ? cur : [...cur, bulkLocation.trim()];
+        }
+        return next;
+      });
+      persist("companies", u);
+      return u;
     });
-    setCompanies(u);
-    persist("companies", u);
     exitBulkMode();
   };
   useEffect(() => {
@@ -6554,40 +6580,49 @@ function CompaniesView({
   const selC = companies.find(c => c.id === sel);
   const linked = selC ? people.filter(p => p.companyId === selC.id) : [];
   const receivedSpecs = selC ? specOuts.filter(s => s.companyId === selC.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || "")) : [];
-  const commit = u => {
-    setCompanies(u);
-    persist("companies", u);
+  const commit = fn => {
+    setCompanies(prev => {
+      const u = typeof fn === "function" ? fn(prev) : fn;
+      persist("companies", u);
+      return u;
+    });
   };
   function updateSpecFromCompany(id, patch) {
-    const u = specOuts.map(s => s.id === id ? Object.assign({}, s, patch) : s);
-    setSpecOuts(u);
-    persist("specouts", u);
-    const spec = u.find(s => s.id === id);
-    if (spec && setPeople) {
-      const up = logSpecOutToPeople(people, spec, {
-        isNew: false,
-        status: patch.status || spec.status,
-        note: (patch.updates && patch.updates[0] && patch.updates[0].note) || ""
-      });
-      setPeople(up);
-      persist("people", up);
-    }
+    setSpecOuts(prevSpecs => {
+      const u = prevSpecs.map(s => s.id === id ? Object.assign({}, s, patch) : s);
+      persist("specouts", u);
+      const spec = u.find(s => s.id === id);
+      if (spec && setPeople) {
+        setPeople(prevPeople => {
+          const up = logSpecOutToPeople(prevPeople, spec, {
+            isNew: false,
+            status: patch.status || spec.status,
+            note: (patch.updates && patch.updates[0] && patch.updates[0].note) || ""
+          });
+          persist("people", up);
+          return up;
+        });
+      }
+      return u;
+    });
   }
   function deleteSpecFromCompany(id) {
     const target = specOuts.find(s => s.id === id);
     if (target && target._recId) {
       atDelete(target._recId).catch(e => console.warn("Delete from Airtable failed", e));
     }
-    const u = specOuts.filter(s => s.id !== id);
-    setSpecOuts(u);
-    persist("specouts", u);
+    setSpecOuts(prev => {
+      const u = prev.filter(s => s.id !== id);
+      persist("specouts", u);
+      return u;
+    });
   }
-  const add = f => commit([{
+  const add = f => commit(prev => [{
     ...f,
     id: Date.now(),
     openVacancies: Number(f.openVacancies)
-  }, ...companies]);
-  const upd = f => commit(companies.map(c => c.id === sel ? {
+  }, ...prev]);
+  const upd = f => commit(prev => prev.map(c => c.id === sel ? {
     ...c,
     ...f,
     openVacancies: Number(f.openVacancies)
@@ -6601,7 +6636,7 @@ function CompaniesView({
         console.warn("Delete from Airtable failed", e);
       });
     }
-    commit(companies.filter(c => c.id !== sel));
+    commit(prev => prev.filter(c => c.id !== sel));
     setSel(null);
   };
   return /*#__PURE__*/React.createElement("div", {
@@ -6912,21 +6947,21 @@ function CompaniesView({
   }, /*#__PURE__*/React.createElement(InlineField, {
     label: "",
     value: selC.keyContact,
-    onChange: v => commit(companies.map(c => c.id === sel ? Object.assign({}, c, { keyContact: v }) : c))
+    onChange: v => commit(prev => prev.map(c => c.id === sel ? Object.assign({}, c, { keyContact: v }) : c))
   })), /*#__PURE__*/React.createElement(InfoCard, {
     label: "Last Contacted"
   }, /*#__PURE__*/React.createElement(InlineField, {
     label: "",
     value: selC.lastContacted,
     type: "date",
-    onChange: v => commit(companies.map(c => c.id === sel ? Object.assign({}, c, { lastContacted: v }) : c))
+    onChange: v => commit(prev => prev.map(c => c.id === sel ? Object.assign({}, c, { lastContacted: v }) : c))
   })), /*#__PURE__*/React.createElement(InfoCard, {
     label: "Due"
   }, /*#__PURE__*/React.createElement(InlineField, {
     label: "",
     value: selC.nextDue,
     type: "date",
-    onChange: v => commit(companies.map(c => c.id === sel ? Object.assign({}, c, { nextDue: v }) : c))
+    onChange: v => commit(prev => prev.map(c => c.id === sel ? Object.assign({}, c, { nextDue: v }) : c))
   }))), selC.nextAction && /*#__PURE__*/React.createElement("div", {
     style: {
       background: TL,
@@ -7281,9 +7316,11 @@ function CompaniesView({
         companyId: selC.id,
         company: selC.name
       };
-      const updated = [newP, ...people];
-      setPeople(updated);
-      persist("people", updated);
+      setPeople(prev => {
+        const updated = [newP, ...prev];
+        persist("people", updated);
+        return updated;
+      });
     },
     onClose: () => setModal(null),
     people: people,
@@ -7335,18 +7372,22 @@ function BDTracker({
       if (kind === "person") personIds.add(id);else companyIds.add(id);
     });
     if (personIds.size) {
-      var up = people.map(function (p) {
-        return personIds.has(p.id) ? Object.assign({}, p, { nextDue: bulkDate }) : p;
+      setPeople(prev => {
+        var up = prev.map(function (p) {
+          return personIds.has(p.id) ? Object.assign({}, p, { nextDue: bulkDate }) : p;
+        });
+        persist("people", up);
+        return up;
       });
-      setPeople(up);
-      persist("people", up);
     }
     if (companyIds.size) {
-      var upc = companies.map(function (c) {
-        return companyIds.has(c.id) ? Object.assign({}, c, { nextDue: bulkDate }) : c;
+      setCompanies(prev => {
+        var upc = prev.map(function (c) {
+          return companyIds.has(c.id) ? Object.assign({}, c, { nextDue: bulkDate }) : c;
+        });
+        persist("companies", upc);
+        return upc;
       });
-      setCompanies(upc);
-      persist("companies", upc);
     }
     exitBulkFollowups();
   }
@@ -7404,41 +7445,45 @@ function BDTracker({
       minute: "2-digit"
     });
     if (item._k === "person") {
-      var u = people.map(function (p) {
-        if (p.id !== item.id) return p;
-        var newNotes = noteEntry ? noteEntry + "\n\n" + (p.notes || "") : p.notes;
-        var newLog = doneNote.trim() ? [{
-          id: Date.now(),
-          type: "note",
-          icon: "📝",
-          label: "Done",
-          note: doneNote.trim(),
-          date: tsFull,
-          by: ""
-        }, ...(p.activityLog || [])] : p.activityLog;
-        return Object.assign({}, p, {
-          nextAction: doneNextAction,
-          nextDue: doneNextDue,
-          lastContacted: today,
-          notes: newNotes,
-          activityLog: newLog
+      setPeople(prev => {
+        var u = prev.map(function (p) {
+          if (p.id !== item.id) return p;
+          var newNotes = noteEntry ? noteEntry + "\n\n" + (p.notes || "") : p.notes;
+          var newLog = doneNote.trim() ? [{
+            id: Date.now(),
+            type: "note",
+            icon: "📝",
+            label: "Done",
+            note: doneNote.trim(),
+            date: tsFull,
+            by: ""
+          }, ...(p.activityLog || [])] : p.activityLog;
+          return Object.assign({}, p, {
+            nextAction: doneNextAction,
+            nextDue: doneNextDue,
+            lastContacted: today,
+            notes: newNotes,
+            activityLog: newLog
+          });
         });
+        persist("people", u);
+        return u;
       });
-      setPeople(u);
-      persist("people", u);
     } else {
-      var u = companies.map(function (co) {
-        if (co.id !== item.id) return co;
-        var newNotes = noteEntry ? noteEntry + "\n\n" + (co.notes || "") : co.notes;
-        return Object.assign({}, co, {
-          nextAction: doneNextAction,
-          nextDue: doneNextDue,
-          lastContacted: today,
-          notes: newNotes
+      setCompanies(prev => {
+        var u = prev.map(function (co) {
+          if (co.id !== item.id) return co;
+          var newNotes = noteEntry ? noteEntry + "\n\n" + (co.notes || "") : co.notes;
+          return Object.assign({}, co, {
+            nextAction: doneNextAction,
+            nextDue: doneNextDue,
+            lastContacted: today,
+            notes: newNotes
+          });
         });
+        persist("companies", u);
+        return u;
       });
-      setCompanies(u);
-      persist("companies", u);
     }
     setDoneModal(null);
   };
@@ -8370,22 +8415,26 @@ function MarketMap({
   setTemplates
 }) {
   const quickTagPillar = (companyId, pillar) => {
-    const updated = companies.map(c => c.id === companyId ? {
-      ...c,
-      pillar
-    } : c);
-    setCompanies(updated);
-    persist("companies", updated);
+    setCompanies(prev => {
+      const updated = prev.map(c => c.id === companyId ? {
+        ...c,
+        pillar
+      } : c);
+      persist("companies", updated);
+      return updated;
+    });
   };
   const quickStartBD = companyId => {
     const target = people.find(p => p.companyId === companyId && (!p.bdStage || !p.bdStage.trim()));
     if (target) {
-      const updated = people.map(p => p.id === target.id ? {
-        ...p,
-        bdStage: "Target"
-      } : p);
-      setPeople(updated);
-      persist("people", updated);
+      setPeople(prev => {
+        const updated = prev.map(p => p.id === target.id ? {
+          ...p,
+          bdStage: "Target"
+        } : p);
+        persist("people", updated);
+        return updated;
+      });
     }
     onJumpToPipeline && onJumpToPipeline(companyId);
   };
@@ -9360,18 +9409,20 @@ function MarketMapGeo({
   // guessing for everyone.
   function backfillMapCities() {
     let updated = 0, unresolved = 0;
-    const next = people.map(p => {
-      if (p.mapCity) return p;
-      const key = resolveLocationKey(p.location);
-      if (key) {
-        updated++;
-        return Object.assign({}, p, { mapCity: key });
-      }
-      unresolved++;
-      return p;
+    setPeople(prev => {
+      const next = prev.map(p => {
+        if (p.mapCity) return p;
+        const key = resolveLocationKey(p.location);
+        if (key) {
+          updated++;
+          return Object.assign({}, p, { mapCity: key });
+        }
+        unresolved++;
+        return p;
+      });
+      persist("people", next);
+      return next;
     });
-    setPeople(next);
-    persist("people", next);
     setBackfillMessage("Set Map City for " + updated + " " + (updated === 1 ? "person" : "people") + " from their existing Location. " + unresolved + " still need a manual pick.");
   }
   // Zoom/pan for the SVG map — applied as a transform on a wrapping <g>,
@@ -9467,15 +9518,17 @@ function MarketMapGeo({
     persist("templates", updated);
   }
   function applySentActivity(person, entry) {
-    const updated = people.map(function (p) {
-      if (p.id !== person.id) return p;
-      return Object.assign({}, p, {
-        activityLog: [entry, ...(p.activityLog || [])],
-        lastContacted: today
+    setPeople(prev => {
+      const updated = prev.map(function (p) {
+        if (p.id !== person.id) return p;
+        return Object.assign({}, p, {
+          activityLog: [entry, ...(p.activityLog || [])],
+          lastContacted: today
+        });
       });
+      persist("people", updated);
+      return updated;
     });
-    setPeople(updated);
-    persist("people", updated);
   }
   // Same reasoning as MarketMap's own ownerCompanies — the geo view shows
   // the whole tracked market, narrowed by the pillar tabs, not by login.
@@ -10080,9 +10133,11 @@ function AddProspectsFormGlobal({
       notes: "",
       owners: []
     };
-    const updated = [newPerson, ...people];
-    setPeople(updated);
-    persist("people", updated);
+    setPeople(prev => {
+      const updated = [newPerson, ...prev];
+      persist("people", updated);
+      return updated;
+    });
     setCandidateName(name);
   }
   function updateRow(id, field, value) {
@@ -11861,11 +11916,13 @@ function BDPipelineView({
   function applyBulkReschedule(dateStr) {
     if (!dateStr || selectedIds.length === 0) return;
     var ids = selectedIds.slice();
-    var updated = people.map(function (p) {
-      return ids.indexOf(p.id) !== -1 ? Object.assign({}, p, { nextDue: dateStr }) : p;
+    setPeople(prev => {
+      var updated = prev.map(function (p) {
+        return ids.indexOf(p.id) !== -1 ? Object.assign({}, p, { nextDue: dateStr }) : p;
+      });
+      persist("people", updated);
+      return updated;
     });
-    setPeople(updated);
-    persist("people", updated);
     setSelectedIds([]);
     setBulkMode(false);
     setBulkRescheduleDate("");
@@ -11905,21 +11962,23 @@ function BDPipelineView({
     var ids = targets.map(function (p) {
       return p.id;
     });
-    const updated = people.map(function (p) {
-      if (ids.indexOf(p.id) === -1) return p;
-      var upd = {
-        activityLog: [payload.entry, ...(p.activityLog || [])],
-        lastContacted: today
-      };
-      if (payload.actType === "linkedin") upd.linkedinStage = (p.linkedinStage || 0) + 1;else if (payload.actType === "email") upd.emailStage = (p.emailStage || 0) + 1;else if (payload.actType === "call") upd.callCount = (p.callCount || 0) + 1;
-      if (payload.nextAction !== undefined && payload.nextAction !== "") upd.nextAction = payload.nextAction;
-      if (payload.nextDue !== undefined && payload.nextDue !== "") upd.nextDue = payload.nextDue;
-      if (payload.stage) upd.bdStage = payload.stage;
-      if (payload.bounced) upd.contactFlag = "Bounced";
-      return Object.assign({}, p, upd);
+    setPeople(prev => {
+      const updated = prev.map(function (p) {
+        if (ids.indexOf(p.id) === -1) return p;
+        var upd = {
+          activityLog: [payload.entry, ...(p.activityLog || [])],
+          lastContacted: today
+        };
+        if (payload.actType === "linkedin") upd.linkedinStage = (p.linkedinStage || 0) + 1;else if (payload.actType === "email") upd.emailStage = (p.emailStage || 0) + 1;else if (payload.actType === "call") upd.callCount = (p.callCount || 0) + 1;
+        if (payload.nextAction !== undefined && payload.nextAction !== "") upd.nextAction = payload.nextAction;
+        if (payload.nextDue !== undefined && payload.nextDue !== "") upd.nextDue = payload.nextDue;
+        if (payload.stage) upd.bdStage = payload.stage;
+        if (payload.bounced) upd.contactFlag = "Bounced";
+        return Object.assign({}, p, upd);
+      });
+      persist("people", updated);
+      return updated;
     });
-    setPeople(updated);
-    persist("people", updated);
   }
   function saveActivity(person, payload) {
     applyActivity([person], payload);
@@ -11935,22 +11994,26 @@ function BDPipelineView({
     setBulkMode(false);
   }
   function clearFlag(person) {
-    const updated = people.map(function (p) {
-      return p.id === person.id ? Object.assign({}, p, {
-        contactFlag: ""
-      }) : p;
+    setPeople(prev => {
+      const updated = prev.map(function (p) {
+        return p.id === person.id ? Object.assign({}, p, {
+          contactFlag: ""
+        }) : p;
+      });
+      persist("people", updated);
+      return updated;
     });
-    setPeople(updated);
-    persist("people", updated);
   }
   function setStage(person, stage) {
-    const updated = people.map(function (p) {
-      return p.id === person.id ? Object.assign({}, p, {
-        bdStage: stage
-      }) : p;
+    setPeople(prev => {
+      const updated = prev.map(function (p) {
+        return p.id === person.id ? Object.assign({}, p, {
+          bdStage: stage
+        }) : p;
+      });
+      persist("people", updated);
+      return updated;
     });
-    setPeople(updated);
-    persist("people", updated);
   }
   const filterCompanyObj = companyFilter && companies ? companies.find(c => c.id === companyFilter) : null;
 
@@ -15136,16 +15199,18 @@ function VacanciesView({
   // history (visible from their own record) is the single source of truth,
   // consistent with every other send path in the app.
   function applyVacSentActivity(person, entry) {
-    const updated = people.map(function (p) {
-      if (p.id !== person.id) return p;
-      return Object.assign({}, p, {
-        activityLog: [entry, ...(p.activityLog || [])],
-        lastContacted: today,
-        emailStage: (p.emailStage || 0) + 1
+    setPeople(prev => {
+      const updated = prev.map(function (p) {
+        if (p.id !== person.id) return p;
+        return Object.assign({}, p, {
+          activityLog: [entry, ...(p.activityLog || [])],
+          lastContacted: today,
+          emailStage: (p.emailStage || 0) + 1
+        });
       });
+      persist("people", updated);
+      return updated;
     });
-    setPeople(updated);
-    persist("people", updated);
   }
   function saveVacancy(v) {
     var list = vacancies || [];
@@ -15154,24 +15219,29 @@ function VacanciesView({
       id: v.id && v.id !== 0 ? v.id : Date.now(),
       candidates: v.candidates || []
     });
-    var updated = isNew ? [saved, ...list] : list.map(function (x) {
-      return x.id === saved.id ? saved : x;
-    });
-    setVacancies(updated);
-    persist("vacancies", updated);
-    // Mark company as client
-    if (isNew && saved.companyId) {
-      var updCos = companies.map(function (co) {
-        return co.id === saved.companyId ? Object.assign({}, co, {
-          tier: "Key Client"
-        }) : co;
+    setVacancies(prevVacs => {
+      var updated = isNew ? [saved, ...prevVacs] : prevVacs.map(function (x) {
+        return x.id === saved.id ? saved : x;
       });
-      setCompanies(updCos);
-      persist("companies", updCos);
+      persist("vacancies", updated);
+      return updated;
+    });
+    // Mark company as an active client — a live vacancy is a genuine
+    // active relationship. Uses "Active Client" (not the retired "Key
+    // Client" tier removed from the whole app earlier) so a new vacancy
+    // never silently reintroduces the tier that was just cleaned up.
+    if (isNew && saved.companyId) {
+      setCompanies(prev => {
+        var updCos = prev.map(function (co) {
+          return co.id === saved.companyId ? Object.assign({}, co, {
+            tier: "Active Client"
+          }) : co;
+        });
+        persist("companies", updCos);
+        return updCos;
+      });
     }
-    setSel(updated.find(function (x) {
-      return x.id === saved.id;
-    }));
+    setSel(saved);
     setShowForm(false);
     setEditVac(null);
   }
