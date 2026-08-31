@@ -1859,7 +1859,7 @@ function LinkedInPaste({
           max_tokens: 1000,
           messages: [{
             role: "user",
-            content: "Extract the PRIMARY person's details from this LinkedIn profile page text. LinkedIn pages often contain duplicated text and noise - ignore it and focus on the main person at the top.\n\nThe text may be messy with repeated words/phrases - that is normal, work with it.\n\nReturn ONLY a valid JSON object, absolutely nothing else, no backticks, no explanation.\n\nJSON fields:\n- name: their full name (string)\n- title: their current job title (string)\n- company: their current employer (string)\n- location: city and country (string)\n- seniority: exactly one of [Analyst, Consultant, Senior Consultant, Manager, Principal, Engagement Manager, Director, Associate Partner, Partner, Managing Director]\n- sectors: array of relevant tags from [Life Sciences, Strategy, Commercial, Oncology, RWE, Market Access, Operations, MedTech, Digital Health, Biotech, Regulatory, Pricing, Other]\n- linkedin: their LinkedIn profile URL if visible, else empty string\n\nProfile text:\n" + text.slice(0, 5000)
+            content: "Extract the PRIMARY person's details from this LinkedIn profile page text. LinkedIn pages often contain duplicated text and noise - ignore it and focus on the main person at the top.\n\nThe text may be messy with repeated words/phrases - that is normal, work with it.\n\nReturn ONLY a valid JSON object, absolutely nothing else, no backticks, no explanation.\n\nJSON fields:\n- name: their full name (string)\n- title: their current job title (string)\n- company: their current employer (string)\n- location: city and country (string)\n- sectors: array of relevant tags from [Life Sciences, Strategy, Commercial, Oncology, RWE, Market Access, Operations, MedTech, Digital Health, Biotech, Regulatory, Pricing, Other]\n- linkedin: their LinkedIn profile URL if visible, else empty string\n\nProfile text:\n" + text.slice(0, 5000)
           }]
         })
       });
@@ -2094,8 +2094,8 @@ var CSV_MAP = {
   "note": "notes",
   "comments": "notes",
   "keywords": "ignore",
-  "seniority": "seniority",
-  "level": "seniority",
+  "seniority": "ignore",
+  "level": "ignore",
   "last contacted": "lastContacted",
   "last contact": "lastContacted",
   "next action": "nextAction",
@@ -2162,7 +2162,7 @@ function CSVImporter({
   const [preview, setPreview] = useState([]);
   const [results, setResults] = useState(null);
   const fileRef = useRef(null);
-  const CRM_FIELDS = ["ignore", "firstName", "lastName", "name", "title", "company", "location", "type", "seniority", "sectors", "linkedin", "email", "phone", "relationship", "lastContacted", "nextAction", "nextDue", "notes"];
+  const CRM_FIELDS = ["ignore", "firstName", "lastName", "name", "title", "company", "location", "type", "sectors", "linkedin", "email", "phone", "relationship", "lastContacted", "nextAction", "nextDue", "notes"];
   const handleFile = e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -2190,7 +2190,6 @@ function CSVImporter({
       title: "",
       company: "",
       location: "",
-      seniority: "Manager / Principal",
       sectors: [],
       linkedin: "",
       email: "",
@@ -3341,14 +3340,6 @@ function OverviewTab({
       marginBottom: 14
     }
   }, /*#__PURE__*/React.createElement(InfoCard, {
-    label: "Seniority"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: NAVY,
-      fontSize: 13,
-      fontWeight: 600
-    }
-  }, selP.seniority || "—")), /*#__PURE__*/React.createElement(InfoCard, {
     label: "Headline Sector"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3592,9 +3583,6 @@ function PersonDetail({
   }), selP.type && /*#__PURE__*/React.createElement(Badge, {
     label: selP.type === "candidate" ? "Candidate" : selP.type === "bd-target" ? "BD Target" : selP.type === "client" ? "Client" : selP.type === "contact" ? "Contact" : "",
     color: selP.type === "contact" ? "#6f42c1" : TEAL
-  }), selP.seniority && /*#__PURE__*/React.createElement(Badge, {
-    label: selP.seniority,
-    color: G600
   }), selP.bdStage && migrateOwners(selP.owners, selP.owner).length > 0 && /*#__PURE__*/React.createElement(Badge, {
     label: "BD: " + selP.bdStage + " \u00b7 " + migrateOwners(selP.owners, selP.owner).join("/"),
     color: "#0284c7"
@@ -4843,7 +4831,6 @@ const BLANKP = {
   title: "",
   company: "",
   location: "",
-  seniority: "",
   headlineSector: "",
   sectors: [],
   linkedin: "",
@@ -5034,30 +5021,6 @@ function PersonForm({
       }
     }, active ? "\u2713 " + o.label : o.label);
   }))), /*#__PURE__*/React.createElement(Fld, {
-    label: "Seniority",
-    span2: true
-  }, /*#__PURE__*/React.createElement("select", {
-    value: f.seniority,
-    onChange: e => set("seniority")(e.target.value),
-    style: {
-      background: W,
-      border: "1px solid " + G300,
-      borderRadius: 6,
-      padding: "8px 11px",
-      color: G900,
-      fontSize: 13,
-      outline: "none",
-      fontFamily: "inherit",
-      width: "100%",
-      cursor: "pointer"
-    }
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select seniority"), SENIORITY_GROUPS.map(g => /*#__PURE__*/React.createElement("optgroup", {
-    key: g.group,
-    label: g.group
-  }, g.items.map(o => /*#__PURE__*/React.createElement("option", {
-    key: o,
-    value: o
-  }, o)))))), /*#__PURE__*/React.createElement(Fld, {
     label: "Headline Sector",
     span2: true
   }, /*#__PURE__*/React.createElement(SelEl, {
@@ -5181,7 +5144,6 @@ function PeopleView({
   const [sectorF, setSectorF] = useState("all");
   const [locF, setLocF] = useState("");
   const [titleF, setTitleF] = useState("");
-  const [seniorityF, setSeniorityF] = useState("all");
   const [discF, setDiscF] = useState("all");
   const [moreOpen, setMoreOpen] = useState(false);
   const [sel, setSel] = useState(initialSel || null);
@@ -5302,7 +5264,7 @@ function PeopleView({
   useEffect(() => {
     if (initialSel) setSel(initialSel);
   }, [initialSel]);
-  const list = useMemo(() => people.filter(p => (typeF === "all" || p.type === typeF) && (relF === "all" || p.relationship === relF) && (sectorF === "all" || p.headlineSector === sectorF) && (!locF.trim() || (p.location || "").toLowerCase().includes(locF.trim().toLowerCase())) && (!titleF.trim() || (p.title || "").toLowerCase().includes(titleF.trim().toLowerCase())) && (seniorityF === "all" || p.seniority === seniorityF) && (discF === "all" || (p.sectors || []).includes(discF)) && (!noMapCityF || !p.mapCity) && (!ownerFilter || migrateOwners(p.owners, p.owner).includes(ownerFilter)) && (p.name + p.company + p.title + (p.sectors || []).join(" ")).toLowerCase().includes(search.toLowerCase())), [people, search, typeF, relF, sectorF, locF, titleF, seniorityF, discF, noMapCityF, ownerFilter]);
+  const list = useMemo(() => people.filter(p => (typeF === "all" || p.type === typeF) && (relF === "all" || p.relationship === relF) && (sectorF === "all" || p.headlineSector === sectorF) && (!locF.trim() || (p.location || "").toLowerCase().includes(locF.trim().toLowerCase())) && (!titleF.trim() || (p.title || "").toLowerCase().includes(titleF.trim().toLowerCase())) && (discF === "all" || (p.sectors || []).includes(discF)) && (!noMapCityF || !p.mapCity) && (!ownerFilter || migrateOwners(p.owners, p.owner).includes(ownerFilter)) && (p.name + p.company + p.title + (p.sectors || []).join(" ")).toLowerCase().includes(search.toLowerCase())), [people, search, typeF, relF, sectorF, locF, titleF, discF, noMapCityF, ownerFilter]);
   const allLocations = useMemo(() => {
     const s = new Set();
     people.forEach(p => {
@@ -5315,7 +5277,7 @@ function PeopleView({
     people.forEach(p => (p.sectors || []).forEach(x => s.add(x)));
     return Array.from(s).sort();
   }, [people]);
-  const activeMoreCount = (titleF.trim() ? 1 : 0) + (seniorityF !== "all" ? 1 : 0) + (discF !== "all" ? 1 : 0);
+  const activeMoreCount = (titleF.trim() ? 1 : 0) + (discF !== "all" ? 1 : 0);
   const anyFilterActive = typeF !== "all" || relF !== "all" || sectorF !== "all" || !!locF.trim() || activeMoreCount > 0 || noMapCityF;
   const clearAllFilters = () => {
     setTypeF("all");
@@ -5323,7 +5285,6 @@ function PeopleView({
     setSectorF("all");
     setLocF("");
     setTitleF("");
-    setSeniorityF("all");
     setDiscF("all");
     setNoMapCityF(false);
   };
@@ -5611,26 +5572,6 @@ function PeopleView({
       width: "100%"
     }
   }), /*#__PURE__*/React.createElement("select", {
-    value: seniorityF,
-    onChange: e => setSeniorityF(e.target.value),
-    style: {
-      background: W,
-      border: "1px solid " + G300,
-      borderRadius: 6,
-      padding: "6px 10px",
-      fontSize: 12,
-      outline: "none",
-      fontFamily: "inherit",
-      width: "100%",
-      cursor: "pointer"
-    }
-  }, [/*#__PURE__*/React.createElement("option", { key: "all", value: "all" }, "All seniorities")].concat(SENIORITY_GROUPS.map(g => /*#__PURE__*/React.createElement("optgroup", {
-    key: g.group,
-    label: g.group
-  }, g.items.map(o => /*#__PURE__*/React.createElement("option", {
-    key: o,
-    value: o
-  }, o)))))), /*#__PURE__*/React.createElement("select", {
     value: discF,
     onChange: e => setDiscF(e.target.value),
     style: {
@@ -5736,7 +5677,16 @@ function PeopleView({
         overflow: "hidden",
         textOverflow: "ellipsis"
       }
-    }, p.title, p.company ? " · " + p.company : ""), p.nextDue && /*#__PURE__*/React.createElement("div", {
+    }, p.title, p.company ? " · " + p.company : ""), p.location && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10.5,
+        color: G400,
+        marginTop: 1,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis"
+      }
+    }, "\uD83D\uDCCD " + p.location), p.nextDue && /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 4
       }
@@ -8408,8 +8358,6 @@ function MarketMap({
   ownerFilter,
   sectorF,
   setSectorF,
-  seniorityF,
-  setSeniorityF,
   relF,
   setRelF,
   typeF,
@@ -8463,11 +8411,10 @@ function MarketMap({
   }, [people]);
   const filteredPeople = useMemo(() => people.filter(p => {
     if (sectorF !== "All" && !(p.sectors || []).includes(sectorF)) return false;
-    if (seniorityF !== "All" && p.seniority !== seniorityF) return false;
     if (relF !== "All" && p.relationship !== relF) return false;
     if (typeF !== "All" && p.type !== typeF) return false;
     return true;
-  }), [people, sectorF, seniorityF, relF, typeF]);
+  }), [people, sectorF, relF, typeF]);
   // Market Map intentionally ignores ownerFilter (which team member is
   // selected in the sidebar) — its purpose is showing the whole tracked
   // market at once. The pillar/tier/type filters above are how you narrow
@@ -8675,19 +8622,6 @@ function MarketMap({
     options: ["All", "candidate", "contact"],
     value: typeF,
     onChange: setTypeF
-  })), mapView === "people" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: G400,
-      fontWeight: 600,
-      textTransform: "uppercase",
-      letterSpacing: "0.07em",
-      marginBottom: 6
-    }
-  }, "Seniority"), /*#__PURE__*/React.createElement(FilterBtn, {
-    options: ["All"].concat(SENIORITY.slice().reverse()),
-    value: seniorityF,
-    onChange: setSeniorityF
   })), mapView === "people" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
@@ -8979,8 +8913,8 @@ function MarketMap({
       }
     }, /*#__PURE__*/React.createElement(RelDot, {
       rel: p.relationship
-    }), /*#__PURE__*/React.createElement(Badge, {
-      label: p.seniority ? p.seniority.split(" / ")[0] : "",
+    }), p.location && /*#__PURE__*/React.createElement(Badge, {
+      label: p.location,
       color: G600
     })), (p.sectors || []).length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -10138,7 +10072,6 @@ function AddProspectsFormGlobal({
       company: "",
       companyId: "",
       location: "",
-      seniority: "",
       sectors: [],
       linkedin: "",
       email: "",
@@ -12488,23 +12421,32 @@ function BDPipelineView({
           overflow: "hidden",
           textOverflow: "ellipsis"
         }
-      }, p.company), (p.seniority || p.headlineSector) && /*#__PURE__*/React.createElement("div", {
+      }, p.company), p.title && /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 11,
+          color: G600,
+          marginBottom: 8,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis"
+        }
+      }, p.title), p.location && /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 10.5,
+          color: G400,
+          marginBottom: 8,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis"
+        }
+      }, "\uD83D\uDCCD " + p.location), p.headlineSector && /*#__PURE__*/React.createElement("div", {
         style: {
           display: "flex",
           flexWrap: "wrap",
           gap: 4,
           marginBottom: 6
         }
-      }, p.seniority && /*#__PURE__*/React.createElement("span", {
-        style: {
-          background: "#EEEDFE",
-          color: "#26215C",
-          fontSize: 10,
-          fontWeight: 600,
-          padding: "2px 6px",
-          borderRadius: 5
-        }
-      }, p.seniority), p.headlineSector && /*#__PURE__*/React.createElement("span", {
+      }, /*#__PURE__*/React.createElement("span", {
         style: {
           background: "#E1F5EE",
           color: "#085041",
@@ -16790,7 +16732,6 @@ function App() {
   const [navFrom, setNavFrom] = useState(null);
   const [returnToCompanyId, setReturnToCompanyId] = useState(null);
   const [mmSectorF, setMmSectorF] = useState("All");
-  const [mmSeniorityF, setMmSeniorityF] = useState("All");
   const [mmRelF, setMmRelF] = useState("All");
   const [mmTypeF, setMmTypeF] = useState("All");
   const [mmTierF, setMmTierF] = useState("All");
@@ -17414,8 +17355,6 @@ function App() {
     ownerFilter: ownerFilter,
     sectorF: mmSectorF,
     setSectorF: setMmSectorF,
-    seniorityF: mmSeniorityF,
-    setSeniorityF: setMmSeniorityF,
     relF: mmRelF,
     setRelF: setMmRelF,
     typeF: mmTypeF,
