@@ -5228,6 +5228,7 @@ function PeopleView({
   const [bulkOwner, setBulkOwner] = useState("");
   const [bulkType, setBulkType] = useState("");
   const [bulkMapCity, setBulkMapCity] = useState("");
+  const [bulkStage, setBulkStage] = useState("");
   const [noMapCityF, setNoMapCityF] = useState(false);
   const [bulkSendMode, setBulkSendMode] = useState(false);
   const [sendModal, setSendModal] = useState(null);
@@ -5275,6 +5276,7 @@ function PeopleView({
     setBulkOwner("");
     setBulkType("");
     setBulkMapCity("");
+    setBulkStage("");
   };
   const applyBulk = () => {
     if (bulkIds.length === 0) return;
@@ -5289,6 +5291,7 @@ function PeopleView({
         }
         if (bulkType) next.type = bulkType;
         if (bulkMapCity) next.mapCity = bulkMapCity;
+        if (bulkStage) next.bdStage = bulkStage;
         return next;
       });
       persist("people", u);
@@ -5830,7 +5833,21 @@ function PeopleView({
   }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set Map City\u2026")].concat(MAP_CITY_OPTIONS.map(o => /*#__PURE__*/React.createElement("option", {
     key: o.value,
     value: o.value
-  }, o.label)))), /*#__PURE__*/React.createElement(Btn, {
+  }, o.label)))), /*#__PURE__*/React.createElement("select", {
+    value: bulkStage,
+    onChange: e => setBulkStage(e.target.value),
+    style: {
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      fontSize: 12,
+      fontFamily: "inherit",
+      cursor: "pointer"
+    }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "+ Add to BD Pipeline\u2026")].concat(BD_STAGES.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s,
+    value: s
+  }, s)))), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: applyBulk
   }, "Apply to " + bulkIds.length), /*#__PURE__*/React.createElement("button", {
