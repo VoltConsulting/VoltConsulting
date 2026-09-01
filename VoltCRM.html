@@ -6458,6 +6458,10 @@ function CompaniesView({
   const [search, setSearch] = useState("");
   const [tierF, setTierF] = useState("all");
   const [pillarF, setPillarF] = useState("all");
+  const [personBulkMode, setPersonBulkMode] = useState(false);
+  const [personBulkIds, setPersonBulkIds] = useState([]);
+  const [personBulkOwner, setPersonBulkOwner] = useState("");
+  const [personBulkStage, setPersonBulkStage] = useState("");
   const [sel, setSel] = useState(initialSel || null);
   const prevSelRefC = useRef(sel);
   const [selHistoryC, setSelHistoryC] = useState([]);
@@ -6605,6 +6609,31 @@ function CompaniesView({
     }
     commit(prev => prev.filter(c => c.id !== sel));
     setSel(null);
+  };
+  const exitPersonBulk = () => {
+    setPersonBulkMode(false);
+    setPersonBulkIds([]);
+    setPersonBulkOwner("");
+    setPersonBulkStage("");
+  };
+  const applyPersonBulk = () => {
+    if (personBulkIds.length === 0) return;
+    const idSet = new Set(personBulkIds);
+    setPeople(prev => {
+      const u = prev.map(p => {
+        if (!idSet.has(p.id)) return p;
+        const next = { ...p };
+        if (personBulkOwner) {
+          const cur = migrateOwners(p.owners, p.owner);
+          next.owners = cur.includes(personBulkOwner) ? cur : [...cur, personBulkOwner];
+        }
+        if (personBulkStage) next.bdStage = personBulkStage;
+        return next;
+      });
+      persist("people", u);
+      return u;
+    });
+    exitPersonBulk();
   };
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6968,20 +6997,37 @@ function CompaniesView({
       textTransform: "uppercase",
       letterSpacing: "0.06em"
     }
-  }, "People at " + selC.name + " (" + linked.length + ")"), /*#__PURE__*/React.createElement(Btn, {
+  }, "People at " + selC.name + " (" + linked.length + ")"), /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 8 }
+  }, linked.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => personBulkMode ? exitPersonBulk() : setPersonBulkMode(true),
+    style: {
+      background: personBulkMode ? TL : "transparent",
+      color: personBulkMode ? TEAL : G600,
+      border: "1px solid " + (personBulkMode ? TM : G300),
+      borderRadius: 6,
+      padding: "6px 12px",
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, personBulkMode ? "Cancel" : "Bulk select"), /*#__PURE__*/React.createElement(Btn, {
     variant: "teal",
     small: true,
     onClick: () => setModal("addperson")
-  }, "+ Add Person")), linked.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, "+ Add Person"))), linked.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       color: G400,
       fontSize: 13,
       padding: "4px 0",
       marginBottom: 8
     }
-  }, "No people linked yet. Click Add Person to link someone here."), linked.map(p => /*#__PURE__*/React.createElement("div", {
+  }, "No people linked yet. Click Add Person to link someone here."), linked.map(p => {
+    var isChecked = personBulkIds.indexOf(p.id) !== -1;
+    return /*#__PURE__*/React.createElement("div", {
     key: p.id,
-    onClick: () => onNavigatePerson && onNavigatePerson(p.id, selC.id),
+    onClick: () => personBulkMode ? setPersonBulkIds(ids => isChecked ? ids.filter(x => x !== p.id) : [...ids, p.id]) : (onNavigatePerson && onNavigatePerson(p.id, selC.id)),
     style: {
       display: "flex",
       gap: 12,
@@ -6990,11 +7036,18 @@ function CompaniesView({
       borderBottom: "1px solid " + G100,
       cursor: "pointer",
       borderRadius: 4,
+      background: personBulkMode && isChecked ? TL : "transparent",
       transition: "background 0.1s"
     },
-    onMouseEnter: e => e.currentTarget.style.background = G50,
-    onMouseLeave: e => e.currentTarget.style.background = "transparent"
-  }, /*#__PURE__*/React.createElement(Av, {
+    onMouseEnter: e => { if (!(personBulkMode && isChecked)) e.currentTarget.style.background = G50; },
+    onMouseLeave: e => { e.currentTarget.style.background = personBulkMode && isChecked ? TL : "transparent"; }
+  }, personBulkMode && /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: isChecked,
+    onChange: () => {},
+    onClick: e => e.stopPropagation(),
+    style: { width: 16, height: 16, cursor: "pointer", flexShrink: 0 }
+  }), /*#__PURE__*/React.createElement(Av, {
     name: p.name,
     size: 34,
     color: p.type === "contact" ? "#6f42c1" : TEAL
@@ -7057,7 +7110,41 @@ function CompaniesView({
       fontWeight: 600,
       marginLeft: 4
     }
-  }, "\u2192")))), /*#__PURE__*/React.createElement("div", {
+  }, "\u2192"));
+  })), personBulkMode && personBulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      left: "50%",
+      transform: "translateX(-50%)",
+      bottom: 20,
+      zIndex: 600,
+      background: NAVY,
+      borderRadius: 12,
+      padding: "12px 16px",
+      boxShadow: "0 8px 30px #0004",
+      display: "flex",
+      gap: 10,
+      alignItems: "center",
+      flexWrap: "wrap",
+      maxWidth: "90vw"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { color: W, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" }
+  }, personBulkIds.length + " selected"), /*#__PURE__*/React.createElement("select", {
+    value: personBulkOwner,
+    onChange: e => setPersonBulkOwner(e.target.value),
+    style: { border: "none", borderRadius: 6, padding: "6px 8px", fontSize: 12, fontFamily: "inherit", cursor: "pointer" }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "Set owner\u2026"), /*#__PURE__*/React.createElement("option", { key: "David", value: "David" }, "David"), /*#__PURE__*/React.createElement("option", { key: "Lauren", value: "Lauren" }, "Lauren"), /*#__PURE__*/React.createElement("option", { key: "Brinda", value: "Brinda" }, "Brinda")]), /*#__PURE__*/React.createElement("select", {
+    value: personBulkStage,
+    onChange: e => setPersonBulkStage(e.target.value),
+    style: { border: "none", borderRadius: 6, padding: "6px 8px", fontSize: 12, fontFamily: "inherit", cursor: "pointer" }
+  }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "+ Add to BD Pipeline\u2026")].concat(BD_STAGES.map(s => /*#__PURE__*/React.createElement("option", { key: s, value: s }, s)))), /*#__PURE__*/React.createElement("button", {
+    onClick: applyPersonBulk,
+    style: { background: TEAL, color: W, border: "none", borderRadius: 6, padding: "7px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }
+  }, "Apply to " + personBulkIds.length), /*#__PURE__*/React.createElement("button", {
+    onClick: exitPersonBulk,
+    style: { background: "none", border: "1px solid #ffffff40", borderRadius: 6, padding: "7px 14px", fontSize: 12.5, color: W, cursor: "pointer", fontFamily: "inherit" }
+  }, "Cancel")), /*#__PURE__*/React.createElement("div", {
     style: {
       background: W,
       borderRadius: 8,
