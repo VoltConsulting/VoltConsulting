@@ -253,26 +253,32 @@ async function loadFromAirtable() {
         const p = JSON.parse(dataStr);
         p._recId = rec.id;
         people.push(p);
+        _lastSyncedJSON[rec.id] = JSON.stringify(p);
       } else if (rt === "COMPANY") {
         const c = JSON.parse(dataStr);
         c._recId = rec.id;
         companies.push(c);
+        _lastSyncedJSON[rec.id] = JSON.stringify(c);
       } else if (rt === "NETWORK") {
         const n = JSON.parse(dataStr);
         n._recId = rec.id;
         network.push(n);
+        _lastSyncedJSON[rec.id] = JSON.stringify(n);
       } else if (rt === "VACANCY") {
         const v = JSON.parse(dataStr);
         v._recId = rec.id;
         vacancies.push(v);
+        _lastSyncedJSON[rec.id] = JSON.stringify(v);
       } else if (rt === "SPECOUT") {
         const s = JSON.parse(dataStr);
         s._recId = rec.id;
         specouts.push(s);
+        _lastSyncedJSON[rec.id] = JSON.stringify(s);
       } else if (rt === "TEMPLATE") {
         const t = JSON.parse(dataStr);
         t._recId = rec.id;
         templates.push(t);
+        _lastSyncedJSON[rec.id] = JSON.stringify(t);
       }
     } catch (e) {
       console.warn("Parse error", rec.id, e);
@@ -299,6 +305,17 @@ var _saveLocks = {};
 // repeated save tries to create the same new record again, we skip it. This is
 // the hard stop for the "one manual add -> several cards" duplicate bug.
 var _createdIds = {};
+// What was actually last written to Airtable for each record, keyed by its
+// Airtable _recId, as the exact JSON.stringify() this same code would produce.
+// Populated on load (see loadFromAirtable) and updated after each successful
+// write. Every save used to resend the ENTIRE table — ~780 people in batches
+// of 10, sequentially, taking 20-40+ seconds — because there was no way to
+// tell which records had genuinely changed. Any navigation, tab close, or a
+// second save queued behind it during that window meant whatever hadn't been
+// sent yet was simply never written, even though the local UI already showed
+// it as done. This cache lets a save skip everyone whose data hasn't actually
+// changed, so a real save is one record, not the whole table.
+var _lastSyncedJSON = {};
 async function saveToAirtable(name, data) {
   const _n = (name || "").toLowerCase();
   const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : _n === "specouts" ? "SPECOUT" : _n === "templates" ? "TEMPLATE" : "VACANCY";
@@ -345,8 +362,13 @@ async function _saveToAirtableInner(name, data, recType) {
   var toCreate = items.filter(function (x) {
     return !x._recId;
   });
+  // Only records whose data has genuinely changed since it was last written —
+  // this is the actual fix for saves silently resending (and re-risking) the
+  // entire table on every single edit.
   var toUpdate = items.filter(function (x) {
-    return !!x._recId;
+    if (!x._recId) return false;
+    var json = JSON.stringify(x);
+    return _lastSyncedJSON[x._recId] !== json;
   });
 
   // Helper: chunk array into groups of n
@@ -392,6 +414,7 @@ async function _saveToAirtableInner(name, data, recType) {
     res.records.forEach(function (r, idx) {
       batch[idx]._recId = r.id;
       if (batch[idx].id != null) _createdIds[batch[idx].id] = r.id;
+      _lastSyncedJSON[r.id] = JSON.stringify(batch[idx]);
     });
     if (ci < createBatches.length - 1) await delay(250);
   }
@@ -413,6 +436,9 @@ async function _saveToAirtableInner(name, data, recType) {
     });
     await atPatch(AT_URL, {
       records: urecords
+    });
+    ubatch.forEach(function (item) {
+      _lastSyncedJSON[item._recId] = JSON.stringify(item);
     });
     if (ui < updateBatches.length - 1) await delay(250);
   }
@@ -550,11 +576,12 @@ var TC_MAP = {
   "Prospect": G600,
   "Previous Client": G400
 };
-var PILLARS = ["Consulting Firm", "Pharmaceutical Firm", "Pharma Services Firm"];
+var PILLARS = ["Consulting Firm", "Pharmaceutical Firm", "Pharma Services Firm", "CRO"];
 var PILLAR_COLORS = {
   "Consulting Firm": "#6f42c1",
   "Pharmaceutical Firm": TEAL,
-  "Pharma Services Firm": WARN
+  "Pharma Services Firm": WARN,
+  "CRO": "#2563eb"
 };
 var OWNER_COLORS = {
   "David": TEAL,
@@ -3479,7 +3506,8 @@ function PersonDetail({
   onBackToPrevPerson = null,
   prevPersonName = null,
   hideVacancies = false,
-  initialTab = "Overview"
+  initialTab = "Overview",
+  ownerFilter = null
 }) {
   const [tab, setTab] = useState(initialTab);
   useEffect(() => setTab(initialTab), [selP ? selP.id : null, initialTab]);
@@ -3635,7 +3663,12 @@ function PersonDetail({
     onChange: setTab
   }), !selP.bdStage ? /*#__PURE__*/React.createElement("button", {
     onClick: function () {
-      logUpdate({ bdStage: "Target" });
+      var upd = { bdStage: "Target" };
+      if (ownerFilter) {
+        var cur = migrateOwners(selP.owners, selP.owner);
+        if (!cur.includes(ownerFilter)) upd.owners = [...cur, ownerFilter];
+      }
+      logUpdate(upd);
     },
     style: {
       background: TEAL,
@@ -4593,18 +4626,23 @@ function SpecOutsTab({
   const [sendModal, setSendModal] = useState(null);
   const sentByMe = specOuts.filter(s => s.candidateId === person.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
   const receivedByMe = specOuts.filter(s => s.contactId === person.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
-  function commit(updated) {
-    setSpecOuts(updated);
-    persist("specouts", updated);
+  function commit(fn) {
+    setSpecOuts(prev => {
+      const updated = typeof fn === "function" ? fn(prev) : fn;
+      persist("specouts", updated);
+      return updated;
+    });
   }
   function logToPeople(spec, evt) {
     if (!setPeople) return;
-    const up = logSpecOutToPeople(people, spec, evt);
-    setPeople(up);
-    persist("people", up);
+    setPeople(prev => {
+      const up = logSpecOutToPeople(prev, spec, evt);
+      persist("people", up);
+      return up;
+    });
   }
   function addSpec(spec) {
-    commit([spec, ...specOuts]);
+    commit(prev => [spec, ...prev]);
     logToPeople(spec, {
       isNew: true,
       status: spec.status
@@ -4612,17 +4650,19 @@ function SpecOutsTab({
     setAdding(false);
   }
   function addSpecsMany(specs) {
-    commit([...specs, ...specOuts]);
+    commit(prev => [...specs, ...prev]);
     setAddingProspects(false);
   }
   function updateSpec(id, patch) {
-    const updated = specOuts.map(s => s.id === id ? Object.assign({}, s, patch) : s);
-    commit(updated);
-    const spec = updated.find(s => s.id === id);
-    if (spec) logToPeople(spec, {
-      isNew: false,
-      status: patch.status || spec.status,
-      note: (patch.updates && patch.updates[0] && patch.updates[0].note) || ""
+    commit(prev => {
+      const updated = prev.map(s => s.id === id ? Object.assign({}, s, patch) : s);
+      const spec = updated.find(s => s.id === id);
+      if (spec) logToPeople(spec, {
+        isNew: false,
+        status: patch.status || spec.status,
+        note: (patch.updates && patch.updates[0] && patch.updates[0].note) || ""
+      });
+      return updated;
     });
   }
   function deleteSpec(id) {
@@ -4630,7 +4670,7 @@ function SpecOutsTab({
     if (target && target._recId) {
       atDelete(target._recId).catch(e => console.warn("Delete from Airtable failed", e));
     }
-    commit(specOuts.filter(s => s.id !== id));
+    commit(prev => prev.filter(s => s.id !== id));
   }
   function toggleSelect(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.concat([id]));
@@ -5718,7 +5758,8 @@ function PeopleView({
     templates: templates,
     setTemplates: setTemplates,
     onBackToPrevPerson: goBackToPrevPerson,
-    prevPersonName: prevPersonName
+    prevPersonName: prevPersonName,
+    ownerFilter: ownerFilter
   }), bulkMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -8811,11 +8852,11 @@ function MarketMap({
   }, pillarSummary.overdue + " overdue")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "repeat(4,1fr)",
+      gridTemplateColumns: "repeat(" + (mapView === "companies" ? PILLARS.length + 1 : 4) + ",1fr)",
       gap: 12,
       marginBottom: 28
     }
-  }, (mapView === "companies" ? [["Consulting Firms", pillarCounts.counts["Consulting Firm"], PILLAR_COLORS["Consulting Firm"]], ["Pharmaceutical Firms", pillarCounts.counts["Pharmaceutical Firm"], PILLAR_COLORS["Pharmaceutical Firm"]], ["Pharma Services Firms", pillarCounts.counts["Pharma Services Firm"], PILLAR_COLORS["Pharma Services Firm"]], ["Unassigned", pillarCounts.unassigned, DANGER]] : [["Total People", people.length, TEAL], ["Companies", companies.length, "#6f42c1"], ["Active relationships", hotCount, DANGER], ["Sectors covered", [...new Set(people.flatMap(p => p.sectors || []))].length, WARN]]).map(([l, v, c]) => /*#__PURE__*/React.createElement("div", {
+  }, (mapView === "companies" ? PILLARS.map(p => [p + "s", pillarCounts.counts[p], PILLAR_COLORS[p]]).concat([["Unassigned", pillarCounts.unassigned, DANGER]]) : [["Total People", people.length, TEAL], ["Companies", companies.length, "#6f42c1"], ["Active relationships", hotCount, DANGER], ["Sectors covered", [...new Set(people.flatMap(p => p.sectors || []))].length, WARN]]).map(([l, v, c]) => /*#__PURE__*/React.createElement("div", {
     key: l,
     style: {
       background: W,
@@ -10344,18 +10385,23 @@ function SpecOutsView({
       return next;
     });
   }
-  function commit(updated) {
-    setSpecOuts(updated);
-    persist("specouts", updated);
+  function commit(fn) {
+    setSpecOuts(prev => {
+      const updated = typeof fn === "function" ? fn(prev) : fn;
+      persist("specouts", updated);
+      return updated;
+    });
   }
   function logToPeople(spec, evt) {
     if (!setPeople) return;
-    const up = logSpecOutToPeople(people, spec, evt);
-    setPeople(up);
-    persist("people", up);
+    setPeople(prev => {
+      const up = logSpecOutToPeople(prev, spec, evt);
+      persist("people", up);
+      return up;
+    });
   }
   function addSpec(spec) {
-    commit([spec, ...specOuts]);
+    commit(prev => [spec, ...prev]);
     logToPeople(spec, {
       isNew: true,
       status: spec.status
@@ -10363,17 +10409,19 @@ function SpecOutsView({
     setAdding(false);
   }
   function addSpecsMany(specs) {
-    commit([...specs, ...specOuts]);
+    commit(prev => [...specs, ...prev]);
     setAddingProspects(false);
   }
   function updateSpec(id, patch) {
-    const updated = specOuts.map(s => s.id === id ? Object.assign({}, s, patch) : s);
-    commit(updated);
-    const spec = updated.find(s => s.id === id);
-    if (spec) logToPeople(spec, {
-      isNew: false,
-      status: patch.status || spec.status,
-      note: (patch.updates && patch.updates[0] && patch.updates[0].note) || ""
+    commit(prev => {
+      const updated = prev.map(s => s.id === id ? Object.assign({}, s, patch) : s);
+      const spec = updated.find(s => s.id === id);
+      if (spec) logToPeople(spec, {
+        isNew: false,
+        status: patch.status || spec.status,
+        note: (patch.updates && patch.updates[0] && patch.updates[0].note) || ""
+      });
+      return updated;
     });
   }
   function deleteSpec(id) {
@@ -10381,7 +10429,7 @@ function SpecOutsView({
     if (target && target._recId) {
       atDelete(target._recId).catch(e => console.warn("Delete from Airtable failed", e));
     }
-    commit(specOuts.filter(s => s.id !== id));
+    commit(prev => prev.filter(s => s.id !== id));
   }
   function toggleSelect(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.concat([id]));
@@ -12937,7 +12985,8 @@ function BDPipelineView({
     templates: templates,
     setTemplates: setTemplates,
     hideVacancies: true,
-    initialTab: modalInitialTab
+    initialTab: modalInitialTab,
+    ownerFilter: ownerFilter
   }))));
 }
 
@@ -17153,6 +17202,8 @@ function App() {
       display: "flex",
       flexDirection: "column",
       flexShrink: 0,
+      height: "100vh",
+      overflowY: "auto",
       boxShadow: "1px 0 4px #0001"
     }
   }, /*#__PURE__*/React.createElement("div", {
