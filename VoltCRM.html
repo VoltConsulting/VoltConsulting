@@ -17240,7 +17240,10 @@ function App() {
     const active = view === n.id;
     return /*#__PURE__*/React.createElement("button", {
       key: n.id,
-      onClick: () => setView(n.id),
+      onClick: () => {
+        if (n.id === "pipeline") setPipelineFilterCompany(null);
+        setView(n.id);
+      },
       style: {
         display: "flex",
         alignItems: "center",
