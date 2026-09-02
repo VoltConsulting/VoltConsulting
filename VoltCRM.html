@@ -11018,7 +11018,8 @@ function SendMailModal({
     onSaveTemplate({
       id: Date.now(),
       name: templateTitle.trim(),
-      category: templateCategory || undefined,
+      category: templateCategory || "Miscellaneous",
+      subject: subject.trim(),
       body: body.trim(),
       channel: "email"
     });
@@ -11530,6 +11531,7 @@ function ActivityLogModal({
     onSaveTemplate({
       id: Date.now(),
       name: templateTitle.trim(),
+      category: "Miscellaneous",
       body: note.trim(),
       channel: actType
     });
@@ -13223,6 +13225,10 @@ const NAV = [{
   id: "map",
   label: "Market Map",
   icon: "◌"
+}, {
+  id: "templates",
+  label: "Templates",
+  icon: "◫"
 }];
 // Quick lookup for the generic "← Back to X" button — reuses the
 // same friendly names shown in the sidebar, so every screen you can
@@ -13247,6 +13253,562 @@ const VN_STATUS_COLORS = {
   "Not right now, but happy to stay connected": G600,
   "Open to exploring options, discreetly and with proper representation": WARN
 };
+const TEMPLATE_CATEGORIES = ["Candidate Spec Outs", "General Business Development", "Headhunt Candidate Approach", "Miscellaneous"];
+const TEMPLATE_CAT_COLORS = {
+  "Candidate Spec Outs": "#6f42c1",
+  "General Business Development": TEAL,
+  "Headhunt Candidate Approach": WARN,
+  "Miscellaneous": G600
+};
+function TemplatesView({
+  templates,
+  setTemplates,
+  persist
+}) {
+  const [search, setSearch] = useState("");
+  const [catF, setCatF] = useState("all");
+  const [editing, setEditing] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [customCategories, setCustomCategories] = useState([]);
+  const [copiedId, setCopiedId] = useState(null);
+  const allCategories = [...TEMPLATE_CATEGORIES, ...customCategories, ...new Set((templates || []).map(t => t.category).filter(c => c && !TEMPLATE_CATEGORIES.includes(c) && !customCategories.includes(c)))];
+  const list = (templates || []).filter(t => {
+    if (catF !== "all" && t.category !== catF) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (t.name || "").toLowerCase().includes(q) || (t.subject || "").toLowerCase().includes(q) || (t.body || "").toLowerCase().includes(q);
+  }).sort((a, b) => (b.id || 0) - (a.id || 0));
+  function commit(updated) {
+    setTemplates(updated);
+    persist("templates", updated);
+  }
+  function copyTemplate(t) {
+    const text = t.subject ? "Subject: " + t.subject + "\n\n" + t.body : t.body;
+    navigator.clipboard.writeText(text || "").then(() => {
+      setCopiedId(t.id);
+      setTimeout(() => setCopiedId(null), 1800);
+    });
+  }
+  function saveTemplate(t) {
+    if (t._editingId) {
+      commit((templates || []).map(x => x.id === t._editingId ? {
+        ...x,
+        name: t.name,
+        category: t.category,
+        subject: t.subject,
+        channel: t.channel,
+        body: t.body
+      } : x));
+    } else {
+      commit([{
+        id: Date.now(),
+        name: t.name,
+        category: t.category,
+        subject: t.subject,
+        channel: t.channel,
+        body: t.body
+      }, ...(templates || [])]);
+    }
+    setEditing(null);
+  }
+  function deleteTemplate(t) {
+    commit((templates || []).filter(x => x.id !== t.id));
+    if (t._recId) atDelete(t._recId).catch(e => console.warn("Template delete failed", e));
+    setConfirmDelete(null);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "100%",
+      overflowY: "auto",
+      padding: "28px 32px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 16,
+      color: NAVY
+    }
+  }, "Templates"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: G600,
+      marginTop: 2
+    }
+  }, "A bank of ideas for outreach \u2014 every message anyone saves from Send lands here automatically. Search it, reuse it, or add one directly.")), /*#__PURE__*/React.createElement(Btn, {
+    onClick: () => setEditing({
+      name: "",
+      category: TEMPLATE_CATEGORIES[0],
+      subject: "",
+      channel: "email",
+      body: ""
+    })
+  }, "+ New Template")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      margin: "20px 0",
+      flexWrap: "wrap",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: search,
+    onChange: e => setSearch(e.target.value),
+    placeholder: "Search templates\u2026",
+    style: {
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 12px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      width: 240
+    }
+  }), ["all", ...allCategories].map(c => /*#__PURE__*/React.createElement("button", {
+    key: c,
+    onClick: () => setCatF(c),
+    style: {
+      background: catF === c ? (c === "all" ? TL : (TEMPLATE_CAT_COLORS[c] || G600) + "15") : "transparent",
+      color: catF === c ? (c === "all" ? TEAL : TEMPLATE_CAT_COLORS[c] || G600) : G600,
+      border: "1px solid " + (catF === c ? (c === "all" ? TM : (TEMPLATE_CAT_COLORS[c] || G600) + "40") : G300),
+      borderRadius: 20,
+      padding: "6px 14px",
+      fontSize: 12.5,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap"
+    }
+  }, c === "all" ? "All" : c)), addingCategory ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 5,
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    autoFocus: true,
+    value: newCatName,
+    onChange: e => setNewCatName(e.target.value),
+    onKeyDown: e => {
+      if (e.key === "Enter" && newCatName.trim()) {
+        setCustomCategories(prev => [...prev, newCatName.trim()]);
+        setCatF(newCatName.trim());
+        setNewCatName("");
+        setAddingCategory(false);
+      }
+      if (e.key === "Escape") {
+        setNewCatName("");
+        setAddingCategory(false);
+      }
+    },
+    placeholder: "New category name\u2026",
+    style: {
+      border: "1px solid " + G300,
+      borderRadius: 16,
+      padding: "5px 12px",
+      fontSize: 12,
+      outline: "none",
+      fontFamily: "inherit",
+      width: 160
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (!newCatName.trim()) return;
+      setCustomCategories(prev => [...prev, newCatName.trim()]);
+      setCatF(newCatName.trim());
+      setNewCatName("");
+      setAddingCategory(false);
+    },
+    style: {
+      background: TEAL,
+      color: W,
+      border: "none",
+      borderRadius: 16,
+      padding: "5px 12px",
+      fontSize: 11.5,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Add")) : /*#__PURE__*/React.createElement("button", {
+    onClick: () => setAddingCategory(true),
+    style: {
+      background: "transparent",
+      color: G600,
+      border: "1px dashed " + G300,
+      borderRadius: 20,
+      padding: "6px 14px",
+      fontSize: 12.5,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap"
+    }
+  }, "+ Add category")), list.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: W,
+      border: "1px dashed " + G300,
+      borderRadius: 10,
+      padding: "40px 24px",
+      textAlign: "center",
+      color: G600,
+      fontSize: 13.5
+    }
+  }, (templates || []).length === 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      color: NAVY,
+      marginBottom: 6,
+      fontSize: 14.5
+    }
+  }, "Nothing saved yet"), "The next time anyone sends a message and clicks ", /*#__PURE__*/React.createElement("strong", null, "+ Add to Template"), ", it'll show up right here \u2014 or add one now with the button above.") : "No templates match that search or category."), list.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 10
+    }
+  }, list.map(t => /*#__PURE__*/React.createElement("div", {
+    key: t.id,
+    style: {
+      background: W,
+      border: "1px solid " + G200,
+      borderRadius: 10,
+      padding: "16px 18px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 12,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 14,
+      color: NAVY,
+      marginBottom: 4
+    }
+  }, t.name || "Untitled"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, t.category && /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: (TEMPLATE_CAT_COLORS[t.category] || G600) + "15",
+      color: TEMPLATE_CAT_COLORS[t.category] || G600,
+      fontSize: 10.5,
+      fontWeight: 700,
+      padding: "2px 8px",
+      borderRadius: 5
+    }
+  }, t.category), /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: G100,
+      color: G600,
+      fontSize: 10.5,
+      fontWeight: 700,
+      padding: "2px 8px",
+      borderRadius: 5,
+      textTransform: "capitalize"
+    }
+  }, t.channel || "email"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => copyTemplate(t),
+    style: {
+      background: copiedId === t.id ? OK + "15" : "none",
+      border: "1px solid " + (copiedId === t.id ? OK : G300),
+      borderRadius: 6,
+      padding: "4px 10px",
+      fontSize: 11.5,
+      color: copiedId === t.id ? OK : G600,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, copiedId === t.id ? "\u2713 Copied" : "Copy"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditing({
+      _editingId: t.id,
+      name: t.name,
+      category: t.category || TEMPLATE_CATEGORIES[0],
+      subject: t.subject || "",
+      channel: t.channel || "email",
+      body: t.body
+    }),
+    style: {
+      background: "none",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "4px 10px",
+      fontSize: 11.5,
+      color: G600,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Edit"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setConfirmDelete(t),
+    style: {
+      background: "none",
+      border: "1px solid " + DANGER + "44",
+      borderRadius: 6,
+      padding: "4px 10px",
+      fontSize: 11.5,
+      color: DANGER,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Delete"))), t.subject && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      fontWeight: 700,
+      color: NAVY,
+      marginBottom: 6
+    }
+  }, "Subject: ", t.subject), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: G800,
+      whiteSpace: "pre-wrap",
+      lineHeight: 1.5
+    }
+  }, t.body)))), editing && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "#0007",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 800
+    },
+    onClick: () => setEditing(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: {
+      background: W,
+      borderRadius: 12,
+      padding: 24,
+      width: 480,
+      maxWidth: "92vw",
+      maxHeight: "85vh",
+      overflowY: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 15,
+      color: NAVY,
+      marginBottom: 16
+    }
+  }, editing._editingId ? "Edit template" : "New template"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: G600,
+      marginBottom: 4
+    }
+  }, "Name"), /*#__PURE__*/React.createElement("input", {
+    value: editing.name,
+    onChange: e => setEditing({
+      ...editing,
+      name: e.target.value
+    }),
+    placeholder: "e.g. Initial outreach \u2014 warm intro",
+    style: {
+      width: "100%",
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      marginBottom: 14
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: G600,
+      marginBottom: 4
+    }
+  }, "Subject (email only)"), /*#__PURE__*/React.createElement("input", {
+    value: editing.subject || "",
+    onChange: e => setEditing({
+      ...editing,
+      subject: e.target.value
+    }),
+    placeholder: "The subject line that got this opened",
+    style: {
+      width: "100%",
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      marginBottom: 14
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: G600,
+      marginBottom: 4
+    }
+  }, "Category"), /*#__PURE__*/React.createElement("select", {
+    value: editing.category,
+    onChange: e => setEditing({
+      ...editing,
+      category: e.target.value
+    }),
+    style: {
+      width: "100%",
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      marginBottom: 14,
+      cursor: "pointer"
+    }
+  }, allCategories.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c,
+    value: c
+  }, c))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: G600,
+      marginBottom: 4
+    }
+  }, "Channel"), /*#__PURE__*/React.createElement("select", {
+    value: editing.channel,
+    onChange: e => setEditing({
+      ...editing,
+      channel: e.target.value
+    }),
+    style: {
+      width: "100%",
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      marginBottom: 14,
+      cursor: "pointer"
+    }
+  }, ["email", "linkedin", "call"].map(c => /*#__PURE__*/React.createElement("option", {
+    key: c,
+    value: c
+  }, c))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: G600,
+      marginBottom: 4
+    }
+  }, "Message"), /*#__PURE__*/React.createElement("textarea", {
+    value: editing.body,
+    onChange: e => setEditing({
+      ...editing,
+      body: e.target.value
+    }),
+    rows: 8,
+    style: {
+      width: "100%",
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      resize: "vertical",
+      marginBottom: 18
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: () => setEditing(null)
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: () => {
+      if (!editing.name.trim() || !editing.body.trim()) return;
+      saveTemplate(editing);
+    }
+  }, "Save template")))), confirmDelete && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "#0007",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 800
+    },
+    onClick: () => setConfirmDelete(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: {
+      background: W,
+      borderRadius: 12,
+      padding: 24,
+      width: 360,
+      maxWidth: "92vw"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 15,
+      color: NAVY,
+      marginBottom: 8
+    }
+  }, "Delete this template?"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: G600,
+      marginBottom: 18
+    }
+  }, "\u201C", confirmDelete.name, "\u201D will be gone for everyone \u2014 this can't be undone."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: () => setConfirmDelete(null)
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "danger",
+    onClick: () => deleteTemplate(confirmDelete)
+  }, "Delete")))));
+}
 function VoltNetworkView({
   network,
   setNetwork,
@@ -17545,7 +18107,11 @@ function App() {
     setSelectedPin: setMmSelectedPin,
     templates: templates,
     setTemplates: setTemplates
-  })))), /*#__PURE__*/React.createElement("div", {
+  }))), view === "templates" && /*#__PURE__*/React.createElement(TemplatesView, {
+    templates: templates,
+    setTemplates: setTemplates,
+    persist: persist
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       bottom: 18,
