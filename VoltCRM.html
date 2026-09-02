@@ -5283,13 +5283,14 @@ function PeopleView({
   const applyBulk = () => {
     if (bulkIds.length === 0) return;
     const idSet = new Set(bulkIds);
+    const ownerToApply = bulkOwner || ownerFilter;
     setPeople(prev => {
       const u = prev.map(p => {
         if (!idSet.has(p.id)) return p;
         const next = { ...p };
-        if (bulkOwner) {
+        if (ownerToApply) {
           const cur = migrateOwners(p.owners, p.owner);
-          next.owners = cur.includes(bulkOwner) ? cur : [...cur, bulkOwner];
+          next.owners = cur.includes(ownerToApply) ? cur : [...cur, ownerToApply];
         }
         if (bulkType) next.type = bulkType;
         if (bulkMapCity) next.mapCity = bulkMapCity;
@@ -6660,13 +6661,14 @@ function CompaniesView({
   const applyPersonBulk = () => {
     if (personBulkIds.length === 0) return;
     const idSet = new Set(personBulkIds);
+    const ownerToApply = personBulkOwner || ownerFilter;
     setPeople(prev => {
       const u = prev.map(p => {
         if (!idSet.has(p.id)) return p;
         const next = { ...p };
-        if (personBulkOwner) {
+        if (ownerToApply) {
           const cur = migrateOwners(p.owners, p.owner);
-          next.owners = cur.includes(personBulkOwner) ? cur : [...cur, personBulkOwner];
+          next.owners = cur.includes(ownerToApply) ? cur : [...cur, ownerToApply];
         }
         if (personBulkStage) next.bdStage = personBulkStage;
         return next;
