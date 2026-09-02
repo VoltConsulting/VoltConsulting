@@ -631,6 +631,33 @@ function migrateOwners(owners, owner) {
   if (owner && typeof owner === "string" && owner.trim()) return [owner.trim()];
   return [];
 }
+// Something due today is not overdue yet — it only becomes overdue once
+// the day itself has passed. Comparing against new Date() directly (which
+// includes the current time) made every same-day follow-up read as overdue
+// the moment any time had passed since midnight. This compares dates only —
+// and "today" is always UK time (Europe/London), not whatever timezone the
+// device happens to be set to, so it's consistent for the whole team
+// regardless of who's logged in or where they're opening the CRM from.
+function _ukTodayStr() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
+}
+function isOverdue(dateStr) {
+  if (!dateStr) return false;
+  var dOnly = String(dateStr).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dOnly)) return false;
+  return dOnly < _ukTodayStr();
+}
+function isDueToday(dateStr) {
+  if (!dateStr) return false;
+  var dOnly = String(dateStr).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dOnly)) return false;
+  return dOnly === _ukTodayStr();
+}
 
 // ── Spec-out activity breadcrumbs ───────────────────────────────
 // A spec-out record can be deleted later (e.g. no longer relevant),
@@ -3620,7 +3647,7 @@ function PersonDetail({
       day: "numeric",
       month: "short"
     }),
-    color: new Date(selP.nextDue) < new Date() ? DANGER : WARN
+    color: isOverdue(selP.nextDue) ? DANGER : WARN
   }), selP.headlineSector && /*#__PURE__*/React.createElement(Badge, {
     label: selP.headlineSector,
     color: "#7c3aed"
@@ -7732,14 +7759,14 @@ function BDTracker({
       }, item.nextAction)), item.nextDue && /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 11,
-          color: new Date(item.nextDue) < new Date() ? DANGER : G600,
+          color: (isOverdue(item.nextDue) || isDueToday(item.nextDue)) ? DANGER : G600,
           fontWeight: 600
         }
-      }, "Due: ", new Date(item.nextDue).toLocaleDateString("en-GB", {
+      }, isDueToday(item.nextDue) ? "To do today" : "Due: ", isDueToday(item.nextDue) ? "" : new Date(item.nextDue).toLocaleDateString("en-GB", {
         weekday: "short",
         day: "numeric",
         month: "short"
-      }), new Date(item.nextDue) < new Date() ? " — OVERDUE" : ""))), /*#__PURE__*/React.createElement("button", {
+      }), isOverdue(item.nextDue) ? " — OVERDUE" : ""))), /*#__PURE__*/React.createElement("button", {
         onClick: function (e) {
           e.stopPropagation();
           openDone(item);
@@ -8016,7 +8043,7 @@ function BDTracker({
   }, "\u2192 ", selPerson.nextAction || "No action set"), selPerson.nextDue && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
-      color: new Date(selPerson.nextDue) < new Date() ? DANGER : G600,
+      color: isOverdue(selPerson.nextDue) ? DANGER : G600,
       fontWeight: 600
     }
   }, "Due: ", selPerson.nextDue)), selPerson.notes && /*#__PURE__*/React.createElement("div", {
@@ -8613,7 +8640,7 @@ function MarketMap({
     const ids = new Set(filteredCompanies.map(c => c.id));
     const relevantPeople = people.filter(p => p.companyId && ids.has(p.companyId));
     const activeCount = relevantPeople.filter(p => p.bdStage && p.bdStage.trim() !== "").length;
-    const overdueCount = relevantPeople.filter(p => p.bdStage && p.bdStage.trim() !== "" && p.nextDue && new Date(p.nextDue) < new Date()).length;
+    const overdueCount = relevantPeople.filter(p => p.bdStage && p.bdStage.trim() !== "" && isOverdue(p.nextDue)).length;
     return {
       companies: filteredCompanies.length,
       contacts: relevantPeople.length,
@@ -9189,7 +9216,7 @@ function MarketMap({
     const activeCount = activeContacts.length;
     const dueDates = activeContacts.map(p => p.nextDue).filter(Boolean).sort();
     const nearestDue = dueDates[0];
-    const isOverdue = nearestDue && new Date(nearestDue) < new Date();
+    const isOverdueFlag = nearestDue && isOverdue(nearestDue);
     const isUnassigned = !c.pillar;
     const disciplineTags = (c.disciplines || []).length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -9238,10 +9265,10 @@ function MarketMap({
         fontWeight: 700,
         borderRadius: 8,
         padding: "2px 8px",
-        background: isOverdue ? DANGER + "18" : WARN + "18",
-        color: isOverdue ? "#a32d2d" : "#8a5f13"
+        background: isOverdueFlag ? DANGER + "18" : WARN + "18",
+        color: isOverdueFlag ? "#a32d2d" : "#8a5f13"
       }
-    }, isOverdue ? "Overdue" : "Due " + nearestDue);
+    }, isOverdueFlag ? "Overdue" : "Due " + nearestDue);
     const dueFlag = nearestDue && /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 7
@@ -12130,7 +12157,7 @@ function BDPipelineView({
   }
   var totalActive = filtered.length;
   var overdueCount = filtered.filter(function (p) {
-    return p.nextDue && new Date(p.nextDue) < new Date();
+    return isOverdue(p.nextDue);
   }).length;
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -12474,7 +12501,7 @@ function BDPipelineView({
         fontSize: 12
       }
     }, "No contacts"), cards.map(function (p) {
-      var overdue = p.nextDue && new Date(p.nextDue) < new Date();
+      var overdue = isOverdue(p.nextDue);
       var lastAct = p.activityLog && p.activityLog.length > 0 ? p.activityLog[0] : null;
       var ownerCol = OWNER_COLORS[p.owner] || G400;
       var isChecked = selectedIds.indexOf(p.id) !== -1;
@@ -14056,7 +14083,7 @@ function VoltNetworkView({
   }, "No members found"), list.map(function (m) {
     var stCol = VN_STATUS_COLORS[m.status] || G400;
     var active = selM && selM.id === m.id;
-    var overdue = m.nextDue && new Date(m.nextDue) < new Date();
+    var overdue = isOverdue(m.nextDue);
     return /*#__PURE__*/React.createElement("div", {
       key: m.id,
       onClick: function () {
@@ -17153,7 +17180,7 @@ function App() {
     setPipelineFilterCompany(companyId);
     setView("pipeline");
   };
-  const overdueCount = [...people, ...companies].filter(x => x.nextDue && new Date(x.nextDue) < new Date()).length;
+  const overdueCount = [...people, ...companies].filter(x => isOverdue(x.nextDue)).length;
   if (!unlocked) return /*#__PURE__*/React.createElement(PasswordScreen, {
     onUnlock: () => setUnlocked(true)
   });
