@@ -7478,14 +7478,24 @@ function BDTracker({
       return ks.indexOf(k) !== -1 ? ks.filter(function (x) { return x !== k; }) : ks.concat([k]);
     });
   }
-  function removeFromPipeline(person) {
-    setPeople(function (prev) {
-      var updated = prev.map(function (p) {
-        return p.id === person.id ? Object.assign({}, p, { bdStage: "" }) : p;
+  function clearFollowup(item) {
+    if (item._k === "company") {
+      setCompanies(function (prev) {
+        var updated = prev.map(function (c) {
+          return c.id === item.id ? Object.assign({}, c, { nextAction: "", nextDue: "" }) : c;
+        });
+        persist("companies", updated);
+        return updated;
       });
-      persist("people", updated);
-      return updated;
-    });
+    } else {
+      setPeople(function (prev) {
+        var updated = prev.map(function (p) {
+          return p.id === item.id ? Object.assign({}, p, { nextAction: "", nextDue: "" }) : p;
+        });
+        persist("people", updated);
+        return updated;
+      });
+    }
   }
   function exitBulkFollowups() {
     setBulkMode(false);
@@ -7775,12 +7785,12 @@ function BDTracker({
         weekday: "short",
         day: "numeric",
         month: "short"
-      }), isOverdue(item.nextDue) ? " — OVERDUE" : ""))), item._k === "person" && item.bdStage && /*#__PURE__*/React.createElement("button", {
+      }), isOverdue(item.nextDue) ? " — OVERDUE" : ""))), /*#__PURE__*/React.createElement("button", {
         onClick: function (e) {
           e.stopPropagation();
-          removeFromPipeline(item);
+          clearFollowup(item);
         },
-        title: "Remove from pipeline (keeps the contact)",
+        title: "Remove this follow-up (keeps the contact)",
         style: {
           background: "none",
           border: "1px solid " + G300,
