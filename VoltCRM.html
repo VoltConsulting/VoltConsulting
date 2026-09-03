@@ -15853,7 +15853,8 @@ function VacanciesView({
   persist,
   ownerFilter,
   templates,
-  setTemplates
+  setTemplates,
+  onNavigatePerson
 }) {
   var [sel, setSel] = useState(null);
   var [showForm, setShowForm] = useState(false);
@@ -16849,7 +16850,12 @@ function VacanciesView({
       onChange: function () {
         toggleCandBulk(cand.personId);
       }
-    }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }), /*#__PURE__*/React.createElement("div", {
+      onClick: () => onNavigatePerson && onNavigatePerson(person.id),
+      style: {
+        cursor: onNavigatePerson ? "pointer" : "default"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
       style: {
         fontWeight: 600,
         color: NAVY,
@@ -17002,13 +17008,15 @@ function VacanciesView({
       if (!person) return null;
       return /*#__PURE__*/React.createElement("div", {
         key: cand.personId,
+        onClick: () => onNavigatePerson && onNavigatePerson(person.id),
         style: {
           background: W,
           border: "1px solid " + G200,
           borderRadius: 6,
           padding: "8px 10px",
           marginBottom: 6,
-          boxShadow: "0 1px 3px #0001"
+          boxShadow: "0 1px 3px #0001",
+          cursor: onNavigatePerson ? "pointer" : "default"
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
@@ -18059,7 +18067,8 @@ function App() {
     persist: persist,
     ownerFilter: ownerFilter,
     templates: templates,
-    setTemplates: setTemplates
+    setTemplates: setTemplates,
+    onNavigatePerson: id => handleNavigate("people", id, "vacancies")
   }), view === "specouts" && /*#__PURE__*/React.createElement(SpecOutsView, {
     specOuts: specOuts,
     setSpecOuts: setSpecOuts,
