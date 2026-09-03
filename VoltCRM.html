@@ -196,16 +196,60 @@ async function atGet(url) {
   if (!r.ok) throw new Error("AT " + r.status + " " + (await r.text()));
   return r.json();
 }
+// A transient blip — WiFi dropping for a second, Airtable briefly rate
+// limiting or erroring — used to mean the whole write for that batch was
+// silently lost: nothing retried it, and nothing told the person it had
+// failed. The data looked saved locally right up until their next refresh
+// pulled the real, incomplete state from Airtable. This retries genuinely
+// transient failures automatically before giving up, and reports success
+// count so a persistent, non-transient failure can be raised to the user
+// rather than swallowed.
+async function fetchWithRetry(url, options, maxRetries, safeOnNetworkError) {
+  maxRetries = maxRetries == null ? 3 : maxRetries;
+  safeOnNetworkError = safeOnNetworkError !== false;
+  var lastErr = null;
+  for (var attempt = 0; attempt <= maxRetries; attempt++) {
+    var res = null;
+    try {
+      res = await fetch(url, options);
+    } catch (e) {
+      // The connection dropped before any response came back at all - we
+      // genuinely don't know whether the server received and processed the
+      // request or not. That's harmless to retry for an update (reapplying
+      // the same change twice does nothing extra), but not for a create -
+      // if the record was actually made just before the connection dropped,
+      // retrying would create a duplicate. Only retry this specific case
+      // when the caller has told us it's safe to.
+      if (!safeOnNetworkError) throw e;
+      lastErr = e;
+    }
+    if (res) {
+      if (res.ok) return res;
+      // A bad request or auth failure will never succeed just by trying
+      // again - fail immediately rather than wasting retries on it.
+      if (res.status !== 429 && res.status < 500) {
+        throw new Error("AT " + res.status + " " + (await res.text()));
+      }
+      // The server itself explicitly rejected this one (rate limited or
+      // erroring) - we KNOW for certain nothing was created, so this is
+      // always safe to retry regardless of create vs update.
+      lastErr = new Error("AT " + res.status + " " + (await res.text()));
+    }
+    if (attempt < maxRetries) {
+      await new Promise(function (r) { setTimeout(r, 400 * Math.pow(2, attempt)); });
+    }
+  }
+  throw lastErr;
+}
 async function atPost(url, body) {
-  const r = await fetch(url, {
+  const r = await fetchWithRetry(url, {
     method: "POST",
     headers: {
       "Authorization": "Bearer " + AT_TOKEN,
       "Content-Type": "application/json"
     },
     body: JSON.stringify(body)
-  });
-  if (!r.ok) throw new Error("AT " + r.status + " " + (await r.text()));
+  }, 3, false);
   return r.json();
 }
 async function atDelete(recId) {
@@ -219,15 +263,14 @@ async function atDelete(recId) {
   if (!r.ok) console.warn("AT DELETE failed", r.status);
 }
 async function atPatch(url, body) {
-  const r = await fetch(url, {
+  const r = await fetchWithRetry(url, {
     method: "PATCH",
     headers: {
       "Authorization": "Bearer " + AT_TOKEN,
       "Content-Type": "application/json"
     },
     body: JSON.stringify(body)
-  });
-  if (!r.ok) throw new Error("AT " + r.status + " " + (await r.text()));
+  }, 3, true);
   return r.json();
 }
 
@@ -324,6 +367,17 @@ var _createdIds = {};
 // it as done. This cache lets a save skip everyone whose data hasn't actually
 // changed, so a real save is one record, not the whole table.
 var _lastSyncedJSON = {};
+// When this session itself last successfully wrote each record. Airtable,
+// like most databases, doesn't always make a write instantly visible to a
+// read a moment later - there's a brief real lag. Without tracking this,
+// the periodic background refresh (see App's useEffect) could read Airtable
+// in that exact narrow window, see what looks like an "older" version of a
+// record this session had just correctly saved, and wrongly conclude some
+// other session must have changed it - silently undoing your own
+// just-completed save. Any record written by this session within the last
+// two refresh cycles is left alone regardless of what a read shows, to give
+// Airtable's own consistency time to catch up.
+var _lastWrittenAt = {};
 async function saveToAirtable(name, data) {
   const _n = (name || "").toLowerCase();
   const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : _n === "specouts" ? "SPECOUT" : _n === "templates" ? "TEMPLATE" : "VACANCY";
@@ -423,6 +477,7 @@ async function _saveToAirtableInner(name, data, recType) {
       batch[idx]._recId = r.id;
       if (batch[idx].id != null) _createdIds[batch[idx].id] = r.id;
       _lastSyncedJSON[r.id] = JSON.stringify(batch[idx]);
+      _lastWrittenAt[r.id] = Date.now();
     });
     if (ci < createBatches.length - 1) await delay(250);
   }
@@ -447,6 +502,7 @@ async function _saveToAirtableInner(name, data, recType) {
     });
     ubatch.forEach(function (item) {
       _lastSyncedJSON[item._recId] = JSON.stringify(item);
+      _lastWrittenAt[item._recId] = Date.now();
     });
     if (ui < updateBatches.length - 1) await delay(250);
   }
@@ -17532,6 +17588,27 @@ function App() {
   const [ready, setReady] = useState(false);
   const [saveState, setSaveState] = useState(null);
   const [syncStatus, setSyncStatus] = useState("loading");
+  const saveStateRef = useRef(saveState);
+  useEffect(() => {
+    saveStateRef.current = saveState;
+  }, [saveState]);
+  // If a save is genuinely still in flight - mid-write to Airtable - and
+  // someone closes the tab or navigates away right then, whatever hadn't
+  // finished writing yet is simply lost, with no way to recover it
+  // afterwards. Rather than relying on someone remembering to check the
+  // small status badge, the browser itself now steps in and asks for
+  // confirmation before leaving, exactly while that risk actually exists.
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (saveStateRef.current === "saving") {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
   useEffect(() => {
     (async () => {
       setSyncStatus("loading");
@@ -17640,6 +17717,77 @@ function App() {
       setReady(true);
     })();
   }, []);
+  // Every session used to load data exactly once and never check Airtable
+  // again for the rest of the day. If David and Lauren both had the CRM
+  // open, David's session had no way of knowing Lauren had just added
+  // someone - so if his session later saved anything at all, it could
+  // silently overwrite her change with his own, now-stale local copy of
+  // that same person. This periodically pulls in what's actually on
+  // Airtable and adopts it locally - but ONLY for records this session
+  // hasn't itself changed since its last successful save, so it can never
+  // clobber your own in-progress, not-yet-saved edits.
+  useEffect(() => {
+    if (!ready) return;
+    var interval = setInterval(async () => {
+      try {
+        var fresh = await loadFromAirtable();
+        if (fresh.people && fresh.people.length > 0) {
+          setPeople(function (prev) {
+            var freshById = {};
+            fresh.people.forEach(function (fp) { freshById[fp.id] = fp; });
+            var changed = false;
+            var merged = prev.map(function (p) {
+              var fp = freshById[p.id];
+              if (!fp || !p._recId) return p;
+              var freshJson = JSON.stringify(fp);
+              if (freshJson === JSON.stringify(p)) return p;
+              // Only adopt the server version if THIS session has no
+              // unsaved local change of its own for this record, AND this
+              // session didn't itself just write it a moment ago (giving
+              // Airtable's own read-after-write consistency time to catch
+              // up, rather than mistaking that lag for someone else's edit).
+              var recentlyWrittenByMe = _lastWrittenAt[p._recId] && (Date.now() - _lastWrittenAt[p._recId] < 90000);
+              if (!recentlyWrittenByMe && _lastSyncedJSON[p._recId] === JSON.stringify(p)) {
+                changed = true;
+                _lastSyncedJSON[p._recId] = freshJson;
+                return migratePerson(Object.assign({}, fp, {
+                  relationship: migrateRelationship(fp.relationship)
+                }));
+              }
+              return p;
+            });
+            return changed ? merged : prev;
+          });
+        }
+        if (fresh.companies && fresh.companies.length > 0) {
+          setCompanies(function (prev) {
+            var freshById = {};
+            fresh.companies.forEach(function (fc) { freshById[fc.id] = fc; });
+            var changed = false;
+            var merged = prev.map(function (c) {
+              var fc = freshById[c.id];
+              if (!fc || !c._recId) return c;
+              var freshJson = JSON.stringify(fc);
+              if (freshJson === JSON.stringify(c)) return c;
+              var recentlyWrittenByMeC = _lastWrittenAt[c._recId] && (Date.now() - _lastWrittenAt[c._recId] < 90000);
+              if (!recentlyWrittenByMeC && _lastSyncedJSON[c._recId] === JSON.stringify(c)) {
+                changed = true;
+                _lastSyncedJSON[c._recId] = freshJson;
+                return Object.assign({}, fc, {
+                  relationship: migrateRelationship(fc.relationship || "")
+                });
+              }
+              return c;
+            });
+            return changed ? merged : prev;
+          });
+        }
+      } catch (e) {
+        console.warn("Background refresh failed, will retry next cycle:", e.message);
+      }
+    }, 45000);
+    return () => clearInterval(interval);
+  }, [ready]);
   const persist = useCallback(async (key, data) => {
     setSaveState("saving");
     // Always save to localStorage immediately - this never fails
