@@ -150,7 +150,15 @@ function buildSignatureHtml(email) {
 async function sendGraphMail(to, subject, body) {
   var token = await getGraphToken();
   var senderEmail = getConnectedOutlookAccount();
-  var htmlBody = "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;white-space:pre-wrap;\">" + body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</div>" + buildSignatureHtml(senderEmail);
+  var escapedBody = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // Outlook's desktop client renders HTML email through Word's engine, which
+  // does not reliably honour white-space:pre-wrap — paragraph spacing and
+  // line breaks can silently collapse into one block for the recipient even
+  // though it looks correct in the compose box. Converting every newline
+  // into a real <br> tag is the actual fix: it renders correctly everywhere,
+  // Outlook included, regardless of how that client handles CSS whitespace.
+  var bodyWithBreaks = escapedBody.replace(/\n/g, "<br>");
+  var htmlBody = "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + bodyWithBreaks + "</div>" + buildSignatureHtml(senderEmail);
   var r = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
     method: "POST",
     headers: {
