@@ -7478,6 +7478,15 @@ function BDTracker({
       return ks.indexOf(k) !== -1 ? ks.filter(function (x) { return x !== k; }) : ks.concat([k]);
     });
   }
+  function removeFromPipeline(person) {
+    setPeople(function (prev) {
+      var updated = prev.map(function (p) {
+        return p.id === person.id ? Object.assign({}, p, { bdStage: "" }) : p;
+      });
+      persist("people", updated);
+      return updated;
+    });
+  }
   function exitBulkFollowups() {
     setBulkMode(false);
     setBulkKeys([]);
@@ -7766,7 +7775,26 @@ function BDTracker({
         weekday: "short",
         day: "numeric",
         month: "short"
-      }), isOverdue(item.nextDue) ? " — OVERDUE" : ""))), /*#__PURE__*/React.createElement("button", {
+      }), isOverdue(item.nextDue) ? " — OVERDUE" : ""))), item._k === "person" && item.bdStage && /*#__PURE__*/React.createElement("button", {
+        onClick: function (e) {
+          e.stopPropagation();
+          removeFromPipeline(item);
+        },
+        title: "Remove from pipeline (keeps the contact)",
+        style: {
+          background: "none",
+          border: "1px solid " + G300,
+          color: G600,
+          borderRadius: 6,
+          padding: "6px 10px",
+          cursor: "pointer",
+          fontSize: 13,
+          fontWeight: 700,
+          fontFamily: "inherit",
+          flexShrink: 0,
+          lineHeight: 1
+        }
+      }, "\u2715"), /*#__PURE__*/React.createElement("button", {
         onClick: function (e) {
           e.stopPropagation();
           openDone(item);
