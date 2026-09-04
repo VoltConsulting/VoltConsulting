@@ -11094,6 +11094,11 @@ function SendMailModal({
   const [templateId, setTemplateId] = useState("");
   const [showSaveBox, setShowSaveBox] = useState(false);
   const [templateTitle, setTemplateTitle] = useState("");
+  const [titleError, setTitleError] = useState(false);
+  const [saveCategory, setSaveCategory] = useState(templateCategory || TEMPLATE_CATEGORIES[0]);
+  const [addingNewCategory, setAddingNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [justSavedTemplate, setJustSavedTemplate] = useState(false);
   const [sending, setSending] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
@@ -11116,17 +11121,27 @@ function SendMailModal({
     if (t) setBody(t.body || "");
   }
   function saveAsTemplate() {
-    if (!templateTitle.trim() || !body.trim()) return;
+    if (!templateTitle.trim()) {
+      setTitleError(true);
+      return;
+    }
+    if (!body.trim()) return;
+    var finalCategory = addingNewCategory ? (newCategoryName.trim() || "Miscellaneous") : saveCategory;
     onSaveTemplate({
       id: Date.now(),
       name: templateTitle.trim(),
-      category: templateCategory || "Miscellaneous",
+      category: finalCategory,
       subject: subject.trim(),
       body: body.trim(),
       channel: "email"
     });
     setTemplateTitle("");
+    setTitleError(false);
     setShowSaveBox(false);
+    setAddingNewCategory(false);
+    setNewCategoryName("");
+    setJustSavedTemplate(true);
+    setTimeout(function () { setJustSavedTemplate(false); }, 3000);
   }
   async function connect() {
     setError("");
@@ -11214,6 +11229,54 @@ function SendMailModal({
     }
   }
   const headerName = multi ? people.length + " contacts" : people[0] ? people[0].name : "";
+  const saveBoxUI = justSavedTemplate ? /*#__PURE__*/React.createElement("div", {
+    style: { color: OK, fontSize: 11.5, fontWeight: 600 }
+  }, "\u2713 Saved \u2014 find it any time in Templates") : !showSaveBox ? /*#__PURE__*/React.createElement("button", {
+    onClick: function () { setShowSaveBox(true); },
+    style: { background: "none", border: "none", color: TEAL, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: 0 }
+  }, "+ Save this as a reusable template") : /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 4, background: G50, border: "1px solid " + G200, borderRadius: 8, padding: 10 }
+  },
+    /*#__PURE__*/React.createElement("input", {
+      value: templateTitle,
+      onChange: function (e) { setTemplateTitle(e.target.value); if (titleError) setTitleError(false); },
+      placeholder: "Template title\u2026",
+      style: { border: "1px solid " + (titleError ? DANGER : G300), borderRadius: 6, padding: "6px 9px", fontSize: 12.5, outline: "none", fontFamily: "inherit" }
+    }),
+    titleError && /*#__PURE__*/React.createElement("div", {
+      style: { color: DANGER, fontSize: 11 }
+    }, "Give it a title before saving"),
+    !addingNewCategory ? /*#__PURE__*/React.createElement("select", {
+      value: saveCategory,
+      onChange: function (e) {
+        if (e.target.value === "__new__") { setAddingNewCategory(true); } else { setSaveCategory(e.target.value); }
+      },
+      style: { border: "1px solid " + G300, borderRadius: 6, padding: "6px 9px", fontSize: 12.5, outline: "none", fontFamily: "inherit", cursor: "pointer", background: W }
+    },
+      TEMPLATE_CATEGORIES.map(function (c) {
+        return /*#__PURE__*/React.createElement("option", { key: c, value: c }, c);
+      }),
+      /*#__PURE__*/React.createElement("option", { value: "__new__" }, "+ New category\u2026")
+    ) : /*#__PURE__*/React.createElement("input", {
+      autoFocus: true,
+      value: newCategoryName,
+      onChange: function (e) { setNewCategoryName(e.target.value); },
+      placeholder: "New category name\u2026",
+      style: { border: "1px solid " + G300, borderRadius: 6, padding: "6px 9px", fontSize: 12.5, outline: "none", fontFamily: "inherit" }
+    }),
+    /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", gap: 6 }
+    },
+      /*#__PURE__*/React.createElement("button", {
+        onClick: saveAsTemplate,
+        style: { background: TEAL, color: W, border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }
+      }, "Save"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: function () { setShowSaveBox(false); setTitleError(false); setAddingNewCategory(false); setNewCategoryName(""); },
+        style: { background: "none", border: "1px solid " + G300, color: G600, borderRadius: 6, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
+      }, "Cancel")
+    )
+  );
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -11483,59 +11546,7 @@ function SendMailModal({
       fontFamily: "inherit",
       resize: "vertical"
     }
-  }), body.trim() && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 6
-    }
-  }, !showSaveBox ? /*#__PURE__*/React.createElement("button", {
-    onClick: function () {
-      setShowSaveBox(true);
-    },
-    style: {
-      background: "none",
-      border: "none",
-      color: TEAL,
-      fontSize: 11.5,
-      fontWeight: 600,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      padding: 0
-    }
-  }, "+ Save this as a reusable template") : /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 6,
-      marginTop: 4
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    value: templateTitle,
-    onChange: function (e) {
-      setTemplateTitle(e.target.value);
-    },
-    placeholder: "Template title\u2026",
-    style: {
-      flex: 1,
-      border: "1px solid " + G300,
-      borderRadius: 6,
-      padding: "6px 9px",
-      fontSize: 12.5,
-      outline: "none",
-      fontFamily: "inherit"
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: saveAsTemplate,
-    style: {
-      background: TEAL,
-      color: W,
-      border: "none",
-      borderRadius: 6,
-      padding: "6px 14px",
-      fontSize: 12,
-      fontWeight: 700,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
-  }, "Save")))), error && /*#__PURE__*/React.createElement("div", {
+  }), body.trim() && saveBoxUI, error && /*#__PURE__*/React.createElement("div", {
     style: {
       color: DANGER,
       fontSize: 12,
@@ -11581,7 +11592,7 @@ function SendMailModal({
       fontFamily: "inherit",
       opacity: sending || !body.trim() || !validPeople.length ? 0.6 : 1
     }
-  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send")))));
+  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send"))))));
 }
 function ActivityLogModal({
   people,
@@ -17565,6 +17576,7 @@ function App() {
   const isLocalFile = window.location.protocol === "file:";
   const [view, setView] = useState("bd");
   const [ownerFilter, setOwnerFilter] = useState(sessionStorage.getItem("volt_owner") || null);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const [navSel, setNavSel] = useState(null);
   const [navFrom, setNavFrom] = useState(null);
   const [returnToCompanyId, setReturnToCompanyId] = useState(null);
@@ -17728,15 +17740,17 @@ function App() {
   // clobber your own in-progress, not-yet-saved edits.
   useEffect(() => {
     if (!ready) return;
-    var interval = setInterval(async () => {
+    async function runBackgroundRefresh() {
       try {
         var fresh = await loadFromAirtable();
-        if (fresh.people && fresh.people.length > 0) {
+        if (fresh.people) {
           setPeople(function (prev) {
             var freshById = {};
             fresh.people.forEach(function (fp) { freshById[fp.id] = fp; });
+            var prevIds = {};
             var changed = false;
             var merged = prev.map(function (p) {
+              prevIds[p.id] = true;
               var fp = freshById[p.id];
               if (!fp || !p._recId) return p;
               var freshJson = JSON.stringify(fp);
@@ -17756,15 +17770,32 @@ function App() {
               }
               return p;
             });
+            // Anyone genuinely new on the server - added from VoltCapture,
+            // a CSV import, or another session entirely - that this session
+            // has never seen locally at all gets added here too.
+            var newOnes = fresh.people.filter(function (fp) { return !prevIds[fp.id]; });
+            if (newOnes.length > 0) {
+              changed = true;
+              newOnes.forEach(function (fp) {
+                if (fp._recId) _lastSyncedJSON[fp._recId] = JSON.stringify(fp);
+              });
+              merged = merged.concat(newOnes.map(function (fp) {
+                return migratePerson(Object.assign({}, fp, {
+                  relationship: migrateRelationship(fp.relationship)
+                }));
+              }));
+            }
             return changed ? merged : prev;
           });
         }
-        if (fresh.companies && fresh.companies.length > 0) {
+        if (fresh.companies) {
           setCompanies(function (prev) {
             var freshById = {};
             fresh.companies.forEach(function (fc) { freshById[fc.id] = fc; });
+            var prevIds = {};
             var changed = false;
             var merged = prev.map(function (c) {
+              prevIds[c.id] = true;
               var fc = freshById[c.id];
               if (!fc || !c._recId) return c;
               var freshJson = JSON.stringify(fc);
@@ -17779,13 +17810,27 @@ function App() {
               }
               return c;
             });
+            var newOnes = fresh.companies.filter(function (fc) { return !prevIds[fc.id]; });
+            if (newOnes.length > 0) {
+              changed = true;
+              newOnes.forEach(function (fc) {
+                if (fc._recId) _lastSyncedJSON[fc._recId] = JSON.stringify(fc);
+              });
+              merged = merged.concat(newOnes.map(function (fc) {
+                return Object.assign({}, fc, {
+                  relationship: migrateRelationship(fc.relationship || "")
+                });
+              }));
+            }
             return changed ? merged : prev;
           });
         }
       } catch (e) {
         console.warn("Background refresh failed, will retry next cycle:", e.message);
       }
-    }, 45000);
+    }
+    var interval = setInterval(runBackgroundRefresh, 20000);
+    window._voltManualRefresh = runBackgroundRefresh;
     return () => clearInterval(interval);
   }, [ready]);
   const persist = useCallback(async (key, data) => {
@@ -18194,7 +18239,32 @@ function App() {
       color: G400,
       whiteSpace: "nowrap"
     }
-  }, people.length + " people · " + companies.length + " companies")), /*#__PURE__*/React.createElement("div", {
+  }, people.length + " people · " + companies.length + " companies"), /*#__PURE__*/React.createElement("button", {
+    onClick: async () => {
+      if (manualRefreshing) return;
+      setManualRefreshing(true);
+      try {
+        if (window._voltManualRefresh) await window._voltManualRefresh();
+      } finally {
+        setManualRefreshing(false);
+      }
+    },
+    title: "Pull in anything just added elsewhere \u2014 VoltCapture, another teammate, etc.",
+    style: {
+      background: "none",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "4px 9px",
+      fontSize: 11.5,
+      color: manualRefreshing ? G400 : G600,
+      cursor: manualRefreshing ? "default" : "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap",
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, manualRefreshing ? "\u27F3 Refreshing\u2026" : "\u27F3 Refresh")), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflow: "hidden"
