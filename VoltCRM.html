@@ -11118,7 +11118,16 @@ function SendMailModal({
     const t = emailTemplates.find(function (x) {
       return String(x.id) === String(id);
     });
-    if (t) setBody(t.body || "");
+    if (!t) return;
+    var tBody = t.body || "";
+    // A template that never included {{firstName}} at all would send with
+    // no greeting whatsoever - relying on every saved template to remember
+    // the placeholder is fragile. If it's missing, add one automatically
+    // rather than leaving the message with nobody's name in it.
+    if (tBody.indexOf("{{firstName}}") === -1) {
+      tBody = "Hi {{firstName}},\n\n" + tBody;
+    }
+    setBody(tBody);
   }
   function saveAsTemplate() {
     if (!templateTitle.trim()) {
@@ -11156,7 +11165,7 @@ function SendMailModal({
     }
   }
   function personalize(text, p) {
-    const fname = p.firstName || (p.name || "").split(" ")[0] || "";
+    const fname = p.firstName || (p.name || "").split(" ")[0] || "there";
     return (text || "").split("{{firstName}}").join(fname);
   }
   function delay(ms) {
@@ -11652,7 +11661,7 @@ function ActivityLogModal({
       return String(x.id) === String(id);
     });
     if (!t) return;
-    const fname = single ? single.firstName || (single.name || "").split(" ")[0] || "" : "";
+    const fname = single ? single.firstName || (single.name || "").split(" ")[0] || "there" : "there";
     const body = (t.body || "").split("{{firstName}}").join(fname);
     setNote(body);
   }
