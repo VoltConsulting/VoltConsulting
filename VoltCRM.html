@@ -11105,12 +11105,12 @@ function SendMailModal({
   const [progress, setProgress] = useState(null);
   const [results, setResults] = useState(null);
   const notConfigured = !MS_CLIENT_ID;
-  // Untagged templates stay visible everywhere (existing templates keep
-  // working as before); a template tagged for a different category is
-  // hidden here, so BD outreach templates don't clutter a spec-out send
-  // and vice versa.
+  // Every saved email template should be selectable here, regardless of
+  // category - hiding anyone's template because its category didn't match
+  // the current context meant most templates were invisible by default,
+  // which is worse than a little extra scrolling in the dropdown.
   const emailTemplates = (templates || []).filter(function (t) {
-    return (t.channel === "email" || !t.channel) && (!templateCategory || !t.category || t.category === templateCategory);
+    return t.channel === "email" || !t.channel;
   });
   function insertTemplate(id) {
     setTemplateId(id);
@@ -11277,6 +11277,29 @@ function SendMailModal({
       }, "Cancel")
     )
   );
+  // Groups every saved template by category for the dropdown below -
+  // nothing is hidden (that was the earlier bug), it is just organised
+  // under headings so a long list stays easy to scan. Whichever category
+  // matches the current send context, if any, is moved to the top so the
+  // most likely-relevant group is the first thing seen.
+  var groupedEmailTemplates = (function () {
+    var byCategory = {};
+    var order = [];
+    emailTemplates.forEach(function (t) {
+      var cat = t.category || "Miscellaneous";
+      if (!byCategory[cat]) {
+        byCategory[cat] = [];
+        order.push(cat);
+      }
+      byCategory[cat].push(t);
+    });
+    if (templateCategory && order.indexOf(templateCategory) > 0) {
+      order = [templateCategory].concat(order.filter(function (c) { return c !== templateCategory; }));
+    }
+    return order.map(function (cat) {
+      return { category: cat, items: byCategory[cat] };
+    });
+  })();
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -11482,11 +11505,16 @@ function SendMailModal({
     }
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
-  }, "None \u2014 write from scratch"), emailTemplates.map(function (t) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: t.id,
-      value: t.id
-    }, t.name);
+  }, "None \u2014 write from scratch"), groupedEmailTemplates.map(function (grp) {
+    return /*#__PURE__*/React.createElement("optgroup", {
+      key: grp.category,
+      label: grp.category
+    }, grp.items.map(function (t) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: t.id,
+        value: t.id
+      }, t.name);
+    }));
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 10
@@ -17821,6 +17849,42 @@ function App() {
                   relationship: migrateRelationship(fc.relationship || "")
                 });
               }));
+            }
+            return changed ? merged : prev;
+          });
+        }
+        // Templates were missed entirely when this refresh was first built -
+        // a template saved in one session never appeared for anyone else,
+        // in the Templates tab or the Send screen's dropdown, no matter how
+        // long they waited or how many times they refreshed. Same proven
+        // pattern as people and companies above.
+        if (fresh.templates) {
+          setTemplates(function (prev) {
+            var freshById = {};
+            fresh.templates.forEach(function (ft) { freshById[ft.id] = ft; });
+            var prevIds = {};
+            var changed = false;
+            var merged = prev.map(function (t) {
+              prevIds[t.id] = true;
+              var ft = freshById[t.id];
+              if (!ft || !t._recId) return t;
+              var freshJson = JSON.stringify(ft);
+              if (freshJson === JSON.stringify(t)) return t;
+              var recentlyWrittenByMeT = _lastWrittenAt[t._recId] && (Date.now() - _lastWrittenAt[t._recId] < 90000);
+              if (!recentlyWrittenByMeT && _lastSyncedJSON[t._recId] === JSON.stringify(t)) {
+                changed = true;
+                _lastSyncedJSON[t._recId] = freshJson;
+                return Object.assign({}, ft);
+              }
+              return t;
+            });
+            var newOnes = fresh.templates.filter(function (ft) { return !prevIds[ft.id]; });
+            if (newOnes.length > 0) {
+              changed = true;
+              newOnes.forEach(function (ft) {
+                if (ft._recId) _lastSyncedJSON[ft._recId] = JSON.stringify(ft);
+              });
+              merged = merged.concat(newOnes.map(function (ft) { return Object.assign({}, ft); }));
             }
             return changed ? merged : prev;
           });
