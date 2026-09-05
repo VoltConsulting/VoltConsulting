@@ -6586,7 +6586,9 @@ function CompaniesView({
   ownerFilter,
   vacancies,
   specOuts = [],
-  setSpecOuts = () => {}
+  setSpecOuts = () => {},
+  templates,
+  setTemplates
 }) {
   const [search, setSearch] = useState("");
   const [tierF, setTierF] = useState("all");
@@ -6595,6 +6597,7 @@ function CompaniesView({
   const [personBulkIds, setPersonBulkIds] = useState([]);
   const [personBulkOwner, setPersonBulkOwner] = useState("");
   const [personBulkStage, setPersonBulkStage] = useState("");
+  const [sendModal, setSendModal] = useState(null);
   const [sel, setSel] = useState(initialSel || null);
   const [termsTab, setTermsTab] = useState("Contingency");
   const prevSelRefC = useRef(sel);
@@ -6771,7 +6774,39 @@ function CompaniesView({
     });
     exitPersonBulk();
   };
-  return /*#__PURE__*/React.createElement("div", {
+  function saveTemplate(t) {
+    const updated = [t, ...(templates || [])];
+    setTemplates(updated);
+    persist("templates", updated);
+  }
+  function applySentActivity(person, entry) {
+    setPeople(prev => {
+      const updated = prev.map(function (p) {
+        if (p.id !== person.id) return p;
+        var upd = {
+          activityLog: [entry, ...(p.activityLog || [])],
+          lastContacted: today,
+          emailStage: (p.emailStage || 0) + 1
+        };
+        if (!p.bdStage || !p.bdStage.trim()) upd.bdStage = "Contacted";
+        return Object.assign({}, p, upd);
+      });
+      persist("people", updated);
+      return updated;
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", null, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: sendModal,
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    onSent: function (p, entry) {
+      applySentActivity(p, entry);
+    },
+    onClose: function () {
+      setSendModal(null);
+      exitPersonBulk();
+    }
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       height: "100%",
@@ -7368,6 +7403,9 @@ function CompaniesView({
     onChange: e => setPersonBulkStage(e.target.value),
     style: { border: "none", borderRadius: 6, padding: "6px 8px", fontSize: 12, fontFamily: "inherit", cursor: "pointer" }
   }, [/*#__PURE__*/React.createElement("option", { key: "", value: "" }, "+ Add to BD Pipeline\u2026")].concat(BD_STAGES.map(s => /*#__PURE__*/React.createElement("option", { key: s, value: s }, s)))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setSendModal(linked.filter(p => personBulkIds.indexOf(p.id) !== -1)),
+    style: { background: TEAL, color: W, border: "none", borderRadius: 6, padding: "7px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }
+  }, "\u2709 Send"), /*#__PURE__*/React.createElement("button", {
     onClick: applyPersonBulk,
     style: { background: TEAL, color: W, border: "none", borderRadius: 6, padding: "7px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }
   }, "Apply to " + personBulkIds.length), /*#__PURE__*/React.createElement("button", {
@@ -7608,7 +7646,7 @@ function CompaniesView({
     onClose: () => setModal(null),
     people: people,
     isEdit: false
-  })));
+  }))));
 }
 
 // ── BD TRACKER ────────────────────────────────────────────────
@@ -18488,7 +18526,9 @@ function App() {
     ownerFilter: ownerFilter,
     vacancies: vacancies,
     specOuts: specOuts,
-    setSpecOuts: setSpecOuts
+    setSpecOuts: setSpecOuts,
+    templates: templates,
+    setTemplates: setTemplates
   }), view === "vacancies" && /*#__PURE__*/React.createElement(VacanciesView, {
     vacancies: vacancies,
     setVacancies: setVacancies,
