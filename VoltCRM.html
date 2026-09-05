@@ -6596,6 +6596,7 @@ function CompaniesView({
   const [personBulkOwner, setPersonBulkOwner] = useState("");
   const [personBulkStage, setPersonBulkStage] = useState("");
   const [sel, setSel] = useState(initialSel || null);
+  const [termsTab, setTermsTab] = useState("Contingency");
   const prevSelRefC = useRef(sel);
   const [selHistoryC, setSelHistoryC] = useState([]);
   useEffect(() => {
@@ -7092,7 +7093,100 @@ function CompaniesView({
     value: selC.nextDue,
     type: "date",
     onChange: v => commit(prev => prev.map(c => c.id === sel ? Object.assign({}, c, { nextDue: v }) : c))
-  }))), selC.nextAction && /*#__PURE__*/React.createElement("div", {
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: W,
+      borderRadius: 8,
+      padding: "16px 20px",
+      border: "1px solid " + G200,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: G600,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 12
+    }
+  }, "Terms"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 14,
+      flexWrap: "wrap"
+    }
+  }, ["Contingency", "Retained", "VoltTEAMbuild"].map(p => {
+    const pt = (selC.termsByProduct || {})[p] || {};
+    const dotColor = pt.status === "Signed" ? OK : pt.status === "Sent" ? WARN : G400;
+    return /*#__PURE__*/React.createElement("button", {
+      key: p,
+      onClick: () => setTermsTab(p),
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        background: termsTab === p ? TL : "transparent",
+        border: "1px solid " + (termsTab === p ? TM : G300),
+        borderRadius: 16,
+        padding: "5px 12px",
+        fontSize: 12.5,
+        fontWeight: termsTab === p ? 700 : 600,
+        color: termsTab === p ? TEAL : G700,
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 7,
+        height: 7,
+        borderRadius: "50%",
+        background: dotColor,
+        display: "inline-block",
+        flexShrink: 0
+      }
+    }), p);
+  })), (() => {
+    const pt = (selC.termsByProduct || {})[termsTab] || {};
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 12
+      }
+    }, /*#__PURE__*/React.createElement(Badge, {
+      label: termsTab + ": " + (pt.status || "Not sent"),
+      color: pt.status === "Signed" ? OK : pt.status === "Sent" ? WARN : G400
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap",
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement(Btn, {
+      small: true,
+      variant: pt.status ? "ghost" : "primary",
+      onClick: () => commit(prev => prev.map(c => c.id === sel ? Object.assign({}, c, { termsByProduct: Object.assign({}, c.termsByProduct, { [termsTab]: Object.assign({}, pt, { status: "Sent", sentDate: today }) }) }) : c))
+    }, "Mark Terms Sent"), /*#__PURE__*/React.createElement(Btn, {
+      small: true,
+      variant: pt.status === "Signed" ? "ghost" : "primary",
+      onClick: () => commit(prev => prev.map(c => c.id === sel ? Object.assign({}, c, { termsByProduct: Object.assign({}, c.termsByProduct, { [termsTab]: Object.assign({}, pt, { status: "Signed", signedDate: today, sentDate: pt.sentDate || today }) }) }) : c))
+    }, "Mark Agreed & Signed"), pt.status && /*#__PURE__*/React.createElement(Btn, {
+      small: true,
+      variant: "danger",
+      onClick: () => commit(prev => prev.map(c => c.id === sel ? Object.assign({}, c, { termsByProduct: Object.assign({}, c.termsByProduct, { [termsTab]: {} }) }) : c))
+    }, "Reset")), (pt.sentDate || pt.signedDate) && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: G600,
+        marginBottom: 10
+      }
+    }, pt.sentDate ? "Sent: " + pt.sentDate : "", pt.sentDate && pt.signedDate ? " \u00b7 " : "", pt.signedDate ? "Signed: " + pt.signedDate : ""), /*#__PURE__*/React.createElement(InlineField, {
+      label: "Doc link / notes",
+      value: pt.note,
+      onChange: v => commit(prev => prev.map(c => c.id === sel ? Object.assign({}, c, { termsByProduct: Object.assign({}, c.termsByProduct, { [termsTab]: Object.assign({}, pt, { note: v }) }) }) : c))
+    }));
+  })()), selC.nextAction && /*#__PURE__*/React.createElement("div", {
     style: {
       background: TL,
       border: "1px solid " + TM,
