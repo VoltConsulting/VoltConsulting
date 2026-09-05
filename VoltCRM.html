@@ -6795,7 +6795,7 @@ function CompaniesView({
       return updated;
     });
   }
-  return /*#__PURE__*/React.createElement("div", null, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
+  return /*#__PURE__*/React.createElement("div", { style: { display: "contents" } }, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
     people: sendModal,
     templates: templates,
     onSaveTemplate: saveTemplate,
