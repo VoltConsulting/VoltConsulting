@@ -17922,7 +17922,7 @@ function App() {
     } catch (e) {}
     // Try Airtable sync
     try {
-      if (key === "people") await saveToAirtable("PEOPLE", data);else if (key === "companies") await saveToAirtable("COMPANIES", data);else if (key === "network") await saveToAirtable("NETWORK", data);else if (key === "vacancies") await saveToAirtable("VACANCIES", data);else if (key === "specouts") await saveToAirtable("SPECOUTS", data);
+      if (key === "people") await saveToAirtable("PEOPLE", data);else if (key === "companies") await saveToAirtable("COMPANIES", data);else if (key === "network") await saveToAirtable("NETWORK", data);else if (key === "vacancies") await saveToAirtable("VACANCIES", data);else if (key === "specouts") await saveToAirtable("SPECOUTS", data);else if (key === "templates") await saveToAirtable("TEMPLATES", data);
       // saveToAirtable stamps _recId onto items in `data`; persist that back
       // to localStorage so any later retry updates instead of re-creating.
       try {
