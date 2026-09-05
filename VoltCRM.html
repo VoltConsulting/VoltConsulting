@@ -6684,6 +6684,7 @@ function CompaniesView({
   })) && (c.name + c.type + c.hq).toLowerCase().includes(search.toLowerCase())), [companies, people, search, tierF, pillarF, ownerFilter]);
   const selC = companies.find(c => c.id === sel);
   const linked = selC ? people.filter(p => p.companyId === selC.id) : [];
+  const actualOpenVacancies = selC ? (vacancies || []).filter(v => v.companyId === selC.id && v.status === "Active").length : 0;
   const receivedSpecs = selC ? specOuts.filter(s => s.companyId === selC.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || "")) : [];
   const commit = fn => {
     setCompanies(prev => {
@@ -7038,8 +7039,8 @@ function CompaniesView({
   }, /*#__PURE__*/React.createElement(Badge, {
     label: selC.tier,
     color: TC_MAP[selC.tier] || G600
-  }), selC.openVacancies > 0 && /*#__PURE__*/React.createElement(Badge, {
-    label: selC.openVacancies + " open vacancys",
+  }), actualOpenVacancies > 0 && /*#__PURE__*/React.createElement(Badge, {
+    label: actualOpenVacancies + " open vacancies",
     color: TEAL
   }), linked.length > 0 && /*#__PURE__*/React.createElement(Badge, {
     label: linked.length + " people",
@@ -7117,7 +7118,7 @@ function CompaniesView({
       marginBottom: 14,
       flexWrap: "wrap"
     }
-  }, ["Contingency", "Retained", "VoltTEAMbuild"].map(p => {
+  }, ["Contingency", "Retained", "VoltTEAMbuild", "Their Own Terms"].map(p => {
     const pt = (selC.termsByProduct || {})[p] || {};
     const dotColor = pt.status === "Signed" ? OK : pt.status === "Sent" ? WARN : G400;
     return /*#__PURE__*/React.createElement("button", {
@@ -9454,7 +9455,7 @@ function MarketMap({
         color: OK,
         fontWeight: 600
       }
-    }, "📋 " + c.openVacancies + " vacancys");
+    }, "📋 " + c.openVacancies + " vacancies");
     const dueFlagInner = nearestDue && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 10.5,
