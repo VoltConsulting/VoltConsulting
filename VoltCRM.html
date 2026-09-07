@@ -1040,13 +1040,35 @@ function similarity(a, b) {
   });
   return 2 * inter / (ba.size + bb.size || 1);
 }
-function findDupePeople(name, company, people, excludeId) {
+function normalizeLinkedIn(url) {
+  if (!url) return "";
+  return url.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "");
+}
+function findDupePeople(name, company, people, excludeId, email, linkedin) {
   return people.filter(p => {
     if (p.id === excludeId) return false;
+    // Hard match: same email or same LinkedIn URL catches the case a name-similarity
+    // check misses entirely — e.g. "Mike" vs "Michael", or a maiden/married name change,
+    // where two owners each added the same person as a "new" record.
+    if (email && email.trim() && p.email && p.email.trim().toLowerCase() === email.trim().toLowerCase()) return true;
+    if (linkedin && p.linkedin && normalizeLinkedIn(linkedin) && normalizeLinkedIn(linkedin) === normalizeLinkedIn(p.linkedin)) return true;
     const ns = similarity(name, p.name);
     if (ns < 0.8) return false;
     if (company && p.company) return similarity(company, p.company) > 0.7 || ns > 0.92;
     return ns > 0.92;
+  });
+}
+// Narrower than findDupePeople: only surfaces a match that is ALREADY active on
+// someone else's BD Pipeline (bdStage set, owned by someone other than the person
+// currently doing the adding). This is the specific check for "am I about to
+// pipeline someone Lauren/Brinda/David already has" — not a general dupe warning.
+function findPipelineConflicts(person, people, ownerFilter) {
+  const matches = findDupePeople(person.name, person.company, people, person.id, person.email, person.linkedin);
+  return matches.filter(m => {
+    if (!m.bdStage || !m.bdStage.trim()) return false;
+    const mOwners = migrateOwners(m.owners, m.owner);
+    if (!ownerFilter) return mOwners.length > 0;
+    return !mOwners.includes(ownerFilter);
   });
 }
 function findDupeCompanies(name, companies, excludeId) {
@@ -1674,6 +1696,47 @@ const DupeBanner = ({
       alignSelf: "center"
     }
   }, "or close to cancel")));
+};
+// Shown when clicking "+ Add to BD Pipeline" and a matching person elsewhere
+// in the system is already actively staged under a different owner. Kept
+// deliberately calm/low-key (same tip style used elsewhere) rather than a red/
+// amber warning — this is routine information, not an error state.
+const PipelineConflictBanner = ({
+  conflicts,
+  onCancel,
+  onProceed
+}) => {
+  if (!conflicts || conflicts.length === 0) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: TL,
+      border: "1px solid " + TM,
+      borderRadius: 8,
+      padding: "10px 16px",
+      marginBottom: 16
+    }
+  }, conflicts.map(d => /*#__PURE__*/React.createElement("div", {
+    key: d.id,
+    style: {
+      fontSize: 13,
+      color: NAVY,
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, d.name), " is already in ", /*#__PURE__*/React.createElement("strong", null, migrateOwners(d.owners, d.owner).join("/") || "someone's"), "'s pipeline (", d.bdStage, ").")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    small: true,
+    onClick: onProceed
+  }, "Add anyway"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    small: true,
+    onClick: onCancel
+  }, "Cancel")));
 };
 const SectorPicker = ({
   selected,
@@ -2349,7 +2412,7 @@ function CSVImporter({
     // Build all new records first
     var newRecords = [];
     allRows.forEach(function (r) {
-      if (findDupePeople(r.name, r.company, np).length > 0) {
+      if (findDupePeople(r.name, r.company, np, null, r.email, r.linkedin).length > 0) {
         skipped++;
         return;
       }
@@ -3604,6 +3667,8 @@ function PersonDetail({
   useEffect(() => setTab(initialTab), [selP ? selP.id : null, initialTab]);
   const [editingNotes, setEditingNotes] = useState(false);
   const [draftNotes, setDraftNotes] = useState("");
+  const [pipelineConflict, setPipelineConflict] = useState(null);
+  useEffect(() => setPipelineConflict(null), [selP ? selP.id : null]);
   const companyPeople = selP && selP.companyId ? people.filter(p => p.companyId === selP.companyId && p.id !== selP.id) : [];
   const co = selP ? companies.find(c => c.id === selP.companyId) : null;
   // Uses the functional setState form deliberately: two saves fired in
@@ -3623,6 +3688,22 @@ function PersonDetail({
       persist("people", u);
       return u;
     });
+  };
+  const addToPipeline = () => {
+    var upd = { bdStage: "Target" };
+    if (ownerFilter) {
+      var cur = migrateOwners(selP.owners, selP.owner);
+      if (!cur.includes(ownerFilter)) upd.owners = [...cur, ownerFilter];
+    }
+    logUpdate(upd);
+  };
+  const attemptAddToPipeline = () => {
+    const conflicts = findPipelineConflicts(selP, people, ownerFilter);
+    if (conflicts.length > 0) {
+      setPipelineConflict(conflicts);
+      return;
+    }
+    addToPipeline();
   };
   if (!selP) return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3742,7 +3823,14 @@ function PersonDetail({
     variant: "danger",
     small: true,
     onClick: onDelete
-  }, "Delete"))), /*#__PURE__*/React.createElement("div", {
+  }, "Delete"))), pipelineConflict && /*#__PURE__*/React.createElement(PipelineConflictBanner, {
+    conflicts: pipelineConflict,
+    onCancel: () => setPipelineConflict(null),
+    onProceed: () => {
+      addToPipeline();
+      setPipelineConflict(null);
+    }
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -3753,14 +3841,7 @@ function PersonDetail({
     active: tab,
     onChange: setTab
   }), !selP.bdStage ? /*#__PURE__*/React.createElement("button", {
-    onClick: function () {
-      var upd = { bdStage: "Target" };
-      if (ownerFilter) {
-        var cur = migrateOwners(selP.owners, selP.owner);
-        if (!cur.includes(ownerFilter)) upd.owners = [...cur, ownerFilter];
-      }
-      logUpdate(upd);
-    },
+    onClick: attemptAddToPipeline,
     style: {
       background: TEAL,
       color: W,
@@ -5001,7 +5082,7 @@ function PersonForm({
   const handleSave = () => {
     if (!f.name.trim()) return;
     if (!dismissed && !isEdit) {
-      const found = findDupePeople(f.name, f.company, people, init && init.id);
+      const found = findDupePeople(f.name, f.company, people, init && init.id, f.email, f.linkedin);
       if (found.length > 0) {
         setDupes(found);
         return;
