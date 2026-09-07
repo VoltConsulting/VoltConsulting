@@ -18128,7 +18128,19 @@ function App() {
     }
     var interval = setInterval(runBackgroundRefresh, 20000);
     window._voltManualRefresh = runBackgroundRefresh;
-    return () => clearInterval(interval);
+    // Listen for the "ping" VoltCapture (or any other same-origin tab) writes
+    // right after a successful save, so a change made elsewhere shows up here
+    // within moments instead of waiting for the next 20s poll. The storage
+    // event only ever fires in OTHER tabs, never the one that wrote it, so
+    // this can't cause a refresh loop with itself.
+    function onExternalWrite(e) {
+      if (e.key === "volt_last_external_write") runBackgroundRefresh();
+    }
+    window.addEventListener("storage", onExternalWrite);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("storage", onExternalWrite);
+    };
   }, [ready]);
   const persist = useCallback(async (key, data) => {
     setSaveState("saving");

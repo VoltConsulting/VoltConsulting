@@ -183,6 +183,49 @@ async function findPersonByName(name) {
   return null;
 }
 
+// Finds the matching company by name (case-insensitive) and returns its id,
+// or creates it if nothing matches — same behaviour as the main CRM, so a
+// person captured here always ends up correctly linked under their company
+// page, not just carrying its name as plain text.
+async function findOrCreateCompanyId(companyName) {
+  var target = (companyName || "").trim();
+  if (!target) return null;
+  var targetLower = target.toLowerCase();
+  var url = AT_URL + "?filterByFormula=" + encodeURIComponent("{RecordType}='COMPANY'") + "&pageSize=100";
+  var offset = "";
+  do {
+    var full = url + (offset ? "&offset=" + offset : "");
+    var data = await atGet(full);
+    for (var i = 0; i < data.records.length; i++) {
+      var rec = data.records[i];
+      try {
+        var c = JSON.parse(rec.fields.Data || "{}");
+        if ((c.name || "").trim().toLowerCase() === targetLower) {
+          return c.id;
+        }
+      } catch (e) {}
+    }
+    offset = data.offset || "";
+  } while (offset);
+  // No match found - create it, matching the main CRM's own auto-create shape
+  var newCo = {
+    id: Date.now() + Math.random(),
+    name: target,
+    type: "Consulting",
+    tier: "Prospect",
+    hq: "",
+    keyContact: "",
+    openVacancies: 0,
+    lastContacted: "",
+    nextAction: "",
+    nextDue: "",
+    relationship: "",
+    notes: "Auto-created from VoltCapture."
+  };
+  await atPost({ records: [{ fields: { Name: newCo.name, RecordType: "COMPANY", Data: JSON.stringify(newCo) } }] });
+  return newCo.id;
+}
+
 var e = React.createElement;
 
 function App() {
@@ -280,11 +323,13 @@ function Capture(props) {
     try {
       var existing = found || await findPersonByName(form.name);
       var due = chase === -1 ? (customDate || "") : dueStr(chase);
+      var companyId = await findOrCreateCompanyId(form.company);
 
       if (tab === "bd") {
         var entry = { id: Date.now(), type: "linkedin", icon: "in", label: "LinkedIn message", note: form.note.trim(), date: stampStr(), by: me };
         if (existing) {
           applyCommon(existing);
+          if (companyId != null && !existing.companyId) existing.companyId = companyId;
           existing.owners = [me];
           if (!existing.bdStage) existing.bdStage = "Target";
           if (stage > 0) { existing.activityLog = [entry].concat(existing.activityLog || []); existing.linkedinStage = stage; }
@@ -293,6 +338,7 @@ function Capture(props) {
           setToast({ t: "ok", m: "Updated " + existing.name + (stage > 0 ? " · LinkedIn " + ordinal(stage) : "") });
         } else {
           var p1 = newPerson();
+          p1.companyId = companyId;
           p1.owners = [me]; p1.bdStage = "Target";
           if (stage > 0) { p1.linkedinStage = stage; p1.activityLog = [entry]; }
           if (chase !== 0) { p1.nextAction = (stage > 0 ? "LinkedIn " + ordinal(stage) + " message follow-up" : "Follow up"); p1.nextDue = due; }
@@ -302,17 +348,24 @@ function Capture(props) {
       } else {
         if (existing) {
           applyCommon(existing);
+          if (companyId != null && !existing.companyId) existing.companyId = companyId;
           if (!existing.owners || !existing.owners.length) existing.owners = [me];
           await atPatch({ records: [{ id: existing._recId, fields: { Name: existing.name, RecordType: "PERSON", Data: JSON.stringify(existing) } }] });
           setToast({ t: "ok", m: "Updated contact " + existing.name });
         } else {
           var p2 = newPerson();
+          p2.companyId = companyId;
           p2.owners = [me];
           await atPost({ records: [{ fields: { Name: p2.name, RecordType: "PERSON", Data: JSON.stringify(p2) } }] });
           setToast({ t: "ok", m: "Added contact " + p2.name });
         }
       }
       resetForm();
+      // Pings any already-open VoltCRM tab (same origin) to refresh immediately
+      // instead of waiting for its own 20s polling cycle - the storage event
+      // fires in OTHER tabs the instant this key changes, at zero extra
+      // Airtable API cost.
+      try { localStorage.setItem("volt_last_external_write", String(Date.now())); } catch (e) {}
     } catch (er) {
       setToast({ t: "err", m: er.message || "Something went wrong" });
     }
