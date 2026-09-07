@@ -7760,8 +7760,18 @@ function BDTracker({
     return combined;
   }, [people, companies, ownerFilter]);
   const ov = all.filter(i => i.nextDue && new Date(i.nextDue) < now);
-  const soon = all.filter(i => i.nextDue && new Date(i.nextDue) >= now && new Date(i.nextDue) <= new Date(Date.now() + 7 * 86400000));
-  const later = all.filter(i => !i.nextDue || new Date(i.nextDue) > new Date(Date.now() + 7 * 86400000));
+  // "Due this week" = Mon-Fri of the CURRENT calendar week (not a rolling 7-day window).
+  // On Sat/Sun, this week's Friday has already passed, so nothing new lands here until Monday.
+  const dayIdx = now.getDay(); // 0=Sun...6=Sat
+  const diffToMonday = dayIdx === 0 ? -6 : 1 - dayIdx;
+  const mondayThisWeek = new Date(now);
+  mondayThisWeek.setHours(0, 0, 0, 0);
+  mondayThisWeek.setDate(mondayThisWeek.getDate() + diffToMonday);
+  const fridayThisWeek = new Date(mondayThisWeek);
+  fridayThisWeek.setDate(mondayThisWeek.getDate() + 4);
+  fridayThisWeek.setHours(23, 59, 59, 999);
+  const soon = all.filter(i => i.nextDue && new Date(i.nextDue) >= now && new Date(i.nextDue) <= fridayThisWeek);
+  const later = all.filter(i => !i.nextDue || new Date(i.nextDue) > fridayThisWeek);
   const openDone = function (item) {
     setDoneModal(item);
     setDoneNote("");
