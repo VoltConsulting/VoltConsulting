@@ -147,17 +147,37 @@ function buildSignatureHtml(email) {
 // — that's not something this code has to arrange, Microsoft does it.
 // Sent as HTML so the branded signature (logo, bold name, link)
 // actually renders rather than showing as plain text.
+// Turns a bare URL typed into a template ("https://calendly.com/...", or just
+// "www.site.com") into a real clickable <a href> in the HTML email. Without
+// this, a link the template author typed as plain text arrives as inert text
+// in the recipient's inbox - most clients (Outlook included) don't reliably
+// auto-linkify bare URLs inside HTML-formatted mail. Trims trailing sentence
+// punctuation (a period ending the sentence, a closing bracket, etc.) so that
+// doesn't get swallowed into the link itself.
+function linkifyUrls(text) {
+  return text.replace(/((?:https?:\/\/|www\.)[^\s<]+)/gi, function (match) {
+    var trail = "";
+    while (match.length && /[.,;:!?)\]"'>]$/.test(match)) {
+      trail = match.slice(-1) + trail;
+      match = match.slice(0, -1);
+    }
+    if (!match) return match + trail;
+    var href = /^https?:\/\//i.test(match) ? match : "https://" + match;
+    return "<a href=\"" + href + "\" style=\"color:#00C2C7;\">" + match + "</a>" + trail;
+  });
+}
 async function sendGraphMail(to, subject, body) {
   var token = await getGraphToken();
   var senderEmail = getConnectedOutlookAccount();
   var escapedBody = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  var linkedBody = linkifyUrls(escapedBody);
   // Outlook's desktop client renders HTML email through Word's engine, which
   // does not reliably honour white-space:pre-wrap — paragraph spacing and
   // line breaks can silently collapse into one block for the recipient even
   // though it looks correct in the compose box. Converting every newline
   // into a real <br> tag is the actual fix: it renders correctly everywhere,
   // Outlook included, regardless of how that client handles CSS whitespace.
-  var bodyWithBreaks = escapedBody.replace(/\n/g, "<br>");
+  var bodyWithBreaks = linkedBody.replace(/\n/g, "<br>");
   var htmlBody = "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + bodyWithBreaks + "</div>" + buildSignatureHtml(senderEmail);
   var r = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
     method: "POST",
@@ -5435,7 +5455,7 @@ function PeopleView({
           lastContacted: today,
           emailStage: (p.emailStage || 0) + 1
         };
-        if (!p.bdStage || !p.bdStage.trim()) upd.bdStage = "Contacted";
+        if (!p.bdStage || !p.bdStage.trim() || p.bdStage === "Target") upd.bdStage = "Contacted";
         return Object.assign({}, p, upd);
       });
       persist("people", updated);
@@ -6869,7 +6889,7 @@ function CompaniesView({
           lastContacted: today,
           emailStage: (p.emailStage || 0) + 1
         };
-        if (!p.bdStage || !p.bdStage.trim()) upd.bdStage = "Contacted";
+        if (!p.bdStage || !p.bdStage.trim() || p.bdStage === "Target") upd.bdStage = "Contacted";
         return Object.assign({}, p, upd);
       });
       persist("people", updated);
@@ -9955,10 +9975,12 @@ function MarketMapGeo({
     setPeople(prev => {
       const updated = prev.map(function (p) {
         if (p.id !== person.id) return p;
-        return Object.assign({}, p, {
+        var upd = {
           activityLog: [entry, ...(p.activityLog || [])],
           lastContacted: today
-        });
+        };
+        if (!p.bdStage || !p.bdStage.trim() || p.bdStage === "Target") upd.bdStage = "Contacted";
+        return Object.assign({}, p, upd);
       });
       persist("people", updated);
       return updated;
@@ -12636,10 +12658,12 @@ function BDPipelineView({
     templateCategory: "BD Outreach",
     onSaveTemplate: saveTemplate,
     onSent: function (p, entry) {
-      applyActivity([p], {
+      var payload = {
         entry: entry,
         actType: "email"
-      });
+      };
+      if (!p.bdStage || !p.bdStage.trim() || p.bdStage === "Target") payload.stage = "Contacted";
+      applyActivity([p], payload);
     },
     onClose: function () {
       setSendModal(null);
