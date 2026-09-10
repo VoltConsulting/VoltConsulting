@@ -12410,7 +12410,8 @@ function BDPipelineView({
   const [sendModal, setSendModal] = useState(null);
   const [bulkModal, setBulkModal] = useState(false);
   const [search, setSearch] = useState("");
-  const [sortAZ, setSortAZ] = useState(false);
+  const [sortMode, setSortMode] = useState("none"); // "none" | "name" | "company"
+  const [showSuggest, setShowSuggest] = useState(false);
   const [sel, setSel] = useState(null);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkSendMode, setBulkSendMode] = useState(false);
@@ -12540,15 +12541,32 @@ function BDPipelineView({
   BD_STAGES.forEach(function (s) {
     stageMap[s] = [];
   });
+  // Company suggestions for the search box's autocomplete dropdown - drawn
+  // from the same owner/company scope as the board itself, but ignoring the
+  // current search text (that's what we're matching candidates against),
+  // so typing "amb" surfaces "Ambit Inc" etc. to click straight to it.
+  var basePeopleForSuggest = people.filter(function (p) {
+    if (ownerFilter && !migrateOwners(p.owners, p.owner).includes(ownerFilter)) return false;
+    if (companyFilter && p.companyId !== companyFilter) return false;
+    return p.bdStage && p.bdStage.trim() !== "";
+  });
+  var companySuggestions = search.trim() ? Array.from(new Set(basePeopleForSuggest.map(function (p) {
+    return p.company;
+  }).filter(Boolean))).filter(function (c) {
+    return c.toLowerCase().includes(search.trim().toLowerCase());
+  }).sort().slice(0, 8) : [];
   stageMap["Target"] = stageMap["Target"] || [];
   filtered.forEach(function (p) {
     var s = p.bdStage || "Target";
     if (!stageMap[s]) stageMap[s] = [];
     stageMap[s].push(p);
   });
-  if (sortAZ) {
+  if (sortMode !== "none") {
     Object.keys(stageMap).forEach(function (s) {
       stageMap[s] = stageMap[s].slice().sort(function (a, b) {
+        if (sortMode === "company") {
+          return (a.company || "").localeCompare(b.company || "") || (a.name || "").localeCompare(b.name || "");
+        }
         return (a.name || "").localeCompare(b.name || "");
       });
     });
@@ -12724,14 +12742,14 @@ function BDPipelineView({
     }
   }, "\u2715")), /*#__PURE__*/React.createElement("button", {
     onClick: function () {
-      setSortAZ(function (v) {
-        return !v;
+      setSortMode(function (v) {
+        return v === "name" ? "none" : "name";
       });
     },
     style: {
-      background: sortAZ ? TL : "transparent",
-      color: sortAZ ? TEAL : G600,
-      border: "1px solid " + (sortAZ ? TM : G300),
+      background: sortMode === "name" ? TL : "transparent",
+      color: sortMode === "name" ? TEAL : G600,
+      border: "1px solid " + (sortMode === "name" ? TM : G300),
       borderRadius: 8,
       padding: "6px 12px",
       fontSize: 12,
@@ -12740,7 +12758,25 @@ function BDPipelineView({
       fontFamily: "inherit",
       whiteSpace: "nowrap"
     }
-  }, sortAZ ? "A\u2013Z \u2713" : "Sort A\u2013Z"), /*#__PURE__*/React.createElement("button", {
+  }, sortMode === "name" ? "Name A\u2013Z \u2713" : "Name A\u2013Z"), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setSortMode(function (v) {
+        return v === "company" ? "none" : "company";
+      });
+    },
+    style: {
+      background: sortMode === "company" ? TL : "transparent",
+      color: sortMode === "company" ? TEAL : G600,
+      border: "1px solid " + (sortMode === "company" ? TM : G300),
+      borderRadius: 8,
+      padding: "6px 12px",
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap"
+    }
+  }, sortMode === "company" ? "Company A\u2013Z \u2713" : "Company A\u2013Z"), /*#__PURE__*/React.createElement("button", {
     onClick: function () {
       setBulkMode(function (v) {
         if (v) setSelectedIds([]);
@@ -12780,10 +12816,26 @@ function BDPipelineView({
       fontFamily: "inherit",
       whiteSpace: "nowrap"
     }
-  }, bulkSendMode ? "Cancel bulk send" : "\u2709 Bulk send"), /*#__PURE__*/React.createElement("input", {
+  }, bulkSendMode ? "Cancel bulk send" : "\u2709 Bulk send"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      marginLeft: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
     value: search,
     onChange: function (e) {
       setSearch(e.target.value);
+      setShowSuggest(true);
+    },
+    onFocus: function () {
+      setShowSuggest(true);
+    },
+    onBlur: function () {
+      // Delay so a click on a suggestion below registers before the
+      // dropdown disappears out from under it.
+      setTimeout(function () {
+        setShowSuggest(false);
+      }, 150);
     },
     placeholder: "Search contacts...",
     style: {
@@ -12794,10 +12846,37 @@ function BDPipelineView({
       fontSize: 13,
       outline: "none",
       fontFamily: "inherit",
-      width: 220,
-      marginLeft: "auto"
+      width: 220
     }
-  })), /*#__PURE__*/React.createElement("div", {
+  }), showSuggest && companySuggestions.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "calc(100% + 4px)",
+      right: 0,
+      width: 220,
+      background: W,
+      border: "1px solid " + G200,
+      borderRadius: 8,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+      zIndex: 20,
+      overflow: "hidden"
+    }
+  }, companySuggestions.map(function (c) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: c,
+      onMouseDown: function () {
+        setSearch(c);
+        setShowSuggest(false);
+      },
+      style: {
+        padding: "8px 14px",
+        fontSize: 13,
+        color: G800,
+        cursor: "pointer",
+        borderBottom: "1px solid " + G100
+      }
+    }, c);
+  })))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 10,
       background: TL,
