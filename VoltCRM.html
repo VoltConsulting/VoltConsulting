@@ -3744,7 +3744,7 @@ function PersonDetail({
       return updated;
     });
   };
-  const alreadySpecced = (specOuts || []).some(s => s.candidateId === selP.id);
+  const alreadySpecced = selP ? (specOuts || []).some(s => s.candidateId === selP.id) : false;
   const attemptAddToPipeline = () => {
     const conflicts = findPipelineConflicts(selP, people, ownerFilter);
     if (conflicts.length > 0) {
