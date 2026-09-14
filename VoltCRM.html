@@ -13278,7 +13278,74 @@ function BDPipelineView({
             flexShrink: 0
           }
         }, total + " touches");
-      })()), p.nextDue && /*#__PURE__*/React.createElement("div", {
+      })()), (() => {
+        const log = p.activityLog || [];
+        if (!log.length) return null;
+        // Icon strip: last 5 touchpoints, oldest\u2192newest (left to right, like a
+        // mini timeline), plus a "+N" if there's more history than that.
+        const shown = log.slice(0, 5).slice().reverse();
+        const overflow = log.length - shown.length;
+        const counts = {
+          "in": p.linkedinStage || 0,
+          "\uD83D\uDCE7": p.emailStage || 0,
+          "\uD83D\uDCDE": p.callCount || 0,
+          "\uD83E\uDD1D": log.filter(e => e.type === "meeting").length
+        };
+        return /*#__PURE__*/React.createElement("div", {
+          style: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 6,
+            marginBottom: 8,
+            padding: "3px 2px"
+          }
+        }, /*#__PURE__*/React.createElement("div", {
+          style: {
+            display: "flex",
+            gap: 2,
+            alignItems: "center"
+          }
+        }, shown.map((e, i) => /*#__PURE__*/React.createElement("span", {
+          key: e.id || i,
+          title: e.label + " \u00b7 " + e.date,
+          style: {
+            fontSize: 11,
+            lineHeight: 1
+          }
+        }, e.icon === "in" ? /*#__PURE__*/React.createElement("span", {
+          style: {
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 13,
+            height: 13,
+            background: "#0A66C2",
+            color: "#fff",
+            borderRadius: 3,
+            fontSize: 7.5,
+            fontWeight: 700
+          }
+        }, "in") : e.icon)), overflow > 0 && /*#__PURE__*/React.createElement("span", {
+          style: {
+            fontSize: 9.5,
+            fontWeight: 700,
+            color: G600,
+            marginLeft: 2
+          }
+        }, "+" + overflow)), /*#__PURE__*/React.createElement("div", {
+          style: {
+            display: "flex",
+            gap: 6,
+            fontSize: 9.5,
+            fontWeight: 600,
+            color: G600,
+            flexShrink: 0
+          }
+        }, Object.keys(counts).filter(k => counts[k] > 0).map(k => /*#__PURE__*/React.createElement("span", {
+          key: k
+        }, k === "in" ? "in" : k, "\u200a" + counts[k]))));
+      })(), p.nextDue && /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 11,
           fontWeight: 600,
