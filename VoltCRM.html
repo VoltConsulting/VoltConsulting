@@ -5674,7 +5674,7 @@ function PeopleView({
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
-      width: 320,
+      width: selP ? 320 : "100%",
       flexShrink: 0,
       borderRight: "1px solid " + G200,
       display: "flex",
@@ -5684,7 +5684,8 @@ function PeopleView({
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "16px 16px 12px",
-      borderBottom: "1px solid " + G200
+      borderBottom: "1px solid " + G200,
+      display: selP ? undefined : "none"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6001,7 +6002,7 @@ function PeopleView({
       marginTop: 40,
       fontSize: 13
     }
-  }, "No results"))), /*#__PURE__*/React.createElement(PersonDetail, {
+  }, "No results"))), selP && /*#__PURE__*/React.createElement(PersonDetail, {
     selP: selP,
     people: people,
     companies: companies,
@@ -6021,7 +6022,26 @@ function PeopleView({
     onBackToPrevPerson: goBackToPrevPerson,
     prevPersonName: prevPersonName,
     ownerFilter: ownerFilter
-  }), bulkMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }), selP && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setSel(null),
+    title: "Deselect and return to the full, wide list",
+    style: {
+      position: "fixed",
+      top: 14,
+      right: 24,
+      zIndex: 500,
+      background: W,
+      border: "1px solid " + G300,
+      borderRadius: 8,
+      padding: "6px 14px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      color: TEAL,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.12)"
+    }
+  }, "\u2190 Back to full list"), bulkMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       left: "50%",
