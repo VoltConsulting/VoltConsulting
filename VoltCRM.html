@@ -208,6 +208,14 @@ function markdownLiteToHtml(text) {
   }
   return out;
 }
+// Shared by the actual send and the compose-box Preview, so the preview
+// can never drift from what a recipient genuinely receives - both call
+// this one function rather than each building the HTML separately.
+function buildEmailBodyHtml(body, senderEmail) {
+  var hasHtml = /<[a-z][\s\S]*>/i.test(body);
+  var bodyHtml = hasHtml ? linkifyUrls(sanitizeRichHtml(body)) : markdownLiteToHtml(body);
+  return "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + bodyHtml + "</div>" + buildSignatureHtml(senderEmail);
+}
 async function sendGraphMail(to, subject, body) {
   var token = await getGraphToken();
   var senderEmail = getConnectedOutlookAccount();
@@ -216,9 +224,7 @@ async function sendGraphMail(to, subject, body) {
   // legacy plain-text body (an older saved template, or anything with no
   // tags at all) still goes through the markdown-lite fallback so nothing
   // written before this editor existed breaks.
-  var hasHtml = /<[a-z][\s\S]*>/i.test(body);
-  var bodyHtml = hasHtml ? linkifyUrls(sanitizeRichHtml(body)) : markdownLiteToHtml(body);
-  var htmlBody = "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + bodyHtml + "</div>" + buildSignatureHtml(senderEmail);
+  var htmlBody = buildEmailBodyHtml(body, senderEmail);
   var r = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
     method: "POST",
     headers: {
@@ -11512,11 +11518,32 @@ var RICH_TEXT_ALLOWED_TAGS = {
   A: 1
 };
 function sanitizeRichHtml(html) {
+  // Word/Outlook clipboard HTML is notoriously bloated - hundreds or
+  // thousands of nested spans for a single sentence is normal, not an
+  // edge case. A recursive walk over that is a real stack-overflow and
+  // freeze risk, so this uses an explicit stack instead of function
+  // recursion, and processes every node in one flat pass regardless of
+  // how deep the source markup nests. On top of that, a hard element-count
+  // cap is a second, independent safety net here in the sanitizer itself -
+  // not just relying on the caller's character-length check in handlePaste -
+  // so nothing that reaches this function, from any caller, can ever spin
+  // through an unbounded number of nodes.
   var container = document.createElement("div");
   container.innerHTML = html;
-  (function walk(node) {
+  var stack = [container];
+  var processed = 0;
+  var ELEMENT_CAP = 3000;
+  while (stack.length) {
+    var node = stack.pop();
     var child = node.firstChild;
     while (child) {
+      processed++;
+      if (processed > ELEMENT_CAP) {
+        // Bailing out here means the tree is only partially cleaned - far
+        // safer to fall back to a fully plain-text version of the whole
+        // original input than to ship a half-sanitized fragment.
+        return plainToRichHtml(html.replace(/<[^>]*>/g, " "));
+      }
       var next = child.nextSibling;
       if (child.nodeType === 1) {
         var tag = child.tagName;
@@ -11529,12 +11556,12 @@ function sanitizeRichHtml(html) {
           for (var j = 0; j < attrs.length; j++) {
             if (!(tag === "A" && attrs[j] === "href")) child.removeAttribute(attrs[j]);
           }
-          walk(child);
+          stack.push(child);
         }
       }
       child = next;
     }
-  })(container);
+  }
   return container.innerHTML;
 }
 // A box that's visually empty can still hold "<br>" or "<div><br></div>" -
@@ -11592,7 +11619,12 @@ function RichTextEditor({
     e.preventDefault();
     var html = e.clipboardData.getData("text/html");
     var plain = e.clipboardData.getData("text/plain");
-    var toInsert = html ? sanitizeRichHtml(html) : plainToRichHtml(plain);
+    // Outlook/Word HTML for even a short paragraph can run to tens of
+    // thousands of characters of markup - past a certain size that's a
+    // strong signal it's bloated formatting rather than content worth
+    // preserving, so skip DOM sanitization entirely and fall back to the
+    // fast, size-independent plain-text path instead of risking a hang.
+    var toInsert = html && html.length < 12000 ? sanitizeRichHtml(html) : plainToRichHtml(plain);
     document.execCommand("insertHTML", false, toInsert);
     fire();
   }
@@ -11652,6 +11684,7 @@ function RichTextEditor({
     style: {
       width: "100%",
       minHeight: 140,
+      maxHeight: 260,
       border: "1px solid " + G300,
       borderRadius: 6,
       padding: "8px 11px",
@@ -11691,6 +11724,7 @@ function SendMailModal({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(null);
   const [results, setResults] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
   const notConfigured = !MS_CLIENT_ID;
   // Every saved email template should be selectable here, regardless of
   // category - hiding anyone's template because its category didn't match
@@ -11909,6 +11943,84 @@ async function send() {
       return { category: cat, items: byCategory[cat] };
     });
   })();
+  // Computed as its own standalone element rather than inlined into the
+  // return below - the return's own nesting is already several layers deep
+  // through conditional branches, and threading a second top-level overlay
+  // through that chain by hand is exactly how a stray paren slips in.
+  // Keeping this separate means it can only ever add cleanly as one extra
+  // argument to the outermost element.
+  var previewOverlay = !showPreview ? null : /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "#0008",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 400
+    },
+    onClick: function () {
+      setShowPreview(false);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: function (e) {
+      e.stopPropagation();
+    },
+    style: {
+      background: W,
+      borderRadius: 12,
+      width: "90vw",
+      height: "90vh",
+      maxWidth: 900,
+      display: "flex",
+      flexDirection: "column",
+      boxShadow: "0 20px 60px #0005",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "14px 20px",
+      borderBottom: "1px solid " + G200
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 15,
+      color: NAVY
+    }
+  }, "Preview"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: G600,
+      marginTop: 2
+    }
+  }, "Shown as it would appear to ", validPeople.length ? validPeople[0].name || validPeople[0].email : "the recipient", validPeople.length > 1 ? " (first of " + validPeople.length + " - wording personalizes per person)" : "")), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setShowPreview(false);
+    },
+    style: {
+      background: "transparent",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "6px 14px",
+      fontSize: 13,
+      color: G600,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Close")), /*#__PURE__*/React.createElement("iframe", {
+    title: "Email preview",
+    sandbox: "",
+    style: {
+      flex: 1,
+      border: "none",
+      width: "100%"
+    },
+    srcDoc: "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:14px;color:#1a1a1a;padding:20px 24px;max-width:680px;margin:0 auto;\"><div style=\"font-size:12px;color:#8a8a8a;margin-bottom:14px;\"><b>Subject:</b> " + (validPeople.length ? personalize(subject, validPeople[0]) : subject).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</div>" + buildEmailBodyHtml(validPeople.length ? personalize(body, validPeople[0]) : body, connectedAs) + "</div>"
+  })));
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -11930,6 +12042,8 @@ async function send() {
       padding: "24px 28px",
       width: 520,
       maxWidth: "96vw",
+      maxHeight: "88vh",
+      overflowY: "auto",
       boxShadow: "0 20px 60px #0003",
       border: "1px solid " + G200
     }
@@ -12191,7 +12305,22 @@ async function send() {
       justifyContent: "flex-end",
       gap: 10
     }
-  }, !sending && /*#__PURE__*/React.createElement("button", {
+  }, !sending && bodyHasContent(body) && /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setShowPreview(true);
+    },
+    style: {
+      background: "transparent",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 18px",
+      fontSize: 13,
+      color: G600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      marginRight: "auto"
+    }
+  }, "Preview"), !sending && /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     style: {
       background: "transparent",
@@ -12218,7 +12347,7 @@ async function send() {
       fontFamily: "inherit",
       opacity: sending || !bodyHasContent(body) || !validPeople.length ? 0.6 : 1
     }
-  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send"))))));
+  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send"))))), previewOverlay);
 }
 function ActivityLogModal({
   people,
