@@ -166,65 +166,19 @@ function linkifyUrls(text) {
     return "<a href=\"" + href + "\" style=\"color:#00C2C7;\">" + match + "</a>" + trail;
   });
 }
-// The compose box is a plain textarea, so it can't hold real bold text or
-// bullet points - there's nowhere for that formatting to live. Rather than
-// losing it entirely, this recognises the same lightweight markdown people
-// already use in Slack/Notion (**bold**, "- " for a bullet) typed or pasted
-// straight into the plain box, and turns it into real HTML for the actual
-// sent email. Order matters: escape HTML first so a literal < or > the
-// person typed is safe, then bold, then linkify, then handle line breaks
-// and bullet blocks together in one pass so a <ul> never gets a stray <br>
-// glued to it.
-function markdownLiteToHtml(text) {
-  var escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  var bolded = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  var linked = linkifyUrls(bolded);
-  var lines = linked.split("\n");
-  var blocks = [];
-  var i = 0;
-  while (i < lines.length) {
-    if (/^\s*-\s+/.test(lines[i])) {
-      var items = [];
-      while (i < lines.length && /^\s*-\s+/.test(lines[i])) {
-        items.push("<li>" + lines[i].replace(/^\s*-\s+/, "") + "</li>");
-        i++;
-      }
-      blocks.push({
-        list: true,
-        html: "<ul style=\"margin:4px 0 4px 20px;padding:0;\">" + items.join("") + "</ul>"
-      });
-    } else {
-      blocks.push({
-        list: false,
-        html: lines[i]
-      });
-      i++;
-    }
-  }
-  var out = "";
-  for (var j = 0; j < blocks.length; j++) {
-    if (j > 0 && !blocks[j].list && !blocks[j - 1].list) out += "<br>";
-    out += blocks[j].html;
-  }
-  return out;
-}
-// Shared by the actual send and the compose-box Preview, so the preview
-// can never drift from what a recipient genuinely receives - both call
-// this one function rather than each building the HTML separately.
-function buildEmailBodyHtml(body, senderEmail) {
-  var hasHtml = /<[a-z][\s\S]*>/i.test(body);
-  var bodyHtml = hasHtml ? linkifyUrls(sanitizeRichHtml(body)) : markdownLiteToHtml(body);
-  return "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + bodyHtml + "</div>" + buildSignatureHtml(senderEmail);
-}
 async function sendGraphMail(to, subject, body) {
   var token = await getGraphToken();
   var senderEmail = getConnectedOutlookAccount();
-  // Content typed/pasted into the new rich text compose box already arrives
-  // as real HTML (bold, bullet lists) - sanitize and use it directly. A
-  // legacy plain-text body (an older saved template, or anything with no
-  // tags at all) still goes through the markdown-lite fallback so nothing
-  // written before this editor existed breaks.
-  var htmlBody = buildEmailBodyHtml(body, senderEmail);
+  var escapedBody = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  var linkedBody = linkifyUrls(escapedBody);
+  // Outlook's desktop client renders HTML email through Word's engine, which
+  // does not reliably honour white-space:pre-wrap — paragraph spacing and
+  // line breaks can silently collapse into one block for the recipient even
+  // though it looks correct in the compose box. Converting every newline
+  // into a real <br> tag is the actual fix: it renders correctly everywhere,
+  // Outlook included, regardless of how that client handles CSS whitespace.
+  var bodyWithBreaks = linkedBody.replace(/\n/g, "<br>");
+  var htmlBody = "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + bodyWithBreaks + "</div>" + buildSignatureHtml(senderEmail);
   var r = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
     method: "POST",
     headers: {
@@ -4545,7 +4499,7 @@ function AddSpecOutForm({
   const [summary, setSummary] = useState("");
   const [fullEmail, setFullEmail] = useState("");
   const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === companyName.trim().toLowerCase());
-  const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
+  const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : (companyName.trim() ? [] : people);
   function save() {
     if (!companyName.trim()) return;
     const co = companies.find(c => (c.name || "").trim().toLowerCase() === companyName.trim().toLowerCase());
@@ -4676,8 +4630,13 @@ function ProspectCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const q = value.trim().toLowerCase();
-  const filtered = (q ? options.filter(o => o.name.toLowerCase().includes(q)) : options).slice(0, 50);
-  const exactMatch = q && options.some(o => o.name.trim().toLowerCase() === q);
+  // Defensive against any record with a missing/blank name (a bad import, a
+  // raw Airtable edit, etc.) - without this, one such record anywhere in
+  // `options` crashes the whole form the instant the user types a character,
+  // since .toLowerCase() on undefined throws. Records aren't excluded from
+  // the list - they just don't crash the search or count as a name match.
+  const filtered = (q ? options.filter(o => (o.name || "").toLowerCase().includes(q)) : options).slice(0, 50);
+  const exactMatch = q && options.some(o => (o.name || "").trim().toLowerCase() === q);
   const showCreate = onCreate && value.trim() && !exactMatch;
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4747,7 +4706,7 @@ function ProspectCombobox({
     key: o.id,
     onMouseDown: e => {
       e.preventDefault();
-      onChange(o.name);
+      onChange(o.name || "");
       setOpen(false);
     },
     style: {
@@ -4839,7 +4798,7 @@ function AddProspectsForm({
     }
   }, "Add the prospects this profile should go to \u2014 tick them from the list below once they're in, and send the synopsis to all of them in one go."), rows.map((r, idx) => {
     const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
-    const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
+    const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : (r.companyName.trim() ? [] : people);
     const matchedContact = people.find(p => (p.name || "").trim().toLowerCase() === r.contactName.trim().toLowerCase());
     return /*#__PURE__*/React.createElement("div", {
       key: r.id,
@@ -4862,7 +4821,7 @@ function AddProspectsForm({
       value: r.contactName,
       onChange: v => updateRow(r.id, "contactName", v),
       options: contactOptions,
-      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : "Contact\u2026"
+      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : (r.companyName.trim() ? "No matching company yet\u2026" : "Contact\u2026")
     }), rows.length > 1 && /*#__PURE__*/React.createElement("button", {
       onClick: () => removeRow(r.id),
       title: "Remove this row",
@@ -5730,7 +5689,8 @@ function PeopleView({
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "16px 16px 12px",
-      borderBottom: "1px solid " + G200
+      borderBottom: "1px solid " + G200,
+      display: selP ? undefined : "none"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -10542,7 +10502,7 @@ function AddSpecOutFormGlobal({
   const [summary, setSummary] = useState("");
   const [fullEmail, setFullEmail] = useState("");
   const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === companyName.trim().toLowerCase());
-  const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
+  const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : (companyName.trim() ? [] : people);
   const candidateOptions = people.filter(p => p.type === "candidate");
   function save() {
     if (!candidateName.trim() || !companyName.trim()) return;
@@ -10817,7 +10777,7 @@ function AddProspectsFormGlobal({
     createLabel: "candidate"
   })), rows.map(r => {
     const matchedCo = companies.find(c => (c.name || "").trim().toLowerCase() === r.companyName.trim().toLowerCase());
-    const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : people;
+    const contactOptions = matchedCo ? people.filter(p => p.companyId === matchedCo.id) : (r.companyName.trim() ? [] : people);
     const matchedContact = people.find(p => (p.name || "").trim().toLowerCase() === r.contactName.trim().toLowerCase());
     return /*#__PURE__*/React.createElement("div", {
       key: r.id,
@@ -10840,7 +10800,7 @@ function AddProspectsFormGlobal({
       value: r.contactName,
       onChange: v => updateRow(r.id, "contactName", v),
       options: contactOptions,
-      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : "Contact\u2026"
+      placeholder: matchedCo ? "Contact at " + matchedCo.name + "\u2026" : (r.companyName.trim() ? "No matching company yet\u2026" : "Contact\u2026")
     }), rows.length > 1 && /*#__PURE__*/React.createElement("button", {
       onClick: () => removeRow(r.id),
       title: "Remove this row",
@@ -10894,9 +10854,6 @@ function SpecOutsView({
   persist,
   ownerFilter,
   onNavigate,
-  onNavigatePerson,
-  initialExpandedGroupKey,
-  onConsumedInitialGroup,
   templates,
   setTemplates
 }) {
@@ -10912,20 +10869,6 @@ function SpecOutsView({
   const [selectedIds, setSelectedIds] = useState([]);
   const [sendModal, setSendModal] = useState(null);
   const autoExpanded = useRef(false);
-  // Restores the exact group that was open before navigating away to a
-  // person inside it - without this, coming back from a person's card
-  // always lands on the collapsed top-level list regardless of which
-  // group you were actually looking at.
-  useEffect(function () {
-    if (initialExpandedGroupKey) {
-      setExpandedKeys(prev => {
-        const next = new Set(prev);
-        next.add(initialExpandedGroupKey);
-        return next;
-      });
-      if (onConsumedInitialGroup) onConsumedInitialGroup();
-    }
-  }, [initialExpandedGroupKey]);
   function toggleGroup(key) {
     setExpandedKeys(prev => {
       const next = new Set(prev);
@@ -11455,7 +11398,7 @@ function SpecOutsView({
       spec: s,
       perspective: groupBy === "candidate" ? "candidate" : "contact",
       onUpdate: updateSpec,
-      onNavigatePerson: id => onNavigatePerson(id, key),
+      onNavigatePerson: id => onNavigate("people", id, "specouts"),
       onDelete: deleteSpec
     }))))), bulkGroupKey === key && selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -11515,216 +11458,6 @@ function SpecOutsView({
 // user's own Outlook 365 account (lands in their real Sent Items
 // automatically), then logs the activity in the same action —
 // no separate "remember to log this" step.
-// Keeps only formatting Outlook can render cleanly and that this editor's
-// own toolbar actually produces - strips everything else (fonts, colours,
-// margins, spans, inline styles) that Word/Google Docs bring along on paste,
-// which otherwise arrives as a garbled mess in the sent email.
-var RICH_TEXT_ALLOWED_TAGS = {
-  B: 1,
-  STRONG: 1,
-  I: 1,
-  EM: 1,
-  U: 1,
-  UL: 1,
-  OL: 1,
-  LI: 1,
-  BR: 1,
-  DIV: 1,
-  P: 1,
-  A: 1
-};
-function sanitizeRichHtml(html) {
-  // Word/Outlook clipboard HTML is notoriously bloated - hundreds or
-  // thousands of nested spans for a single sentence is normal, not an
-  // edge case. A recursive walk over that is a real stack-overflow and
-  // freeze risk, so this uses an explicit stack instead of function
-  // recursion, and processes every node in one flat pass regardless of
-  // how deep the source markup nests. On top of that, a hard element-count
-  // cap is a second, independent safety net here in the sanitizer itself -
-  // not just relying on the caller's character-length check in handlePaste -
-  // so nothing that reaches this function, from any caller, can ever spin
-  // through an unbounded number of nodes.
-  var container = document.createElement("div");
-  container.innerHTML = html;
-  var stack = [container];
-  var processed = 0;
-  var ELEMENT_CAP = 3000;
-  while (stack.length) {
-    var node = stack.pop();
-    var child = node.firstChild;
-    while (child) {
-      processed++;
-      if (processed > ELEMENT_CAP) {
-        // Bailing out here means the tree is only partially cleaned - far
-        // safer to fall back to a fully plain-text version of the whole
-        // original input than to ship a half-sanitized fragment.
-        return plainToRichHtml(html.replace(/<[^>]*>/g, " "));
-      }
-      var next = child.nextSibling;
-      if (child.nodeType === 1) {
-        var tag = child.tagName;
-        if (!RICH_TEXT_ALLOWED_TAGS[tag]) {
-          while (child.firstChild) node.insertBefore(child.firstChild, child);
-          node.removeChild(child);
-        } else {
-          var attrs = [];
-          for (var i = 0; i < child.attributes.length; i++) attrs.push(child.attributes[i].name);
-          for (var j = 0; j < attrs.length; j++) {
-            if (!(tag === "A" && attrs[j] === "href")) child.removeAttribute(attrs[j]);
-          }
-          stack.push(child);
-        }
-      }
-      child = next;
-    }
-  }
-  return container.innerHTML;
-}
-// A box that's visually empty can still hold "<br>" or "<div><br></div>" -
-// every browser's contentEditable leaves something behind rather than a
-// genuine empty string. Stripping tags before checking length is the only
-// reliable way to tell "actually empty" from "has real content".
-function bodyHasContent(html) {
-  return (html || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim().length > 0;
-}
-// Seeding the box (default greeting text, or a legacy plain-text template
-// saved before this editor existed) needs its \n turned into real <br> once,
-// the same way markdownLiteToHtml does for anything sent from a plain
-// textarea elsewhere in the app - otherwise a multi-line legacy template
-// collapses onto one line the moment it lands in a contentEditable box.
-function plainToRichHtml(text) {
-  return (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
-}
-// Real editable rich text box for compose: a Bold button and a Bullet List
-// button that work on the current selection via execCommand (still
-// universally supported across every browser including Safari, and this
-// file has no build step for a modern editor library or its CSS), a
-// contentEditable surface instead of a plain textarea, and a paste handler
-// that sanitizes incoming formatted content down to a safe tag set rather
-// than either stripping all formatting or letting Word/Google Docs junk
-// HTML straight through. `value`/`onChange` behave like a controlled input
-// from the outside, but contentEditable itself isn't naturally controllable
-// the way a text input is - the effect below only pushes an external value
-// change into the DOM when the box isn't focused, so typing never fights
-// the cursor position.
-function RichTextEditor({
-  value,
-  onChange,
-  placeholder
-}) {
-  var editorRef = useRef(null);
-  var lastValue = useRef(value);
-  var [active, setActive] = useState({
-    bold: false,
-    italic: false,
-    ul: false
-  });
-  useEffect(function () {
-    if (editorRef.current && value !== lastValue.current && document.activeElement !== editorRef.current) {
-      editorRef.current.innerHTML = value || "";
-      lastValue.current = value;
-    }
-  }, [value]);
-  function fire() {
-    if (!editorRef.current) return;
-    var html = editorRef.current.innerHTML;
-    lastValue.current = html;
-    onChange(html);
-  }
-  // Reflects the formatting under the cursor on the toolbar itself, the way
-  // Word or Gmail do - so Bold visibly looks "pressed" while you're inside
-  // bold text, rather than the toolbar being a dumb set of one-way buttons
-  // that never tell you what state you're actually in.
-  function syncActiveState() {
-    try {
-      setActive({
-        bold: document.queryCommandState("bold"),
-        italic: document.queryCommandState("italic"),
-        ul: document.queryCommandState("insertUnorderedList")
-      });
-    } catch (e) {}
-  }
-  function exec(cmd) {
-    if (editorRef.current) editorRef.current.focus();
-    document.execCommand(cmd, false, null);
-    fire();
-    syncActiveState();
-  }
-  function handlePaste(e) {
-    e.preventDefault();
-    var html = e.clipboardData.getData("text/html");
-    var plain = e.clipboardData.getData("text/plain");
-    // Outlook/Word HTML for even a short paragraph can run to tens of
-    // thousands of characters of markup - past a certain size that's a
-    // strong signal it's bloated formatting rather than content worth
-    // preserving, so skip DOM sanitization entirely and fall back to the
-    // fast, size-independent plain-text path instead of risking a hang.
-    var toInsert = html && html.length < 12000 ? sanitizeRichHtml(html) : plainToRichHtml(plain);
-    document.execCommand("insertHTML", false, toInsert);
-    fire();
-  }
-  function toolbarBtn(label, cmd, extraStyle) {
-    var isActive = cmd === "bold" ? active.bold : cmd === "italic" ? active.italic : cmd === "insertUnorderedList" ? active.ul : false;
-    return /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      onMouseDown: function (e) {
-        e.preventDefault();
-      },
-      onClick: function () {
-        exec(cmd);
-      },
-      style: Object.assign({
-        border: "1px solid " + (isActive ? TEAL : G300),
-        background: isActive ? TEAL + "1a" : W,
-        color: isActive ? TEAL : "#1a1a1a",
-        borderRadius: 4,
-        padding: "4px 11px",
-        fontSize: 12.5,
-        cursor: "pointer",
-        marginRight: 6,
-        fontFamily: "inherit"
-      }, extraStyle),
-      title: label
-    }, extraStyle && extraStyle.fontStyle === "italic" ? "I" : cmd === "insertUnorderedList" ? "\u2022 List" : "B");
-  }
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 6,
-      display: "flex"
-    }
-  }, toolbarBtn("Bold", "bold", {
-    fontWeight: 700
-  }), toolbarBtn("Italic", "italic", {
-    fontStyle: "italic"
-  }), toolbarBtn("Bullet list", "insertUnorderedList", {
-    fontWeight: 400
-  })), /*#__PURE__*/React.createElement("div", {
-    ref: editorRef,
-    contentEditable: true,
-    suppressContentEditableWarning: true,
-    onInput: fire,
-    onPaste: handlePaste,
-    onKeyUp: syncActiveState,
-    onMouseUp: syncActiveState,
-    onFocus: syncActiveState,
-    "data-placeholder": placeholder || "",
-    className: "rich-text-editable",
-    style: {
-      width: "100%",
-      minHeight: 320,
-      maxHeight: "55vh",
-      border: "1px solid " + G300,
-      borderRadius: 6,
-      padding: "12px 14px",
-      fontSize: 13,
-      lineHeight: 1.5,
-      outline: "none",
-      fontFamily: "Aptos, Calibri, 'Segoe UI', sans-serif",
-      overflowY: "auto",
-      resize: "vertical"
-    }
-  }));
-}
 function SendMailModal({
   people,
   templates,
@@ -11740,7 +11473,7 @@ function SendMailModal({
   const skippedCount = people.length - validPeople.length;
   const [connectedAs, setConnectedAs] = useState(getConnectedOutlookAccount());
   const [subject, setSubject] = useState("");
-  const [body, setBody] = useState(multi ? plainToRichHtml("Hi {{firstName}},\n\n") : "");
+  const [body, setBody] = useState(multi ? "Hi {{firstName}},\n\n" : "");
   const [templateId, setTemplateId] = useState("");
   const [showSaveBox, setShowSaveBox] = useState(false);
   const [templateTitle, setTemplateTitle] = useState("");
@@ -11754,7 +11487,6 @@ function SendMailModal({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(null);
   const [results, setResults] = useState(null);
-  const [showPreview, setShowPreview] = useState(false);
   const notConfigured = !MS_CLIENT_ID;
   // Every saved email template should be selectable here, regardless of
   // category - hiding anyone's template because its category didn't match
@@ -11771,18 +11503,12 @@ function SendMailModal({
     });
     if (!t) return;
     var tBody = t.body || "";
-    // Older templates were saved as plain text before this editor existed -
-    // no tags at all is the signal to convert; anything already containing
-    // a tag was saved from this same rich editor and is used as-is.
-    if (!/<[a-z][\s\S]*>/i.test(tBody)) {
-      tBody = plainToRichHtml(tBody);
-    }
     // A template that never included {{firstName}} at all would send with
     // no greeting whatsoever - relying on every saved template to remember
     // the placeholder is fragile. If it's missing, add one automatically
     // rather than leaving the message with nobody's name in it.
     if (tBody.indexOf("{{firstName}}") === -1) {
-      tBody = plainToRichHtml("Hi {{firstName}},\n\n") + tBody;
+      tBody = "Hi {{firstName}},\n\n" + tBody;
     }
     setBody(tBody);
   }
@@ -11791,14 +11517,14 @@ function SendMailModal({
       setTitleError(true);
       return;
     }
-    if (!bodyHasContent(body)) return;
+    if (!body.trim()) return;
     var finalCategory = addingNewCategory ? (newCategoryName.trim() || "Miscellaneous") : saveCategory;
     onSaveTemplate({
       id: Date.now(),
       name: templateTitle.trim(),
       category: finalCategory,
       subject: subject.trim(),
-      body: body,
+      body: body.trim(),
       channel: "email"
     });
     setTemplateTitle("");
@@ -11830,15 +11556,8 @@ function SendMailModal({
       setTimeout(r, ms);
     });
   }
-// The activity log elsewhere in the CRM displays notes as plain text, not
-// HTML, so a logged email note needs the tags converted back to line breaks
-// and stripped, while the actual sent email keeps the real formatting -
-// these are two different destinations for the same content.
-function htmlToPlainSummary(html) {
-  return (html || "").replace(/<(br|\/p|\/div|\/li)>/gi, "\n").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
-}
-async function send() {
-    if (!bodyHasContent(body) || !validPeople.length) return;
+  async function send() {
+    if (!body.trim() || !validPeople.length) return;
     setError("");
     setSending(true);
     const ok = [],
@@ -11870,7 +11589,7 @@ async function send() {
           type: "email",
           icon: actLabel.icon,
           label: actLabel.label,
-          note: (personalSubject ? "Subject: " + personalSubject + "\n\n" : "") + htmlToPlainSummary(personalBody),
+          note: (personalSubject ? "Subject: " + personalSubject + "\n\n" : "") + personalBody.trim(),
           date: ts,
           by: "",
           via: "outlook"
@@ -11973,84 +11692,6 @@ async function send() {
       return { category: cat, items: byCategory[cat] };
     });
   })();
-  // Computed as its own standalone element rather than inlined into the
-  // return below - the return's own nesting is already several layers deep
-  // through conditional branches, and threading a second top-level overlay
-  // through that chain by hand is exactly how a stray paren slips in.
-  // Keeping this separate means it can only ever add cleanly as one extra
-  // argument to the outermost element.
-  var previewOverlay = !showPreview ? null : /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "fixed",
-      inset: 0,
-      background: "#0008",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 400
-    },
-    onClick: function () {
-      setShowPreview(false);
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    onClick: function (e) {
-      e.stopPropagation();
-    },
-    style: {
-      background: W,
-      borderRadius: 12,
-      width: "90vw",
-      height: "90vh",
-      maxWidth: 900,
-      display: "flex",
-      flexDirection: "column",
-      boxShadow: "0 20px 60px #0005",
-      overflow: "hidden"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "14px 20px",
-      borderBottom: "1px solid " + G200
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontWeight: 700,
-      fontSize: 15,
-      color: NAVY
-    }
-  }, "Preview"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: G600,
-      marginTop: 2
-    }
-  }, "Shown as it would appear to ", validPeople.length ? validPeople[0].name || validPeople[0].email : "the recipient", validPeople.length > 1 ? " (first of " + validPeople.length + " - wording personalizes per person)" : "")), /*#__PURE__*/React.createElement("button", {
-    onClick: function () {
-      setShowPreview(false);
-    },
-    style: {
-      background: "transparent",
-      border: "1px solid " + G300,
-      borderRadius: 6,
-      padding: "6px 14px",
-      fontSize: 13,
-      color: G600,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
-  }, "Close")), /*#__PURE__*/React.createElement("iframe", {
-    title: "Email preview",
-    sandbox: "",
-    style: {
-      flex: 1,
-      border: "none",
-      width: "100%"
-    },
-    srcDoc: "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:14px;color:#1a1a1a;padding:20px 24px;max-width:680px;margin:0 auto;\"><div style=\"font-size:12px;color:#8a8a8a;margin-bottom:14px;\"><b>Subject:</b> " + (validPeople.length ? personalize(subject, validPeople[0]) : subject).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</div>" + buildEmailBodyHtml(validPeople.length ? personalize(body, validPeople[0]) : body, connectedAs) + "</div>"
-  })));
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -12070,10 +11711,8 @@ async function send() {
       background: W,
       borderRadius: 12,
       padding: "24px 28px",
-      width: 760,
+      width: 520,
       maxWidth: "96vw",
-      maxHeight: "88vh",
-      overflowY: "auto",
       boxShadow: "0 20px 60px #0003",
       border: "1px solid " + G200
     }
@@ -12309,14 +11948,25 @@ async function send() {
       letterSpacing: "0.06em",
       marginBottom: 6
     }
-  }, "Message"), /*#__PURE__*/React.createElement(RichTextEditor, {
+  }, "Message"), /*#__PURE__*/React.createElement("textarea", {
     value: body,
-    onChange: function (html) {
-      setBody(html);
+    onChange: function (e) {
+      setBody(e.target.value);
       if (templateId) setTemplateId("");
     },
-    placeholder: multi ? "Write your message\u2026 use {{firstName}} anywhere you want it personalized per contact." : "Write your message\u2026"
-  }), bodyHasContent(body) && saveBoxUI, error && /*#__PURE__*/React.createElement("div", {
+    rows: 8,
+    placeholder: multi ? "Write your message\u2026 use {{firstName}} anywhere you want it personalized per contact." : "Write your message\u2026",
+    style: {
+      width: "100%",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      resize: "vertical"
+    }
+  }), body.trim() && saveBoxUI, error && /*#__PURE__*/React.createElement("div", {
     style: {
       color: DANGER,
       fontSize: 12,
@@ -12335,22 +11985,7 @@ async function send() {
       justifyContent: "flex-end",
       gap: 10
     }
-  }, !sending && bodyHasContent(body) && /*#__PURE__*/React.createElement("button", {
-    onClick: function () {
-      setShowPreview(true);
-    },
-    style: {
-      background: "transparent",
-      border: "1px solid " + G300,
-      borderRadius: 6,
-      padding: "8px 18px",
-      fontSize: 13,
-      color: G600,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      marginRight: "auto"
-    }
-  }, "Preview"), !sending && /*#__PURE__*/React.createElement("button", {
+  }, !sending && /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     style: {
       background: "transparent",
@@ -12364,7 +11999,7 @@ async function send() {
     }
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     onClick: send,
-    disabled: sending || !bodyHasContent(body) || !validPeople.length,
+    disabled: sending || !body.trim() || !validPeople.length,
     style: {
       background: TEAL,
       color: W,
@@ -12373,11 +12008,11 @@ async function send() {
       padding: "8px 22px",
       fontSize: 13,
       fontWeight: 700,
-      cursor: sending || !bodyHasContent(body) || !validPeople.length ? "default" : "pointer",
+      cursor: sending || !body.trim() || !validPeople.length ? "default" : "pointer",
       fontFamily: "inherit",
-      opacity: sending || !bodyHasContent(body) || !validPeople.length ? 0.6 : 1
+      opacity: sending || !body.trim() || !validPeople.length ? 0.6 : 1
     }
-  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send"))))), previewOverlay);
+  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send"))))));
 }
 function ActivityLogModal({
   people,
@@ -14072,8 +13707,7 @@ function BDPipelineView({
 function GlobalSearch({
   people,
   companies,
-  onNavigate,
-  currentView
+  onNavigate
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -14174,7 +13808,7 @@ function GlobalSearch({
     return /*#__PURE__*/React.createElement("div", {
       key: item._kind + "-" + item.id,
       onClick: () => {
-        onNavigate(ip ? "people" : "companies", item.id, currentView);
+        onNavigate(ip ? "people" : "companies", item.id);
         setQ("");
         setOpen(false);
       },
@@ -18513,12 +18147,6 @@ function App() {
   const [navSel, setNavSel] = useState(null);
   const [navFrom, setNavFrom] = useState(null);
   const [returnToCompanyId, setReturnToCompanyId] = useState(null);
-  // Same idea as returnToCompanyId, for the Spec Outs list: which group
-  // (a candidate or company's own expanded prospect list) was open before
-  // clicking through to one of the people inside it. Without this, Back
-  // to Spec Outs just lands on the collapsed top-level list, losing the
-  // exact group the person was actually looking at.
-  const [returnToSpecOutGroupKey, setReturnToSpecOutGroupKey] = useState(null);
   const [mmSectorF, setMmSectorF] = useState("All");
   const [mmRelF, setMmRelF] = useState("All");
   const [mmTypeF, setMmTypeF] = useState("All");
@@ -19019,7 +18647,7 @@ function App() {
       overflow: "hidden",
       color: G900
     }
-  }, /*#__PURE__*/React.createElement("style", null, "*{box-sizing:border-box;margin:0;padding:0}input,textarea,select,button{font-family:Aptos,Calibri,'Segoe UI',sans-serif}input::placeholder,textarea::placeholder{color:" + G400 + "}.rich-text-editable:empty:before{content:attr(data-placeholder);color:" + G400 + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:" + G300 + ";border-radius:3px}"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("style", null, "*{box-sizing:border-box;margin:0;padding:0}input,textarea,select,button{font-family:Aptos,Calibri,'Segoe UI',sans-serif}input::placeholder,textarea::placeholder{color:" + G400 + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:" + G300 + ";border-radius:3px}"), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 220,
       background: W,
@@ -19190,8 +18818,7 @@ function App() {
   }, /*#__PURE__*/React.createElement(GlobalSearch, {
     people: people,
     companies: companies,
-    onNavigate: handleNavigate,
-    currentView: view
+    onNavigate: handleNavigate
   }), ownerFilter && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -19332,12 +18959,6 @@ function App() {
     persist: persist,
     ownerFilter: ownerFilter,
     onNavigate: handleNavigate,
-    onNavigatePerson: (id, groupKey) => {
-      setReturnToSpecOutGroupKey(groupKey != null ? groupKey : null);
-      handleNavigate("people", id, "specouts");
-    },
-    initialExpandedGroupKey: returnToSpecOutGroupKey,
-    onConsumedInitialGroup: () => setReturnToSpecOutGroupKey(null),
     templates: templates,
     setTemplates: setTemplates
   }), view === "network" && /*#__PURE__*/React.createElement(VoltNetworkView, {
