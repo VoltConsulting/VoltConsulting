@@ -10894,6 +10894,9 @@ function SpecOutsView({
   persist,
   ownerFilter,
   onNavigate,
+  onNavigatePerson,
+  initialExpandedGroupKey,
+  onConsumedInitialGroup,
   templates,
   setTemplates
 }) {
@@ -10909,6 +10912,20 @@ function SpecOutsView({
   const [selectedIds, setSelectedIds] = useState([]);
   const [sendModal, setSendModal] = useState(null);
   const autoExpanded = useRef(false);
+  // Restores the exact group that was open before navigating away to a
+  // person inside it - without this, coming back from a person's card
+  // always lands on the collapsed top-level list regardless of which
+  // group you were actually looking at.
+  useEffect(function () {
+    if (initialExpandedGroupKey) {
+      setExpandedKeys(prev => {
+        const next = new Set(prev);
+        next.add(initialExpandedGroupKey);
+        return next;
+      });
+      if (onConsumedInitialGroup) onConsumedInitialGroup();
+    }
+  }, [initialExpandedGroupKey]);
   function toggleGroup(key) {
     setExpandedKeys(prev => {
       const next = new Set(prev);
@@ -11438,7 +11455,7 @@ function SpecOutsView({
       spec: s,
       perspective: groupBy === "candidate" ? "candidate" : "contact",
       onUpdate: updateSpec,
-      onNavigatePerson: id => onNavigate("people", id, "specouts"),
+      onNavigatePerson: id => onNavigatePerson(id, key),
       onDelete: deleteSpec
     }))))), bulkGroupKey === key && selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -11597,6 +11614,11 @@ function RichTextEditor({
 }) {
   var editorRef = useRef(null);
   var lastValue = useRef(value);
+  var [active, setActive] = useState({
+    bold: false,
+    italic: false,
+    ul: false
+  });
   useEffect(function () {
     if (editorRef.current && value !== lastValue.current && document.activeElement !== editorRef.current) {
       editorRef.current.innerHTML = value || "";
@@ -11609,10 +11631,24 @@ function RichTextEditor({
     lastValue.current = html;
     onChange(html);
   }
+  // Reflects the formatting under the cursor on the toolbar itself, the way
+  // Word or Gmail do - so Bold visibly looks "pressed" while you're inside
+  // bold text, rather than the toolbar being a dumb set of one-way buttons
+  // that never tell you what state you're actually in.
+  function syncActiveState() {
+    try {
+      setActive({
+        bold: document.queryCommandState("bold"),
+        italic: document.queryCommandState("italic"),
+        ul: document.queryCommandState("insertUnorderedList")
+      });
+    } catch (e) {}
+  }
   function exec(cmd) {
     if (editorRef.current) editorRef.current.focus();
     document.execCommand(cmd, false, null);
     fire();
+    syncActiveState();
   }
   function handlePaste(e) {
     e.preventDefault();
@@ -11627,70 +11663,65 @@ function RichTextEditor({
     document.execCommand("insertHTML", false, toInsert);
     fire();
   }
-  var toolbarBtnStyle = {
-    border: "1px solid " + G300,
-    background: W,
-    borderRadius: 4,
-    padding: "3px 9px",
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: "pointer",
-    marginRight: 6,
-    fontFamily: "inherit"
-  };
+  function toolbarBtn(label, cmd, extraStyle) {
+    var isActive = cmd === "bold" ? active.bold : cmd === "italic" ? active.italic : cmd === "insertUnorderedList" ? active.ul : false;
+    return /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onMouseDown: function (e) {
+        e.preventDefault();
+      },
+      onClick: function () {
+        exec(cmd);
+      },
+      style: Object.assign({
+        border: "1px solid " + (isActive ? TEAL : G300),
+        background: isActive ? TEAL + "1a" : W,
+        color: isActive ? TEAL : "#1a1a1a",
+        borderRadius: 4,
+        padding: "4px 11px",
+        fontSize: 12.5,
+        cursor: "pointer",
+        marginRight: 6,
+        fontFamily: "inherit"
+      }, extraStyle),
+      title: label
+    }, extraStyle && extraStyle.fontStyle === "italic" ? "I" : cmd === "insertUnorderedList" ? "\u2022 List" : "B");
+  }
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 6,
       display: "flex"
     }
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onMouseDown: function (e) {
-      e.preventDefault();
-    },
-    onClick: function () {
-      exec("bold");
-    },
-    style: toolbarBtnStyle,
-    title: "Bold"
-  }, "B"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onMouseDown: function (e) {
-      e.preventDefault();
-    },
-    onClick: function () {
-      exec("insertUnorderedList");
-    },
-    style: {
-      border: "1px solid " + G300,
-      background: W,
-      borderRadius: 4,
-      padding: "3px 9px",
-      fontSize: 12,
-      fontWeight: 400,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    },
-    title: "Bullet list"
-  }, "\u2022 List")), /*#__PURE__*/React.createElement("div", {
+  }, toolbarBtn("Bold", "bold", {
+    fontWeight: 700
+  }), toolbarBtn("Italic", "italic", {
+    fontStyle: "italic"
+  }), toolbarBtn("Bullet list", "insertUnorderedList", {
+    fontWeight: 400
+  })), /*#__PURE__*/React.createElement("div", {
     ref: editorRef,
     contentEditable: true,
     suppressContentEditableWarning: true,
     onInput: fire,
     onPaste: handlePaste,
+    onKeyUp: syncActiveState,
+    onMouseUp: syncActiveState,
+    onFocus: syncActiveState,
     "data-placeholder": placeholder || "",
     className: "rich-text-editable",
     style: {
       width: "100%",
-      minHeight: 140,
-      maxHeight: 260,
+      minHeight: 320,
+      maxHeight: "55vh",
       border: "1px solid " + G300,
       borderRadius: 6,
-      padding: "8px 11px",
+      padding: "12px 14px",
       fontSize: 13,
+      lineHeight: 1.5,
       outline: "none",
-      fontFamily: "inherit",
-      overflowY: "auto"
+      fontFamily: "Aptos, Calibri, 'Segoe UI', sans-serif",
+      overflowY: "auto",
+      resize: "vertical"
     }
   }));
 }
@@ -12039,7 +12070,7 @@ async function send() {
       background: W,
       borderRadius: 12,
       padding: "24px 28px",
-      width: 520,
+      width: 760,
       maxWidth: "96vw",
       maxHeight: "88vh",
       overflowY: "auto",
@@ -14041,7 +14072,8 @@ function BDPipelineView({
 function GlobalSearch({
   people,
   companies,
-  onNavigate
+  onNavigate,
+  currentView
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -14142,7 +14174,7 @@ function GlobalSearch({
     return /*#__PURE__*/React.createElement("div", {
       key: item._kind + "-" + item.id,
       onClick: () => {
-        onNavigate(ip ? "people" : "companies", item.id);
+        onNavigate(ip ? "people" : "companies", item.id, currentView);
         setQ("");
         setOpen(false);
       },
@@ -18481,6 +18513,12 @@ function App() {
   const [navSel, setNavSel] = useState(null);
   const [navFrom, setNavFrom] = useState(null);
   const [returnToCompanyId, setReturnToCompanyId] = useState(null);
+  // Same idea as returnToCompanyId, for the Spec Outs list: which group
+  // (a candidate or company's own expanded prospect list) was open before
+  // clicking through to one of the people inside it. Without this, Back
+  // to Spec Outs just lands on the collapsed top-level list, losing the
+  // exact group the person was actually looking at.
+  const [returnToSpecOutGroupKey, setReturnToSpecOutGroupKey] = useState(null);
   const [mmSectorF, setMmSectorF] = useState("All");
   const [mmRelF, setMmRelF] = useState("All");
   const [mmTypeF, setMmTypeF] = useState("All");
@@ -19152,7 +19190,8 @@ function App() {
   }, /*#__PURE__*/React.createElement(GlobalSearch, {
     people: people,
     companies: companies,
-    onNavigate: handleNavigate
+    onNavigate: handleNavigate,
+    currentView: view
   }), ownerFilter && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -19293,6 +19332,12 @@ function App() {
     persist: persist,
     ownerFilter: ownerFilter,
     onNavigate: handleNavigate,
+    onNavigatePerson: (id, groupKey) => {
+      setReturnToSpecOutGroupKey(groupKey != null ? groupKey : null);
+      handleNavigate("people", id, "specouts");
+    },
+    initialExpandedGroupKey: returnToSpecOutGroupKey,
+    onConsumedInitialGroup: () => setReturnToSpecOutGroupKey(null),
     templates: templates,
     setTemplates: setTemplates
   }), view === "network" && /*#__PURE__*/React.createElement(VoltNetworkView, {
