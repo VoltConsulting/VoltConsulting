@@ -11502,6 +11502,28 @@ function sanitizeRichHtml(html) {
       child = next;
     }
   }
+  // Chrome's contentEditable wraps typed paragraphs in <p>/<div>, which
+  // carry their own default browser margin - and a deliberate blank line
+  // between paragraphs becomes a whole EXTRA empty <p><br></p>, adding a
+  // second margin on top of the first. The two stack, so what looks like
+  // one blank line while typing lands as a noticeably wider gap once
+  // Outlook renders the actual margins. Unwrapping every <p>/<div> into a
+  // single consistent <br> per paragraph boundary - and exactly one <br>
+  // (not two) for a paragraph that was only ever a blank line - normalizes
+  // spacing to what was actually intended, matching how plainToRichHtml
+  // and markdownLiteToHtml already represent paragraph breaks everywhere
+  // else in this app.
+  var blocks = container.querySelectorAll("p, div");
+  for (var k = 0; k < blocks.length; k++) {
+    var el = blocks[k];
+    if (!el.parentNode) continue;
+    var isBlank = !el.textContent.trim();
+    while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+    if (!isBlank) {
+      el.parentNode.insertBefore(el.ownerDocument.createElement("br"), el);
+    }
+    el.parentNode.removeChild(el);
+  }
   return container.innerHTML;
 }
 // A box that's visually empty can still hold "<br>" or "<div><br></div>" -
@@ -11683,14 +11705,19 @@ function RichTextEditor({
     className: "rich-text-editable",
     style: {
       width: "100%",
-      minHeight: 220,
-      maxHeight: 420,
+      minHeight: 320,
+      maxHeight: 480,
       border: "1px solid " + G300,
       borderRadius: 6,
-      padding: "8px 11px",
+      padding: "16px 20px",
       fontSize: 13,
+      lineHeight: 1.5,
       outline: "none",
-      fontFamily: "inherit",
+      // Matches buildEmailBodyHtml's wrapper exactly, so what's typed
+      // already looks like the real email rather than the app's own UI
+      // font - no separate preview needed just to check this.
+      fontFamily: "Aptos,Calibri,'Segoe UI',sans-serif",
+      color: "#1a1a1a",
       overflowY: "auto"
     }
   }));
@@ -11724,6 +11751,7 @@ function SendMailModal({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(null);
   const [results, setResults] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
   const notConfigured = !MS_CLIENT_ID;
   // Every saved email template should be selectable here, regardless of
   // category - hiding anyone's template because its category didn't match
@@ -11742,9 +11770,15 @@ function SendMailModal({
     var tBody = t.body || "";
     // Older templates were saved as plain text before this editor existed -
     // no tags at all is the signal to convert; anything already containing
-    // a tag was saved from this same rich editor and is used as-is.
+    // a tag was saved from this same rich editor. Either way it goes
+    // through sanitizeRichHtml, which now also normalizes paragraph
+    // spacing - so a template saved before that fix existed (like the
+    // double-spaced one from earlier today) gets automatically cleaned up
+    // the moment it's next opened, rather than staying wrong forever.
     if (!/<[a-z][\s\S]*>/i.test(tBody)) {
       tBody = plainToRichHtml(tBody);
+    } else {
+      tBody = sanitizeRichHtml(tBody);
     }
     // A template that never included {{firstName}} at all would send with
     // no greeting whatsoever - relying on every saved template to remember
@@ -11935,6 +11969,85 @@ function SendMailModal({
       return { category: cat, items: byCategory[cat] };
     });
   })();
+  // Computed as its own standalone element rather than inlined into the
+  // return below - the return already nests several layers deep through
+  // conditional branches, and threading a second top-level overlay through
+  // that chain by hand is exactly how a stray paren slips in. Keeping this
+  // separate means it can only ever add cleanly as one extra argument to
+  // the outermost element.
+  var previewOverlay = !showPreview ? null : /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 400
+    },
+    onClick: function () {
+      setShowPreview(false);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: function (e) {
+      e.stopPropagation();
+    },
+    style: {
+      background: W,
+      borderRadius: 12,
+      width: "90vw",
+      height: "88vh",
+      maxWidth: 820,
+      display: "flex",
+      flexDirection: "column",
+      boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "14px 20px",
+      borderBottom: "1px solid " + G200,
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 15,
+      color: NAVY
+    }
+  }, "Preview"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: G600,
+      marginTop: 2
+    }
+  }, "Shown as it would appear to ", validPeople.length ? (validPeople[0].name || validPeople[0].email) : "the recipient", validPeople.length > 1 ? " \u2014 first of " + validPeople.length + " (wording personalizes per person)" : "")), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setShowPreview(false);
+    },
+    style: {
+      background: "transparent",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "6px 14px",
+      fontSize: 13,
+      color: G600,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Close")), /*#__PURE__*/React.createElement("iframe", {
+    title: "Email preview",
+    sandbox: "",
+    style: {
+      flex: 1,
+      border: "none",
+      width: "100%"
+    },
+    srcDoc: "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:14px;color:#1a1a1a;padding:22px 26px;max-width:680px;margin:0 auto;\"><div style=\"font-size:12px;color:#8a8a8a;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #eee;\"><b>Subject:</b> " + (validPeople.length ? personalize(subject, validPeople[0]) : subject).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</div>" + buildEmailBodyHtml(validPeople.length ? personalize(body, validPeople[0]) : body, connectedAs) + "</div>"
+  })));
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -11954,7 +12067,7 @@ function SendMailModal({
       background: W,
       borderRadius: 12,
       padding: "24px 28px",
-      width: 560,
+      width: 760,
       maxWidth: "96vw",
       maxHeight: "88vh",
       overflowY: "auto",
@@ -12219,7 +12332,22 @@ function SendMailModal({
       justifyContent: "flex-end",
       gap: 10
     }
-  }, !sending && /*#__PURE__*/React.createElement("button", {
+  }, !sending && bodyHasContent(body) && /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setShowPreview(true);
+    },
+    style: {
+      background: "transparent",
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 18px",
+      fontSize: 13,
+      color: G600,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      marginRight: "auto"
+    }
+  }, "Preview"), !sending && /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     style: {
       background: "transparent",
@@ -12246,7 +12374,7 @@ function SendMailModal({
       fontFamily: "inherit",
       opacity: sending || !bodyHasContent(body) || !validPeople.length ? 0.6 : 1
     }
-  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send"))))));
+  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send"))))), previewOverlay);
 }
 function ActivityLogModal({
   people,
@@ -14501,7 +14629,14 @@ function TemplatesView({
       whiteSpace: "pre-wrap",
       lineHeight: 1.5
     }
-  }, t.body)))), editing && /*#__PURE__*/React.createElement("div", {
+    // A template saved from the rich editor is real HTML - showing it as a
+    // plain text child (correct for an old plain-text template) means
+    // React escapes the tags, so they show up as visible text instead of
+    // formatting: the "one big lump" bug. Converting to clean plain text
+    // here fixes the unreadable-tag-soup problem safely; the actual bold/
+    // bullets are still visible when the template is reopened into the
+    // real compose box.
+  }, /<[a-z][\s\S]*>/i.test(t.body || "") ? htmlToPlainSummary(t.body) : t.body)))), editing && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       inset: 0,
