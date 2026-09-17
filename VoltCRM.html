@@ -169,16 +169,12 @@ function linkifyUrls(text) {
 async function sendGraphMail(to, subject, body) {
   var token = await getGraphToken();
   var senderEmail = getConnectedOutlookAccount();
-  var escapedBody = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  var linkedBody = linkifyUrls(escapedBody);
-  // Outlook's desktop client renders HTML email through Word's engine, which
-  // does not reliably honour white-space:pre-wrap — paragraph spacing and
-  // line breaks can silently collapse into one block for the recipient even
-  // though it looks correct in the compose box. Converting every newline
-  // into a real <br> tag is the actual fix: it renders correctly everywhere,
-  // Outlook included, regardless of how that client handles CSS whitespace.
-  var bodyWithBreaks = linkedBody.replace(/\n/g, "<br>");
-  var htmlBody = "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + bodyWithBreaks + "</div>" + buildSignatureHtml(senderEmail);
+  // Content typed/pasted into the rich text compose box already arrives as
+  // real HTML (bold, bullet lists) - sanitize and use it directly. A legacy
+  // plain-text body (an older saved template, or anything with no tags at
+  // all) still goes through the markdown-lite fallback so nothing written
+  // before this editor existed breaks.
+  var htmlBody = buildEmailBodyHtml(body, senderEmail);
   var r = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
     method: "POST",
     headers: {
@@ -11458,6 +11454,247 @@ function SpecOutsView({
 // user's own Outlook 365 account (lands in their real Sent Items
 // automatically), then logs the activity in the same action —
 // no separate "remember to log this" step.
+// Keeps only formatting Outlook can render cleanly and that this editor's
+// own toolbar actually produces - strips everything else (fonts, colours,
+// margins, spans, inline styles) that Word/Google Docs bring along on paste,
+// which otherwise arrives as a garbled mess in the sent email. Uses an
+// explicit stack rather than recursive walking, since Word/Outlook clipboard
+// HTML is routinely hundreds or thousands of nested spans for a single
+// sentence - a recursive walk over that is a genuine stack-overflow/freeze
+// risk, not just a theoretical one.
+var RICH_TEXT_ALLOWED_TAGS = {
+  B: 1,
+  STRONG: 1,
+  I: 1,
+  EM: 1,
+  U: 1,
+  UL: 1,
+  OL: 1,
+  LI: 1,
+  BR: 1,
+  DIV: 1,
+  P: 1,
+  A: 1
+};
+function sanitizeRichHtml(html) {
+  var container = document.createElement("div");
+  container.innerHTML = html;
+  var stack = [container];
+  while (stack.length) {
+    var node = stack.pop();
+    var child = node.firstChild;
+    while (child) {
+      var next = child.nextSibling;
+      if (child.nodeType === 1) {
+        var tag = child.tagName;
+        if (!RICH_TEXT_ALLOWED_TAGS[tag]) {
+          while (child.firstChild) node.insertBefore(child.firstChild, child);
+          node.removeChild(child);
+        } else {
+          var attrs = [];
+          for (var i = 0; i < child.attributes.length; i++) attrs.push(child.attributes[i].name);
+          for (var j = 0; j < attrs.length; j++) {
+            if (!(tag === "A" && attrs[j] === "href")) child.removeAttribute(attrs[j]);
+          }
+          stack.push(child);
+        }
+      }
+      child = next;
+    }
+  }
+  return container.innerHTML;
+}
+// A box that's visually empty can still hold "<br>" or "<div><br></div>" -
+// every browser's contentEditable leaves something behind rather than a
+// genuine empty string. Stripping tags before checking length is the only
+// reliable way to tell "actually empty" from "has real content".
+function bodyHasContent(html) {
+  return (html || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim().length > 0;
+}
+// Seeding the box (default greeting text, or a legacy plain-text template
+// saved before this editor existed) needs its \n turned into a real <br>,
+// the same way markdownLiteToHtml does for a plain-text send elsewhere -
+// otherwise a multi-line legacy template collapses onto one line the moment
+// it lands in a contentEditable box.
+function plainToRichHtml(text) {
+  return (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+}
+// Legacy fallback only - used when a body has no HTML tags at all (an old
+// saved template from before this editor existed). Recognises **bold** and
+// "- " bullet lines, same shorthand this app already asked people to use in
+// plain-text boxes elsewhere, so nothing written before this editor existed
+// silently loses its intended formatting.
+function markdownLiteToHtml(text) {
+  var escaped = (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  var lines = escaped.split("\n");
+  var html = "";
+  var inList = false;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var bulletMatch = /^-\s+(.*)$/.exec(line);
+    if (bulletMatch) {
+      if (!inList) {
+        html += "<ul>";
+        inList = true;
+      }
+      html += "<li>" + bulletMatch[1] + "</li>";
+    } else {
+      if (inList) {
+        html += "</ul>";
+        inList = false;
+      }
+      html += line + "<br>";
+    }
+  }
+  if (inList) html += "</ul>";
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  return linkifyUrls(html);
+}
+// The activity log elsewhere in the CRM displays notes as plain text, not
+// HTML, so a logged email note needs the tags converted back to line breaks
+// and stripped, while the actual sent email keeps the real formatting -
+// these are two different destinations for the same content.
+function htmlToPlainSummary(html) {
+  return (html || "").replace(/<(br|\/p|\/div|\/li)>/gi, "\n").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
+}
+// Shared by the actual send and used consistently everywhere a body needs
+// converting to final email HTML, so there's exactly one place this logic
+// lives rather than it drifting between call sites.
+function buildEmailBodyHtml(body, senderEmail) {
+  var hasHtml = /<[a-z][\s\S]*>/i.test(body);
+  // The paste handler already guards against a single bloated paste ever
+  // reaching sanitizeRichHtml, but this function runs on the WHOLE
+  // accumulated body at send time, regardless of how it got that large -
+  // gradual typing/pasting in smaller pieces could in principle still add
+  // up. A generous 200,000-character threshold (far beyond any realistic
+  // real message) falls back to a plain-text-stripped version instead of
+  // ever risking the DOM sanitizer on pathological content at the moment
+  // that actually matters most - sending.
+  var bodyHtml;
+  if (hasHtml && body.length < 200000) {
+    bodyHtml = linkifyUrls(sanitizeRichHtml(body));
+  } else if (hasHtml) {
+    bodyHtml = plainToRichHtml(body.replace(/<[^>]*>/g, " "));
+  } else {
+    bodyHtml = markdownLiteToHtml(body);
+  }
+  return "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + bodyHtml + "</div>" + buildSignatureHtml(senderEmail);
+}
+// Real editable rich text box for compose: a Bold button and a Bullet List
+// button that work on the current selection via execCommand (still
+// universally supported across every browser including Safari, and this
+// file has no build step for a modern editor library or its CSS), a
+// contentEditable surface instead of a plain textarea, and a paste handler
+// that sanitizes incoming formatted content down to a safe tag set rather
+// than either stripping all formatting or letting Word/Google Docs junk
+// HTML straight through. A size guard on paste skips sanitization entirely
+// for genuinely bloated clipboard HTML (Word/Outlook routinely produce
+// hundreds of KB for a short paragraph) and falls back to the fast,
+// size-independent plain-text path instead, so a big paste can never hang
+// the page. `value`/`onChange` behave like a controlled input from the
+// outside, but contentEditable itself isn't naturally controllable the way
+// a text input is - the effect below only pushes an external value change
+// into the DOM when the box isn't focused, so typing never fights the
+// cursor position.
+function RichTextEditor({
+  value,
+  onChange,
+  placeholder
+}) {
+  var editorRef = useRef(null);
+  var lastValue = useRef(value);
+  useEffect(function () {
+    if (editorRef.current && value !== lastValue.current && document.activeElement !== editorRef.current) {
+      editorRef.current.innerHTML = value || "";
+      lastValue.current = value;
+    }
+  }, [value]);
+  function fire() {
+    if (!editorRef.current) return;
+    var html = editorRef.current.innerHTML;
+    lastValue.current = html;
+    onChange(html);
+  }
+  function exec(cmd) {
+    if (editorRef.current) editorRef.current.focus();
+    document.execCommand(cmd, false, null);
+    fire();
+  }
+  function handlePaste(e) {
+    e.preventDefault();
+    var html = e.clipboardData.getData("text/html");
+    var plain = e.clipboardData.getData("text/plain");
+    var toInsert = html && html.length < 20000 ? sanitizeRichHtml(html) : plainToRichHtml(plain);
+    document.execCommand("insertHTML", false, toInsert);
+    fire();
+  }
+  var toolbarBtnStyle = {
+    border: "1px solid " + G300,
+    background: W,
+    borderRadius: 4,
+    padding: "3px 9px",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    marginRight: 6,
+    fontFamily: "inherit"
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 6,
+      display: "flex"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onMouseDown: function (e) {
+      e.preventDefault();
+    },
+    onClick: function () {
+      exec("bold");
+    },
+    style: toolbarBtnStyle,
+    title: "Bold"
+  }, "B"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onMouseDown: function (e) {
+      e.preventDefault();
+    },
+    onClick: function () {
+      exec("insertUnorderedList");
+    },
+    style: {
+      border: "1px solid " + G300,
+      background: W,
+      borderRadius: 4,
+      padding: "3px 9px",
+      fontSize: 12,
+      fontWeight: 400,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    },
+    title: "Bullet list"
+  }, "\u2022 List")), /*#__PURE__*/React.createElement("div", {
+    ref: editorRef,
+    contentEditable: true,
+    suppressContentEditableWarning: true,
+    onInput: fire,
+    onPaste: handlePaste,
+    "data-placeholder": placeholder || "",
+    className: "rich-text-editable",
+    style: {
+      width: "100%",
+      minHeight: 220,
+      maxHeight: 420,
+      border: "1px solid " + G300,
+      borderRadius: 6,
+      padding: "8px 11px",
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      overflowY: "auto"
+    }
+  }));
+}
 function SendMailModal({
   people,
   templates,
@@ -11473,7 +11710,7 @@ function SendMailModal({
   const skippedCount = people.length - validPeople.length;
   const [connectedAs, setConnectedAs] = useState(getConnectedOutlookAccount());
   const [subject, setSubject] = useState("");
-  const [body, setBody] = useState(multi ? "Hi {{firstName}},\n\n" : "");
+  const [body, setBody] = useState(multi ? plainToRichHtml("Hi {{firstName}},\n\n") : "");
   const [templateId, setTemplateId] = useState("");
   const [showSaveBox, setShowSaveBox] = useState(false);
   const [templateTitle, setTemplateTitle] = useState("");
@@ -11503,12 +11740,18 @@ function SendMailModal({
     });
     if (!t) return;
     var tBody = t.body || "";
+    // Older templates were saved as plain text before this editor existed -
+    // no tags at all is the signal to convert; anything already containing
+    // a tag was saved from this same rich editor and is used as-is.
+    if (!/<[a-z][\s\S]*>/i.test(tBody)) {
+      tBody = plainToRichHtml(tBody);
+    }
     // A template that never included {{firstName}} at all would send with
     // no greeting whatsoever - relying on every saved template to remember
     // the placeholder is fragile. If it's missing, add one automatically
     // rather than leaving the message with nobody's name in it.
     if (tBody.indexOf("{{firstName}}") === -1) {
-      tBody = "Hi {{firstName}},\n\n" + tBody;
+      tBody = plainToRichHtml("Hi {{firstName}},\n\n") + tBody;
     }
     setBody(tBody);
   }
@@ -11517,14 +11760,14 @@ function SendMailModal({
       setTitleError(true);
       return;
     }
-    if (!body.trim()) return;
+    if (!bodyHasContent(body)) return;
     var finalCategory = addingNewCategory ? (newCategoryName.trim() || "Miscellaneous") : saveCategory;
     onSaveTemplate({
       id: Date.now(),
       name: templateTitle.trim(),
       category: finalCategory,
       subject: subject.trim(),
-      body: body.trim(),
+      body: body,
       channel: "email"
     });
     setTemplateTitle("");
@@ -11557,7 +11800,7 @@ function SendMailModal({
     });
   }
   async function send() {
-    if (!body.trim() || !validPeople.length) return;
+    if (!bodyHasContent(body) || !validPeople.length) return;
     setError("");
     setSending(true);
     const ok = [],
@@ -11589,7 +11832,7 @@ function SendMailModal({
           type: "email",
           icon: actLabel.icon,
           label: actLabel.label,
-          note: (personalSubject ? "Subject: " + personalSubject + "\n\n" : "") + personalBody.trim(),
+          note: (personalSubject ? "Subject: " + personalSubject + "\n\n" : "") + htmlToPlainSummary(personalBody),
           date: ts,
           by: "",
           via: "outlook"
@@ -11711,8 +11954,10 @@ function SendMailModal({
       background: W,
       borderRadius: 12,
       padding: "24px 28px",
-      width: 520,
+      width: 560,
       maxWidth: "96vw",
+      maxHeight: "88vh",
+      overflowY: "auto",
       boxShadow: "0 20px 60px #0003",
       border: "1px solid " + G200
     }
@@ -11948,25 +12193,14 @@ function SendMailModal({
       letterSpacing: "0.06em",
       marginBottom: 6
     }
-  }, "Message"), /*#__PURE__*/React.createElement("textarea", {
+  }, "Message"), /*#__PURE__*/React.createElement(RichTextEditor, {
     value: body,
-    onChange: function (e) {
-      setBody(e.target.value);
+    onChange: function (html) {
+      setBody(html);
       if (templateId) setTemplateId("");
     },
-    rows: 8,
-    placeholder: multi ? "Write your message\u2026 use {{firstName}} anywhere you want it personalized per contact." : "Write your message\u2026",
-    style: {
-      width: "100%",
-      border: "1px solid " + G300,
-      borderRadius: 6,
-      padding: "8px 11px",
-      fontSize: 13,
-      outline: "none",
-      fontFamily: "inherit",
-      resize: "vertical"
-    }
-  }), body.trim() && saveBoxUI, error && /*#__PURE__*/React.createElement("div", {
+    placeholder: multi ? "Write your message\u2026 use {{firstName}} anywhere you want it personalized per contact." : "Write your message\u2026"
+  }), bodyHasContent(body) && saveBoxUI, error && /*#__PURE__*/React.createElement("div", {
     style: {
       color: DANGER,
       fontSize: 12,
@@ -11999,7 +12233,7 @@ function SendMailModal({
     }
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     onClick: send,
-    disabled: sending || !body.trim() || !validPeople.length,
+    disabled: sending || !bodyHasContent(body) || !validPeople.length,
     style: {
       background: TEAL,
       color: W,
@@ -12008,9 +12242,9 @@ function SendMailModal({
       padding: "8px 22px",
       fontSize: 13,
       fontWeight: 700,
-      cursor: sending || !body.trim() || !validPeople.length ? "default" : "pointer",
+      cursor: sending || !bodyHasContent(body) || !validPeople.length ? "default" : "pointer",
       fontFamily: "inherit",
-      opacity: sending || !body.trim() || !validPeople.length ? 0.6 : 1
+      opacity: sending || !bodyHasContent(body) || !validPeople.length ? 0.6 : 1
     }
   }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send"))))));
 }
@@ -18647,7 +18881,7 @@ function App() {
       overflow: "hidden",
       color: G900
     }
-  }, /*#__PURE__*/React.createElement("style", null, "*{box-sizing:border-box;margin:0;padding:0}input,textarea,select,button{font-family:Aptos,Calibri,'Segoe UI',sans-serif}input::placeholder,textarea::placeholder{color:" + G400 + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:" + G300 + ";border-radius:3px}"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("style", null, "*{box-sizing:border-box;margin:0;padding:0}input,textarea,select,button{font-family:Aptos,Calibri,'Segoe UI',sans-serif}input::placeholder,textarea::placeholder{color:" + G400 + "}.rich-text-editable:empty:before{content:attr(data-placeholder);color:" + G400 + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:" + G300 + ";border-radius:3px}"), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 220,
       background: W,
