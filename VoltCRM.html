@@ -3889,16 +3889,16 @@ function PersonDetail({
     variant: "teal",
     small: true,
     onClick: () => window.open(selP.linkedin, "_blank")
-  }, "LinkedIn \u2197"), (onBack || onBackToPrevPerson && prevPersonName) && /*#__PURE__*/React.createElement(Btn, {
+  }, "LinkedIn \u2197"), (onBackToPrevPerson && prevPersonName || onBack) && /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
     small: true,
-    onClick: onBack || onBackToPrevPerson,
+    onClick: onBackToPrevPerson && prevPersonName ? onBackToPrevPerson : onBack,
     style: {
       border: "1.5px solid " + TEAL,
       color: TEAL,
       fontWeight: 700
     }
-  }, "\u2190 Back" + (onBack ? onBackLabel ? " to " + onBackLabel : "" : " to " + prevPersonName)), onEdit && /*#__PURE__*/React.createElement(Btn, {
+  }, "\u2190 Back" + (onBackToPrevPerson && prevPersonName ? " to " + prevPersonName : onBackLabel ? " to " + onBackLabel : "")), onEdit && /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
     small: true,
     onClick: onEdit
@@ -11748,7 +11748,7 @@ function RichTextEditor({
   placeholder
 }) {
   var editorRef = useRef(null);
-  var lastValue = useRef(value);
+  var lastValue = useRef(null);
   useEffect(function () {
     if (editorRef.current && value !== lastValue.current && document.activeElement !== editorRef.current) {
       editorRef.current.innerHTML = value || "";
