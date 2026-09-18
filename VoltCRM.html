@@ -6081,30 +6081,7 @@ function PeopleView({
     onBackToPrevPerson: goBackToPrevPerson,
     prevPersonName: prevPersonName,
     ownerFilter: ownerFilter
-  }), selP && /*#__PURE__*/React.createElement("button", {
-    onClick: () => setSel(null),
-    title: "Back to the full people list",
-    style: {
-      position: "fixed",
-      top: 18,
-      right: 28,
-      zIndex: 500,
-      // Made solid and considerably bigger - the previous white-background
-      // version was easy to miss entirely, which is exactly what happened.
-      // This should be unmistakable regardless of where on the page you're
-      // looking.
-      background: TEAL,
-      border: "none",
-      borderRadius: 8,
-      padding: "10px 20px",
-      fontSize: 13.5,
-      fontWeight: 700,
-      color: W,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      boxShadow: "0 4px 14px rgba(0,0,0,0.25)"
-    }
-  }, "\u2190 Back to full list"), bulkMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }), bulkMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       left: "50%",
@@ -10913,7 +10890,9 @@ function SpecOutsView({
   ownerFilter,
   onNavigate,
   templates,
-  setTemplates
+  setTemplates,
+  expandedKeys,
+  setExpandedKeys
 }) {
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState("all");
@@ -10922,7 +10901,6 @@ function SpecOutsView({
   const [adding, setAdding] = useState(false);
   const [addingProspects, setAddingProspects] = useState(false);
   const [addingForGroup, setAddingForGroup] = useState(null);
-  const [expandedKeys, setExpandedKeys] = useState(() => new Set());
   const [bulkGroupKey, setBulkGroupKey] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [sendModal, setSendModal] = useState(null);
@@ -18685,6 +18663,13 @@ function App() {
   const [navSel, setNavSel] = useState(null);
   const [navFrom, setNavFrom] = useState(null);
   const [returnToCompanyId, setReturnToCompanyId] = useState(null);
+  // Lifted up from SpecOutsView (rather than a local useState there) so the
+  // expanded candidate/company groups survive navigating away to a person's
+  // page and back - previously this reset to fully collapsed every time,
+  // because the view unmounting and remounting wiped a component-local
+  // useState clean, which is exactly what made "Back to Spec Outs" feel
+  // like it had lost your place.
+  const [specOutsExpandedKeys, setSpecOutsExpandedKeys] = useState(() => new Set());
   const [mmSectorF, setMmSectorF] = useState("All");
   const [mmRelF, setMmRelF] = useState("All");
   const [mmTypeF, setMmTypeF] = useState("All");
@@ -19505,7 +19490,9 @@ function App() {
     ownerFilter: ownerFilter,
     onNavigate: handleNavigate,
     templates: templates,
-    setTemplates: setTemplates
+    setTemplates: setTemplates,
+    expandedKeys: specOutsExpandedKeys,
+    setExpandedKeys: setSpecOutsExpandedKeys
   }), view === "network" && /*#__PURE__*/React.createElement(VoltNetworkView, {
     network: network,
     setNetwork: setNetwork,
