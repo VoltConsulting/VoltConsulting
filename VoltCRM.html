@@ -11600,7 +11600,7 @@ function buildEmailBodyHtml(body, senderEmail) {
   } else {
     bodyHtml = markdownLiteToHtml(body);
   }
-  return "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;\">" + bodyHtml + "</div>" + buildSignatureHtml(senderEmail);
+  return "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:13px;line-height:1.4;color:#1a1a1a;\">" + bodyHtml + "</div>" + buildSignatureHtml(senderEmail);
 }
 // Real editable rich text box for compose: a Bold button and a Bullet List
 // button that work on the current selection via execCommand (still
@@ -11711,7 +11711,7 @@ function RichTextEditor({
       borderRadius: 6,
       padding: "16px 20px",
       fontSize: 13,
-      lineHeight: 1.5,
+      lineHeight: 1.4,
       outline: "none",
       // Matches buildEmailBodyHtml's wrapper exactly, so what's typed
       // already looks like the real email rather than the app's own UI
@@ -11893,6 +11893,13 @@ function SendMailModal({
         ok: ok,
         failed: failed
       });
+    } else if (failed.length) {
+      // This was silently closing the modal here regardless of whether the
+      // send actually succeeded - a failed send looked identical to a
+      // successful one, with zero feedback either way. Now it stays open
+      // and shows exactly what went wrong, the same as the multi-recipient
+      // path already does.
+      setError(failed[0].error || "Send failed - please try again.");
     } else {
       onClose();
     }
@@ -11994,10 +12001,9 @@ function SendMailModal({
     },
     style: {
       background: W,
-      borderRadius: 12,
-      width: "90vw",
-      height: "88vh",
-      maxWidth: 820,
+      borderRadius: 0,
+      width: "100vw",
+      height: "100vh",
       display: "flex",
       flexDirection: "column",
       boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
