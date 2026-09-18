@@ -342,7 +342,8 @@ async function loadFromAirtable() {
     network = [],
     vacancies = [],
     specouts = [],
-    templates = [];
+    templates = [],
+    categories = [];
   for (const rec of records) {
     const rt = (rec.fields.RecordType || "").toUpperCase();
     const dataStr = rec.fields.Data || "[]";
@@ -377,6 +378,11 @@ async function loadFromAirtable() {
         t._recId = rec.id;
         templates.push(t);
         _lastSyncedJSON[rec.id] = JSON.stringify(t);
+      } else if (rt === "CATEGORY") {
+        const cat = JSON.parse(dataStr);
+        cat._recId = rec.id;
+        categories.push(cat);
+        _lastSyncedJSON[rec.id] = JSON.stringify(cat);
       }
     } catch (e) {
       console.warn("Parse error", rec.id, e);
@@ -388,13 +394,15 @@ async function loadFromAirtable() {
   if (vacancies.length) localStorage.setItem("voltcrm5-vacancies", JSON.stringify(vacancies));
   if (specouts.length) localStorage.setItem("voltcrm5-specouts", JSON.stringify(specouts));
   if (templates.length) localStorage.setItem("voltcrm5-templates", JSON.stringify(templates));
+  if (categories.length) localStorage.setItem("voltcrm5-categories", JSON.stringify(categories));
   return {
     people,
     companies,
     network,
     vacancies,
     specouts,
-    templates
+    templates,
+    categories
   };
 }
 var _saveLocks = {};
@@ -427,7 +435,7 @@ var _lastSyncedJSON = {};
 var _lastWrittenAt = {};
 async function saveToAirtable(name, data) {
   const _n = (name || "").toLowerCase();
-  const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : _n === "specouts" ? "SPECOUT" : _n === "templates" ? "TEMPLATE" : "VACANCY";
+  const recType = _n === "people" ? "PERSON" : _n === "companies" ? "COMPANY" : _n === "network" ? "NETWORK" : _n === "specouts" ? "SPECOUT" : _n === "templates" ? "TEMPLATE" : _n === "templatecategories" ? "CATEGORY" : "VACANCY";
   // ── SAVE LOCK ────────────────────────────────────────────────
   // Prevent two saves of the same record type running at once. Without
   // this, a brand-new person (no _recId yet) can be sent to Airtable by
@@ -5940,6 +5948,7 @@ function PeopleView({
         padding: "11px 12px",
         borderRadius: 8,
         marginBottom: 4,
+        maxWidth: selP ? undefined : 640,
         cursor: "pointer",
         background: isSelecting ? (isChecked ? TL : "transparent") : isSel ? TL : "transparent",
         border: "1px solid " + (isSelecting ? (isChecked ? TM : G200) : isSel ? TM : "transparent"),
@@ -6056,22 +6065,26 @@ function PeopleView({
     ownerFilter: ownerFilter
   }), selP && /*#__PURE__*/React.createElement("button", {
     onClick: () => setSel(null),
-    title: "Deselect and return to the full, wide list",
+    title: "Back to the full people list",
     style: {
       position: "fixed",
-      top: 14,
-      right: 24,
+      top: 18,
+      right: 28,
       zIndex: 500,
-      background: W,
-      border: "1px solid " + G300,
+      // Made solid and considerably bigger - the previous white-background
+      // version was easy to miss entirely, which is exactly what happened.
+      // This should be unmistakable regardless of where on the page you're
+      // looking.
+      background: TEAL,
+      border: "none",
       borderRadius: 8,
-      padding: "6px 14px",
-      fontSize: 12.5,
+      padding: "10px 20px",
+      fontSize: 13.5,
       fontWeight: 700,
-      color: TEAL,
+      color: W,
       cursor: "pointer",
       fontFamily: "inherit",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)"
+      boxShadow: "0 4px 14px rgba(0,0,0,0.25)"
     }
   }, "\u2190 Back to full list"), bulkMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -14378,6 +14391,8 @@ const TEMPLATE_CAT_COLORS = {
 function TemplatesView({
   templates,
   setTemplates,
+  templateCategories,
+  setTemplateCategories,
   persist
 }) {
   const [search, setSearch] = useState("");
@@ -14386,9 +14401,14 @@ function TemplatesView({
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCatName, setNewCatName] = useState("");
-  const [customCategories, setCustomCategories] = useState([]);
   const [copiedId, setCopiedId] = useState(null);
-  const allCategories = [...TEMPLATE_CATEGORIES, ...customCategories, ...new Set((templates || []).map(t => t.category).filter(c => c && !TEMPLATE_CATEGORIES.includes(c) && !customCategories.includes(c)))];
+  // A custom category name here is just the .name of each shared record -
+  // the actual persistence (surviving navigation, a refresh, and being
+  // visible to Lauren and Brinda on their own machines) lives in
+  // templateCategories itself, loaded from and saved to Airtable exactly
+  // like every other shared list in this app.
+  const customCategoryNames = (templateCategories || []).map(c => c.name);
+  const allCategories = [...TEMPLATE_CATEGORIES, ...customCategoryNames, ...new Set((templates || []).map(t => t.category).filter(c => c && !TEMPLATE_CATEGORIES.includes(c) && !customCategoryNames.includes(c)))];
   const list = (templates || []).filter(t => {
     if (catF !== "all" && t.category !== catF) return false;
     const q = search.trim().toLowerCase();
@@ -14398,6 +14418,14 @@ function TemplatesView({
   function commit(updated) {
     setTemplates(updated);
     persist("templates", updated);
+  }
+  function addCustomCategory(name) {
+    const updated = [...(templateCategories || []), {
+      id: Date.now(),
+      name: name
+    }];
+    setTemplateCategories(updated);
+    persist("templateCategories", updated);
   }
   function copyTemplate(t) {
     const text = t.subject ? "Subject: " + t.subject + "\n\n" + t.body : t.body;
@@ -14515,7 +14543,7 @@ function TemplatesView({
     onChange: e => setNewCatName(e.target.value),
     onKeyDown: e => {
       if (e.key === "Enter" && newCatName.trim()) {
-        setCustomCategories(prev => [...prev, newCatName.trim()]);
+        addCustomCategory(newCatName.trim());
         setCatF(newCatName.trim());
         setNewCatName("");
         setAddingCategory(false);
@@ -14538,7 +14566,7 @@ function TemplatesView({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       if (!newCatName.trim()) return;
-      setCustomCategories(prev => [...prev, newCatName.trim()]);
+      addCustomCategory(newCatName.trim());
       setCatF(newCatName.trim());
       setNewCatName("");
       setAddingCategory(false);
@@ -18606,6 +18634,7 @@ function App() {
   const [vacancies, setVacancies] = useState([]);
   const [specOuts, setSpecOuts] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [templateCategories, setTemplateCategories] = useState([]);
   const [ready, setReady] = useState(false);
   const [saveState, setSaveState] = useState(null);
   const [syncStatus, setSyncStatus] = useState("loading");
@@ -18686,6 +18715,12 @@ function App() {
         } else {
           const stp = await sGet("voltcrm5-templates");
           if (stp && stp.length > 0) setTemplates(JSON.parse(typeof stp === "string" ? stp : JSON.stringify(stp)));
+        }
+        if (data.categories && data.categories.length > 0) {
+          setTemplateCategories(data.categories);
+        } else {
+          const scat = await sGet("voltcrm5-categories");
+          if (scat && scat.length > 0) setTemplateCategories(JSON.parse(typeof scat === "string" ? scat : JSON.stringify(scat)));
         }
         setSyncStatus("ok");
         // If Airtable was empty, do one clean push from localStorage and store _recIds
@@ -18906,7 +18941,7 @@ function App() {
     } catch (e) {}
     // Try Airtable sync
     try {
-      if (key === "people") await saveToAirtable("PEOPLE", data);else if (key === "companies") await saveToAirtable("COMPANIES", data);else if (key === "network") await saveToAirtable("NETWORK", data);else if (key === "vacancies") await saveToAirtable("VACANCIES", data);else if (key === "specouts") await saveToAirtable("SPECOUTS", data);else if (key === "templates") await saveToAirtable("TEMPLATES", data);
+      if (key === "people") await saveToAirtable("PEOPLE", data);else if (key === "companies") await saveToAirtable("COMPANIES", data);else if (key === "network") await saveToAirtable("NETWORK", data);else if (key === "vacancies") await saveToAirtable("VACANCIES", data);else if (key === "specouts") await saveToAirtable("SPECOUTS", data);else if (key === "templates") await saveToAirtable("TEMPLATES", data);else if (key === "templateCategories") await saveToAirtable("TEMPLATECATEGORIES", data);
       // saveToAirtable stamps _recId onto items in `data`; persist that back
       // to localStorage so any later retry updates instead of re-creating.
       try {
@@ -19442,6 +19477,8 @@ function App() {
   }))), view === "templates" && /*#__PURE__*/React.createElement(TemplatesView, {
     templates: templates,
     setTemplates: setTemplates,
+    templateCategories: templateCategories,
+    setTemplateCategories: setTemplateCategories,
     persist: persist
   })), /*#__PURE__*/React.createElement("div", {
     style: {
