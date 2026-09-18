@@ -3359,7 +3359,7 @@ function OverviewTab({
       marginTop: -4,
       marginBottom: 10
     }
-  }, "\u2709 Send via Outlook")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(InlineField, {
+  }, "\u270f\ufe0f Compose via Outlook")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(InlineField, {
     label: "Personal Email",
     value: selP.personalEmail,
     onChange: v => save("personalEmail", v),
@@ -3382,7 +3382,7 @@ function OverviewTab({
       marginTop: -4,
       marginBottom: 10
     }
-  }, "\u2709 Send via Outlook (personal)")), /*#__PURE__*/React.createElement(InlineField, {
+  }, "\u270f\ufe0f Compose via Outlook (personal)")), /*#__PURE__*/React.createElement(InlineField, {
     label: "Office Number",
     value: selP.phone,
     onChange: v => save("phone", v),
@@ -5121,7 +5121,7 @@ function SpecOutsTab({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+  }, "\u270f\ufe0f Compose via Outlook"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setSelectedIds([]),
     style: {
       background: "none",
@@ -6205,7 +6205,7 @@ function PeopleView({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+  }, "\u270f\ufe0f Compose via Outlook"), /*#__PURE__*/React.createElement("button", {
     onClick: exitBulkMode,
     style: {
       background: "none",
@@ -11462,7 +11462,7 @@ function SpecOutsView({
         cursor: "pointer",
         fontFamily: "inherit"
       }
-    }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+    }, "\u270f\ufe0f Compose via Outlook"), /*#__PURE__*/React.createElement("button", {
       onClick: () => setSelectedIds([]),
       style: {
         background: "none",
@@ -12392,7 +12392,18 @@ function SendMailModal({
     style: {
       display: "flex",
       justifyContent: "flex-end",
-      gap: 10
+      gap: 10,
+      // Pinned to the bottom of the modal regardless of how far down the
+      // message content scrolls - this was the actual root cause of "send
+      // does nothing": the real Send button was simply below the visible
+      // fold on a long message, easy to mistake for the floating bar's
+      // similarly-named button (which only opens this modal, not sends).
+      position: "sticky",
+      bottom: 0,
+      background: W,
+      padding: "14px 0 0",
+      marginTop: 4,
+      borderTop: "1px solid " + G200
     }
   }, !sending && bodyHasContent(body) && /*#__PURE__*/React.createElement("button", {
     onClick: function () {
@@ -14046,7 +14057,7 @@ function BDPipelineView({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+  }, "\u270f\ufe0f Compose via Outlook"), /*#__PURE__*/React.createElement("button", {
     onClick: function () {
       setSelectedIds([]);
     },
@@ -17216,7 +17227,7 @@ function VacanciesView({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "\u2709 Send via Outlook"), /*#__PURE__*/React.createElement("button", {
+  }, "\u270f\ufe0f Compose via Outlook"), /*#__PURE__*/React.createElement("button", {
     onClick: exitCandBulkMode,
     style: {
       background: "none",
