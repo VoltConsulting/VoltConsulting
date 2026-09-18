@@ -11718,7 +11718,7 @@ function RichTextEditor({
   placeholder
 }) {
   var editorRef = useRef(null);
-  var lastValue = useRef(value);
+  var lastValue = useRef(null);
   useEffect(function () {
     if (editorRef.current && value !== lastValue.current && document.activeElement !== editorRef.current) {
       editorRef.current.innerHTML = value || "";
