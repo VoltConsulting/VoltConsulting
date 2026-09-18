@@ -5112,7 +5112,7 @@ function SpecOutsTab({
     onUpdate: updateSpec,
     onNavigatePerson: onNavigatePerson,
     onDelete: deleteSpec
-  })))), bulkMode && selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+  })))), bulkMode && selectedIds.length > 0 && !sendModal && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       left: "50%",
@@ -6195,7 +6195,7 @@ function PeopleView({
       fontSize: 12,
       fontFamily: "inherit"
     }
-  }, "Cancel")), bulkSendMode && bulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Cancel")), bulkSendMode && bulkIds.length > 0 && !sendModal && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       left: "50%",
@@ -11458,7 +11458,7 @@ function SpecOutsView({
       onUpdate: updateSpec,
       onNavigatePerson: id => onNavigate("people", id, "specouts"),
       onDelete: deleteSpec
-    }))))), bulkGroupKey === key && selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }))))), bulkGroupKey === key && selectedIds.length > 0 && !sendModal && /*#__PURE__*/React.createElement("div", {
       style: {
         position: "fixed",
         left: "50%",
@@ -14070,7 +14070,7 @@ function BDPipelineView({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "Clear")), bulkSendMode && selectedIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Clear")), bulkSendMode && selectedIds.length > 0 && !sendModal && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       left: "50%",
@@ -17266,7 +17266,7 @@ function VacanciesView({
       setVacSendModal(null);
       exitCandBulkMode();
     }
-  }), candBulkMode && candBulkIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }), candBulkMode && candBulkIds.length > 0 && !vacSendModal && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       bottom: 20,
