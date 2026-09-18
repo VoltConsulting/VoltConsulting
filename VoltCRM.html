@@ -11673,6 +11673,36 @@ function markdownLiteToHtml(text) {
 function htmlToPlainSummary(html) {
   return (html || "").replace(/<(br|\/p|\/div|\/li)>/gi, "\n").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
 }
+// The template list card previously showed a flattened plain-text summary
+// even for templates with real bold/bullet formatting, so the card looked
+// nothing like the properly formatted version shown (and edited) inside
+// the modal. This renders the actual saved formatting when there is any,
+// through the same sanitizer used everywhere else saved rich HTML gets
+// displayed, so the list view and the edit box now show the same thing -
+// same font, same bullets, same bold, same spacing.
+function TemplateBodyPreview({
+  body
+}) {
+  var isHtml = /<[a-z][\s\S]*>/i.test(body || "");
+  var sharedStyle = {
+    fontSize: 13,
+    color: G800,
+    lineHeight: 1.5,
+    fontFamily: "Aptos,Calibri,'Segoe UI',sans-serif"
+  };
+  if (isHtml) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: sharedStyle,
+      dangerouslySetInnerHTML: {
+        __html: sanitizeRichHtml(body)
+      }
+    });
+  }
+  sharedStyle.whiteSpace = "pre-wrap";
+  return /*#__PURE__*/React.createElement("div", {
+    style: sharedStyle
+  }, body || "");
+}
 // Shared by the actual send and used consistently everywhere a body needs
 // converting to final email HTML, so there's exactly one place this logic
 // lives rather than it drifting between call sites.
@@ -11718,7 +11748,7 @@ function RichTextEditor({
   placeholder
 }) {
   var editorRef = useRef(null);
-  var lastValue = useRef(null);
+  var lastValue = useRef(value);
   useEffect(function () {
     if (editorRef.current && value !== lastValue.current && document.activeElement !== editorRef.current) {
       editorRef.current.innerHTML = value || "";
@@ -11800,7 +11830,7 @@ function RichTextEditor({
     style: {
       width: "100%",
       minHeight: 320,
-      maxHeight: 480,
+      maxHeight: 640,
       border: "1px solid " + G300,
       borderRadius: 6,
       padding: "16px 20px",
@@ -14771,21 +14801,9 @@ function TemplatesView({
       color: NAVY,
       marginBottom: 6
     }
-  }, "Subject: ", t.subject), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: G800,
-      whiteSpace: "pre-wrap",
-      lineHeight: 1.5
-    }
-    // A template saved from the rich editor is real HTML - showing it as a
-    // plain text child (correct for an old plain-text template) means
-    // React escapes the tags, so they show up as visible text instead of
-    // formatting: the "one big lump" bug. Converting to clean plain text
-    // here fixes the unreadable-tag-soup problem safely; the actual bold/
-    // bullets are still visible when the template is reopened into the
-    // real compose box.
-  }, /<[a-z][\s\S]*>/i.test(t.body || "") ? htmlToPlainSummary(t.body) : t.body)))), editing && /*#__PURE__*/React.createElement("div", {
+  }, "Subject: ", t.subject), /*#__PURE__*/React.createElement(TemplateBodyPreview, {
+    body: t.body
+  })))), editing && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       inset: 0,
@@ -14802,7 +14820,7 @@ function TemplatesView({
       background: W,
       borderRadius: 12,
       padding: 24,
-      width: 700,
+      width: 960,
       maxWidth: "92vw",
       maxHeight: "85vh",
       overflowY: "auto"
