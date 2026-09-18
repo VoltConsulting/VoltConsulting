@@ -4426,7 +4426,25 @@ function SpecOutRow({
       padding: 0,
       fontFamily: "inherit"
     }
-  }, expanded ? "Hide full email" : "Show full email"), expanded && /*#__PURE__*/React.createElement("div", {
+  }, expanded ? "Hide full email" : "Show full email"), expanded && (/<[a-z][\s\S]*>/i.test(spec.fullEmail || "") ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8,
+      padding: 10,
+      background: G50,
+      borderRadius: 6,
+      fontSize: 12,
+      color: G700,
+      lineHeight: 1.4
+    },
+    // A record saved from before this fix is still plain text (handled by
+    // the branch below) - one saved after it is real HTML, sanitized the
+    // same way as everywhere else, so bold and bullets actually show as
+    // bold and bullets here instead of a flattened plain-text summary of
+    // what was really sent.
+    dangerouslySetInnerHTML: {
+      __html: sanitizeRichHtml(spec.fullEmail)
+    }
+  }) : /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 8,
       padding: 10,
@@ -4436,7 +4454,7 @@ function SpecOutRow({
       color: G700,
       whiteSpace: "pre-wrap"
     }
-  }, spec.fullEmail)), (spec.updates || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, spec.fullEmail))), (spec.updates || []).length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 10,
       paddingTop: 10,
@@ -5005,7 +5023,7 @@ function SpecOutsTab({
       status: "Sent",
       dateSent: today,
       lastUpdated: today,
-      fullEmail: entry.note
+      fullEmail: entry.htmlBody || entry.note
     });
   }
   return /*#__PURE__*/React.createElement("div", null, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
@@ -11001,7 +11019,7 @@ function SpecOutsView({
       status: "Sent",
       dateSent: today,
       lastUpdated: today,
-      fullEmail: entry.note
+      fullEmail: entry.htmlBody || entry.note
     });
   }
   // "Open" = still awaiting a response; these are what need chasing.
@@ -11529,7 +11547,14 @@ function sanitizeRichHtml(html) {
     var child = node.firstChild;
     while (child) {
       var next = child.nextSibling;
-      if (child.nodeType === 1) {
+      if (child.nodeType === 8) {
+        // An HTML comment node (nodeType 8) - <!--StartFragment--> and
+        // similar are routine leftovers from a Word/Chrome copy-paste and
+        // were passing straight through untouched, since only element
+        // nodes were being inspected. Comments carry no visible content
+        // worth keeping, so removed outright.
+        node.removeChild(child);
+      } else if (child.nodeType === 1) {
         var tag = child.tagName;
         if (!RICH_TEXT_ALLOWED_TAGS[tag]) {
           while (child.firstChild) node.insertBefore(child.firstChild, child);
@@ -11586,7 +11611,14 @@ function sanitizeRichHtml(html) {
   for (var n = 0; n < items.length; n++) {
     items[n].setAttribute("style", "margin-bottom:4px;");
   }
-  return container.innerHTML;
+  // A hard ceiling of one blank line, no matter how many accidental extra
+  // Enter presses ended up in the box - a run of 20 blank lines pasted or
+  // left in by accident (which genuinely happened and reached a real send)
+  // is exactly the failure this closes off. Someone accidentally pressing
+  // Enter repeatedly is a realistic, recurring risk in a live editing box;
+  // this makes the maximum possible gap a single blank line, permanently,
+  // regardless of what ends up in the content.
+  return container.innerHTML.replace(/(<br>\s*){3,}/g, "<br><br>");
 }
 // A box that's visually empty can still hold "<br>" or "<div><br></div>" -
 // every browser's contentEditable leaves something behind rather than a
@@ -11936,6 +11968,15 @@ function SendMailModal({
           icon: actLabel.icon,
           label: actLabel.label,
           note: (personalSubject ? "Subject: " + personalSubject + "\n\n" : "") + htmlToPlainSummary(personalBody),
+          // The activity log itself only ever displays plain text (note,
+          // above) - but a caller that wants to show exactly what was
+          // sent, formatting included, can use this instead. Includes the
+          // real signature too, so it's a faithful match to the literal
+          // email that went out, not just the message portion. Built as
+          // real HTML throughout (matching the Preview overlay's own
+          // approach) rather than mixing in a plain-text "\n" for the
+          // subject line, which wouldn't render as a line break here.
+          htmlBody: (personalSubject ? "<div><b>Subject:</b> " + personalSubject.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</div><br>" : "") + buildEmailBodyHtml(personalBody, connectedAs),
           date: ts,
           by: "",
           via: "outlook"
@@ -14692,7 +14733,14 @@ function TemplatesView({
       category: t.category || TEMPLATE_CATEGORIES[0],
       subject: t.subject || "",
       channel: t.channel || "email",
-      body: t.body
+      // A template saved before the rich editor existed is plain text - no
+      // tags at all is the signal to convert it, the same way SendMailModal
+      // already handles an older template. One saved from the rich editor
+      // also gets a pass through sanitizeRichHtml, which now includes the
+      // paragraph-spacing normalization fix - so an older rich template
+      // saved before THAT fix existed also gets cleaned up automatically
+      // the moment it's next opened here, not just when sent.
+      body: /<[a-z][\s\S]*>/i.test(t.body || "") ? sanitizeRichHtml(t.body) : plainToRichHtml(t.body || "")
     }),
     style: {
       background: "none",
@@ -14754,7 +14802,7 @@ function TemplatesView({
       background: W,
       borderRadius: 12,
       padding: 24,
-      width: 480,
+      width: 700,
       maxWidth: "92vw",
       maxHeight: "85vh",
       overflowY: "auto"
@@ -14879,23 +14927,15 @@ function TemplatesView({
       color: G600,
       marginBottom: 4
     }
-  }, "Message"), /*#__PURE__*/React.createElement("textarea", {
+  }, "Message"), /*#__PURE__*/React.createElement(RichTextEditor, {
     value: editing.body,
-    onChange: e => setEditing({
+    onChange: html => setEditing({
       ...editing,
-      body: e.target.value
+      body: html
     }),
-    rows: 8,
+    placeholder: "Write the template content\u2026"
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
-      width: "100%",
-      background: W,
-      border: "1px solid " + G300,
-      borderRadius: 6,
-      padding: "8px 11px",
-      fontSize: 13,
-      outline: "none",
-      fontFamily: "inherit",
-      resize: "vertical",
       marginBottom: 18
     }
   }), /*#__PURE__*/React.createElement("div", {
@@ -14907,9 +14947,19 @@ function TemplatesView({
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
     onClick: () => setEditing(null)
-  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Cancel"), editing._editingId && /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    title: "Keep the original template untouched and save this edited copy as a brand new one",
     onClick: () => {
-      if (!editing.name.trim() || !editing.body.trim()) return;
+      if (!editing.name.trim() || !bodyHasContent(editing.body)) return;
+      saveTemplate({
+        ...editing,
+        _editingId: null
+      });
+    }
+  }, "Save as new template"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: () => {
+      if (!editing.name.trim() || !bodyHasContent(editing.body)) return;
       saveTemplate(editing);
     }
   }, "Save template")))), confirmDelete && /*#__PURE__*/React.createElement("div", {
