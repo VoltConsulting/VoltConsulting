@@ -95,18 +95,49 @@ async function getGraphToken() {
     scopes: MS_SCOPES,
     account: accounts[0] || null
   };
+  // A stale silent token falls back to an interactive sign-in popup. If the
+  // browser silently blocks that popup rather than rejecting it outright,
+  // the awaited promise can hang indefinitely with zero feedback - the send
+  // button looking "dead" is exactly what that looks like from the outside.
+  // A hard timeout turns an indefinite hang into a clear, actionable error
+  // instead of a silent freeze.
+  function withTimeout(promise, ms, timeoutMessage) {
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () {
+        reject(new Error(timeoutMessage));
+      }, ms);
+      promise.then(function (v) {
+        clearTimeout(timer);
+        resolve(v);
+      }, function (e) {
+        clearTimeout(timer);
+        reject(e);
+      });
+    });
+  }
   try {
-    var res = await inst.acquireTokenSilent(request);
+    var res = await withTimeout(inst.acquireTokenSilent(request), 15000, "Outlook sign-in timed out. Please try again.");
     return res.accessToken;
   } catch (e) {
-    var res2 = await inst.loginPopup({
-      scopes: MS_SCOPES
-    });
+    var res2;
+    try {
+      res2 = await withTimeout(inst.loginPopup({
+        scopes: MS_SCOPES
+      }), 45000, "The Outlook sign-in window didn't complete in time — it may have been blocked by your browser. Check the address bar for a blocked-popup icon, allow popups for this site, and try again.");
+    } catch (popupError) {
+      // Give the specific, checkable reason rather than a generic failure -
+      // this is the single most common real-world cause of "nothing happens
+      // when I click send".
+      if (popupError && popupError.errorCode === "popup_window_error" || /popup/i.test((popupError && popupError.message) || "")) {
+        throw new Error("Your browser blocked the Outlook sign-in popup. Check the address bar for a blocked-popup icon, allow popups for voltconsulting.solutions, and try sending again.");
+      }
+      throw popupError;
+    }
     inst.setActiveAccount(res2.account);
-    var res3 = await inst.acquireTokenSilent({
+    var res3 = await withTimeout(inst.acquireTokenSilent({
       scopes: MS_SCOPES,
       account: res2.account
-    });
+    }), 15000, "Outlook sign-in timed out. Please try again.");
     return res3.accessToken;
   }
 }
@@ -11524,6 +11555,24 @@ function sanitizeRichHtml(html) {
     }
     el.parentNode.removeChild(el);
   }
+  // Every attribute (including style) is stripped from every tag during
+  // the walk above, which means <ul>/<li> render on nothing but the
+  // browser or email client's own default list styling - and that default
+  // varies significantly (Outlook's desktop client in particular, which
+  // renders HTML mail through Word's engine, often adds its own indent and
+  // spacing on top of an unstyled list, producing exactly the "bullets
+  // sitting oddly off to the side" look). Explicit inline styles here are
+  // standard practice for email HTML precisely because relying on any
+  // client's defaults is unreliable - this guarantees the same, deliberate
+  // spacing everywhere: the compose box, the preview, and the real inbox.
+  var lists = container.querySelectorAll("ul, ol");
+  for (var m = 0; m < lists.length; m++) {
+    lists[m].setAttribute("style", "margin:8px 0 8px 0;padding-left:22px;");
+  }
+  var items = container.querySelectorAll("li");
+  for (var n = 0; n < items.length; n++) {
+    items[n].setAttribute("style", "margin-bottom:4px;");
+  }
   return container.innerHTML;
 }
 // A box that's visually empty can still hold "<br>" or "<div><br></div>" -
@@ -11849,8 +11898,15 @@ function SendMailModal({
       const personalBody = personalize(body, p);
       try {
         // Individually addressed sends, not one message with everyone in
-        // To/CC — each person only ever sees their own email.
-        await sendGraphMail(p.email, personalSubject, personalBody);
+        // To/CC — each person only ever sees their own email. Wrapped with
+        // a hard ceiling so a hung network request (not just a hung
+        // sign-in popup) can never leave the button looking permanently
+        // stuck with no feedback either.
+        await Promise.race([sendGraphMail(p.email, personalSubject, personalBody), new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error("The send timed out — check your connection and try again."));
+          }, 60000);
+        })]);
         const ts = new Date().toLocaleDateString("en-GB", {
           day: "numeric",
           month: "short",
