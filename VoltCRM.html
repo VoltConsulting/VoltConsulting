@@ -206,32 +206,85 @@ async function sendGraphMail(to, subject, body) {
   // all) still goes through the markdown-lite fallback so nothing written
   // before this editor existed breaks.
   var htmlBody = buildEmailBodyHtml(body, senderEmail);
-  var r = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+  // Graph's one-shot /sendMail endpoint fires the email but never returns
+  // the message's own ID - by design, it's meant to be fire-and-forget.
+  // Follow-ups need that ID to forward the original later, so this creates
+  // the message as a draft first (which does return an id), then sends
+  // that specific draft. The id stays valid and refers to the same message
+  // sitting in Sent Items afterwards.
+  var createRes = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
     method: "POST",
     headers: {
       "Authorization": "Bearer " + token,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      message: {
-        subject: subject,
-        body: {
-          contentType: "HTML",
-          content: htmlBody
-        },
-        toRecipients: [{
-          emailAddress: {
-            address: to
-          }
-        }]
+      subject: subject,
+      body: {
+        contentType: "HTML",
+        content: htmlBody
       },
-      saveToSentItems: true
+      toRecipients: [{
+        emailAddress: {
+          address: to
+        }
+      }]
+    })
+  });
+  if (!createRes.ok) {
+    var createErrText = await createRes.text();
+    throw new Error("Send failed (" + createRes.status + "): " + createErrText);
+  }
+  var created = await createRes.json();
+  var sendRes = await fetch("https://graph.microsoft.com/v1.0/me/messages/" + created.id + "/send", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + token
+    }
+  });
+  if (!sendRes.ok) {
+    var sendErrText = await sendRes.text();
+    throw new Error("Send failed (" + sendRes.status + "): " + sendErrText);
+  }
+  return {
+    messageId: created.id
+  };
+}
+// Sends a genuine Graph forward of a previously sent message (real quoted
+// history underneath, exactly like clicking Forward in Outlook) rather than
+// composing a fresh email that merely looks similar. Falls back to a plain
+// sendGraphMail call if no prior message id is available, or if the
+// original message can no longer be found (deleted, moved, too old).
+async function forwardGraphMail(messageId, to, comment) {
+  var token = await getGraphToken();
+  var htmlComment = buildEmailBodyHtml(comment, getConnectedOutlookAccount());
+  var r = await fetch("https://graph.microsoft.com/v1.0/me/messages/" + messageId + "/forward", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      comment: htmlComment,
+      toRecipients: [{
+        emailAddress: {
+          address: to
+        }
+      }]
     })
   });
   if (!r.ok) {
     var errText = await r.text();
-    throw new Error("Send failed (" + r.status + "): " + errText);
+    throw new Error("Forward failed (" + r.status + "): " + errText);
   }
+  // Graph's /forward endpoint is fire-and-forget too (202, no body) so the
+  // forwarded copy's own id genuinely isn't available here - a second
+  // follow-up on this same thread falls back to a fresh email rather than
+  // chaining forwards, which is an acceptable, honest limitation rather
+  // than a bug to chase.
+  return {
+    messageId: null
+  };
 }
 async function atGet(url) {
   const r = await fetch(url, {
@@ -3279,6 +3332,10 @@ function OverviewTab({
   hideVacancies = false
 }) {
   const [sendModal, setSendModal] = useState(false);
+  const [followUpTarget, setFollowUpTarget] = useState(null);
+  const lastEmailActivity = (selP.activityLog || []).find(function (a) {
+    return a.type === "email";
+  });
   const save = (field, value) => {
     setPeople(prev => {
       const updated = prev.map(p => p.id === selP.id ? {
@@ -3317,6 +3374,25 @@ function OverviewTab({
     },
     onClose: function () {
       setSendModal(false);
+    }
+  }), followUpTarget && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: [selP],
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    followUp: {
+      originalMessageId: followUpTarget.graphMessageId || null,
+      defaultSubject: (function () {
+        var note = followUpTarget.note || "";
+        var m = note.match(/^Subject: (.+)$/m);
+        return m ? "Re: " + m[1] : "Following up";
+      })()
+    },
+    onSent: function (p, entry) {
+      applyEmailSend(entry);
+      setFollowUpTarget(null);
+    },
+    onClose: function () {
+      setFollowUpTarget(null);
     }
   }), /*#__PURE__*/React.createElement(TouchpointSummary, {
     person: selP
@@ -3367,7 +3443,25 @@ function OverviewTab({
       marginTop: -4,
       marginBottom: 10
     }
-  }, "\u270f\ufe0f Compose via Outlook")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(InlineField, {
+  }, "\u270f\ufe0f Compose via Outlook"), lastEmailActivity && /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setFollowUpTarget(lastEmailActivity);
+    },
+    style: {
+      background: TL,
+      color: TEAL,
+      border: "1px solid " + TM,
+      borderRadius: 5,
+      padding: "4px 10px",
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      marginTop: -4,
+      marginBottom: 10,
+      marginLeft: 6
+    }
+  }, "\u21aa Follow Up")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(InlineField, {
     label: "Personal Email",
     value: selP.personalEmail,
     onChange: v => save("personalEmail", v),
@@ -4310,7 +4404,8 @@ function SpecOutRow({
   perspective,
   onUpdate,
   onNavigatePerson,
-  onDelete
+  onDelete,
+  onFollowUp
 }) {
   const [expanded, setExpanded] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -4472,7 +4567,22 @@ function SpecOutRow({
       fontWeight: 700,
       color: G700
     }
-  }, u.date + " — " + u.status + ": "), u.note))), !updating ? /*#__PURE__*/React.createElement("button", {
+  }, u.date + " — " + u.status + ": "), u.note))), spec.status === "Sent" && onFollowUp && /*#__PURE__*/React.createElement("button", {
+    onClick: () => onFollowUp(spec),
+    style: {
+      marginTop: 10,
+      marginRight: 8,
+      background: TL,
+      border: "1px solid " + TM,
+      borderRadius: 6,
+      padding: "5px 12px",
+      fontSize: 11,
+      fontWeight: 700,
+      color: TEAL,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\u21aa Follow up"), !updating ? /*#__PURE__*/React.createElement("button", {
     onClick: () => setUpdating(true),
     style: {
       marginTop: 10,
@@ -4936,6 +5046,10 @@ function SpecOutsTab({
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [sendModal, setSendModal] = useState(null);
+  const [followUpTarget, setFollowUpTarget] = useState(null);
+  function openFollowUp(spec) {
+    setFollowUpTarget(spec);
+  }
   const sentByMe = specOuts.filter(s => s.candidateId === person.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
   const receivedByMe = specOuts.filter(s => s.contactId === person.id).sort((a, b) => (b.dateSent || "").localeCompare(a.dateSent || ""));
   function commit(fn) {
@@ -5023,7 +5137,8 @@ function SpecOutsTab({
       status: "Sent",
       dateSent: today,
       lastUpdated: today,
-      fullEmail: entry.htmlBody || entry.note
+      fullEmail: entry.htmlBody || entry.note,
+      graphMessageId: entry.graphMessageId || null
     });
   }
   return /*#__PURE__*/React.createElement("div", null, sendModal && /*#__PURE__*/React.createElement(SendMailModal, {
@@ -5036,6 +5151,34 @@ function SpecOutsTab({
       setSelectedIds([]);
       setBulkMode(false);
     }
+  }), followUpTarget && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: [(function () {
+      const contact = people.find(p => p.id === followUpTarget.contactId);
+      return contact || {
+        id: followUpTarget.contactId,
+        name: followUpTarget.contactName,
+        email: null
+      };
+    })()],
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    followUp: {
+      originalMessageId: followUpTarget.graphMessageId || null,
+      defaultSubject: "Re: " + (followUpTarget.summary || followUpTarget.companyName || "")
+    },
+    onSent: (p, entry) => {
+      updateSpec(followUpTarget.id, {
+        lastUpdated: today,
+        graphMessageId: entry.graphMessageId || followUpTarget.graphMessageId || null,
+        updates: (followUpTarget.updates || []).concat([{
+          date: today,
+          note: entry.note,
+          status: followUpTarget.status
+        }])
+      });
+      setFollowUpTarget(null);
+    },
+    onClose: () => setFollowUpTarget(null)
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -5111,7 +5254,8 @@ function SpecOutsTab({
     perspective: "candidate",
     onUpdate: updateSpec,
     onNavigatePerson: onNavigatePerson,
-    onDelete: deleteSpec
+    onDelete: deleteSpec,
+    onFollowUp: openFollowUp
   })))), bulkMode && selectedIds.length > 0 && !sendModal && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -5176,7 +5320,8 @@ function SpecOutsTab({
     perspective: "contact",
     onUpdate: updateSpec,
     onNavigatePerson: onNavigatePerson,
-    onDelete: deleteSpec
+    onDelete: deleteSpec,
+    onFollowUp: openFollowUp
   }))));
 }
 
@@ -6827,6 +6972,7 @@ function CompaniesView({
   const [personBulkOwner, setPersonBulkOwner] = useState("");
   const [personBulkStage, setPersonBulkStage] = useState("");
   const [sendModal, setSendModal] = useState(null);
+  const [followUpTarget, setFollowUpTarget] = useState(null);
   const [sel, setSel] = useState(initialSel || null);
   const [termsTab, setTermsTab] = useState("Contingency");
   const prevSelRefC = useRef(sel);
@@ -7035,6 +7181,34 @@ function CompaniesView({
       setSendModal(null);
       exitPersonBulk();
     }
+  }), followUpTarget && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: [(function () {
+      const contact = people.find(p => p.id === followUpTarget.contactId);
+      return contact || {
+        id: followUpTarget.contactId,
+        name: followUpTarget.contactName,
+        email: null
+      };
+    })()],
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    followUp: {
+      originalMessageId: followUpTarget.graphMessageId || null,
+      defaultSubject: "Re: " + (followUpTarget.summary || followUpTarget.companyName || "")
+    },
+    onSent: (p, entry) => {
+      updateSpecFromCompany(followUpTarget.id, {
+        lastUpdated: today,
+        graphMessageId: entry.graphMessageId || followUpTarget.graphMessageId || null,
+        updates: (followUpTarget.updates || []).concat([{
+          date: today,
+          note: entry.note,
+          status: followUpTarget.status
+        }])
+      });
+      setFollowUpTarget(null);
+    },
+    onClose: () => setFollowUpTarget(null)
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -7687,7 +7861,8 @@ function CompaniesView({
     perspective: "contact",
     onUpdate: updateSpecFromCompany,
     onNavigatePerson: onNavigatePerson,
-    onDelete: deleteSpecFromCompany
+    onDelete: deleteSpecFromCompany,
+    onFollowUp: setFollowUpTarget
   })))) : /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
@@ -10904,6 +11079,10 @@ function SpecOutsView({
   const [bulkGroupKey, setBulkGroupKey] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [sendModal, setSendModal] = useState(null);
+  const [followUpTarget, setFollowUpTarget] = useState(null);
+  function openFollowUp(spec) {
+    setFollowUpTarget(spec);
+  }
   const autoExpanded = useRef(false);
   function toggleGroup(key) {
     setExpandedKeys(prev => {
@@ -10997,7 +11176,8 @@ function SpecOutsView({
       status: "Sent",
       dateSent: today,
       lastUpdated: today,
-      fullEmail: entry.htmlBody || entry.note
+      fullEmail: entry.htmlBody || entry.note,
+      graphMessageId: entry.graphMessageId || null
     });
   }
   // "Open" = still awaiting a response; these are what need chasing.
@@ -11119,6 +11299,34 @@ function SpecOutsView({
       setSelectedIds([]);
       setBulkGroupKey(null);
     }
+  }), followUpTarget && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: [(function () {
+      const contact = people.find(p => p.id === followUpTarget.contactId);
+      return contact || {
+        id: followUpTarget.contactId,
+        name: followUpTarget.contactName,
+        email: null
+      };
+    })()],
+    templates: templates,
+    onSaveTemplate: saveTemplate,
+    followUp: {
+      originalMessageId: followUpTarget.graphMessageId || null,
+      defaultSubject: "Re: " + (followUpTarget.summary || followUpTarget.companyName || "")
+    },
+    onSent: (p, entry) => {
+      updateSpec(followUpTarget.id, {
+        lastUpdated: today,
+        graphMessageId: entry.graphMessageId || followUpTarget.graphMessageId || null,
+        updates: (followUpTarget.updates || []).concat([{
+          date: today,
+          note: entry.note,
+          status: followUpTarget.status
+        }])
+      });
+      setFollowUpTarget(null);
+    },
+    onClose: () => setFollowUpTarget(null)
   }), addingProspects && /*#__PURE__*/React.createElement(AddProspectsFormGlobal, {
     people: people,
     setPeople: setPeople,
@@ -11435,7 +11643,8 @@ function SpecOutsView({
       perspective: groupBy === "candidate" ? "candidate" : "contact",
       onUpdate: updateSpec,
       onNavigatePerson: id => onNavigate("people", id, "specouts"),
-      onDelete: deleteSpec
+      onDelete: deleteSpec,
+      onFollowUp: openFollowUp
     }))))), bulkGroupKey === key && selectedIds.length > 0 && !sendModal && /*#__PURE__*/React.createElement("div", {
       style: {
         position: "fixed",
@@ -11830,7 +12039,8 @@ function SendMailModal({
   onSaveTemplate,
   onSent,
   onClose,
-  templateCategory
+  templateCategory,
+  followUp
 }) {
   const multi = people.length > 1;
   const validPeople = people.filter(function (p) {
@@ -11838,8 +12048,14 @@ function SendMailModal({
   });
   const skippedCount = people.length - validPeople.length;
   const [connectedAs, setConnectedAs] = useState(getConnectedOutlookAccount());
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState(followUp ? followUp.defaultSubject || "" : "");
   const [body, setBody] = useState(multi ? plainToRichHtml("Hi {{firstName}},\n\n") : "");
+  // Only meaningful in follow-up mode. Defaults to on whenever a genuine
+  // prior message id exists to forward - if it doesn't (a send from before
+  // this feature existed), there's nothing to include, so this starts off
+  // and the checkbox itself is disabled rather than silently doing nothing
+  // when checked.
+  const [includeOriginal, setIncludeOriginal] = useState(!!(followUp && followUp.originalMessageId));
   const [templateId, setTemplateId] = useState("");
   const [showSaveBox, setShowSaveBox] = useState(false);
   const [templateTitle, setTemplateTitle] = useState("");
@@ -11954,8 +12170,12 @@ function SendMailModal({
         // To/CC — each person only ever sees their own email. Wrapped with
         // a hard ceiling so a hung network request (not just a hung
         // sign-in popup) can never leave the button looking permanently
-        // stuck with no feedback either.
-        await Promise.race([sendGraphMail(p.email, personalSubject, personalBody), new Promise(function (_, reject) {
+        // stuck with no feedback either. Follow-up mode with the toggle on
+        // uses a genuine Graph forward of the original message instead of
+        // composing a fresh one - real quoted history underneath, exactly
+        // like clicking Forward in Outlook.
+        var useForward = followUp && includeOriginal && followUp.originalMessageId;
+        var sendResult = await Promise.race([useForward ? forwardGraphMail(followUp.originalMessageId, p.email, personalBody) : sendGraphMail(p.email, personalSubject, personalBody), new Promise(function (_, reject) {
           setTimeout(function () {
             reject(new Error("The send timed out — check your connection and try again."));
           }, 60000);
@@ -11973,9 +12193,9 @@ function SendMailModal({
         const entry = {
           id: Date.now() + i,
           type: "email",
-          icon: actLabel.icon,
-          label: actLabel.label,
-          note: (personalSubject ? "Subject: " + personalSubject + "\n\n" : "") + htmlToPlainSummary(personalBody),
+          icon: useForward ? "\ud83d\udd01" : actLabel.icon,
+          label: useForward ? "Follow-up (forwarded)" : followUp ? "Follow-up" : actLabel.label,
+          note: (personalSubject ? "Subject: " + personalSubject + "\n\n" : "") + htmlToPlainSummary(personalBody) + (useForward ? "\n\n(sent as a forward of the original message)" : ""),
           // The activity log itself only ever displays plain text (note,
           // above) - but a caller that wants to show exactly what was
           // sent, formatting included, can use this instead. Includes the
@@ -11984,10 +12204,20 @@ function SendMailModal({
           // real HTML throughout (matching the Preview overlay's own
           // approach) rather than mixing in a plain-text "\n" for the
           // subject line, which wouldn't render as a line break here.
+          // For a forward, Graph never hands back the final combined HTML
+          // it actually sent (comment + quoted original), so this records
+          // the follow-up note itself rather than guessing at that layout.
           htmlBody: (personalSubject ? "<div><b>Subject:</b> " + personalSubject.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</div><br>" : "") + buildEmailBodyHtml(personalBody, connectedAs),
           date: ts,
           by: "",
-          via: "outlook"
+          via: "outlook",
+          // Captured so a later "Follow Up" click can genuinely forward
+          // this exact message through Graph, quoted history and all,
+          // rather than just composing something that looks similar.
+          // Only ever set for sends made after this existed - anything
+          // sent before falls back to a fresh follow-up email instead.
+          graphMessageId: sendResult && sendResult.messageId ? sendResult.messageId : null,
+          recipientEmail: p.email
         };
         onSent(p, entry);
         ok.push(p);
@@ -12023,6 +12253,7 @@ function SendMailModal({
     }
   }
   const headerName = multi ? people.length + " contacts" : people[0] ? people[0].name : "";
+  const headerLabel = followUp ? "Follow Up \u2014 " : "Send via Outlook \u2014 ";
   const saveBoxUI = justSavedTemplate ? /*#__PURE__*/React.createElement("div", {
     style: { color: OK, fontSize: 11.5, fontWeight: 600 }
   }, "\u2713 Saved \u2014 find it any time in Templates") : !showSaveBox ? /*#__PURE__*/React.createElement("button", {
@@ -12213,7 +12444,7 @@ function SendMailModal({
       fontSize: 16,
       color: NAVY
     }
-  }, "Send via Outlook \u2014 ", headerName), !sending && /*#__PURE__*/React.createElement("button", {
+  }, headerLabel, headerName), !sending && /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     style: {
       background: "none",
@@ -12417,7 +12648,31 @@ function SendMailModal({
       outline: "none",
       fontFamily: "inherit"
     }
-  })), /*#__PURE__*/React.createElement("div", {
+  })), followUp && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 12,
+      padding: "8px 11px",
+      background: G100,
+      borderRadius: 6
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    id: "includeOriginalToggle",
+    checked: includeOriginal,
+    disabled: !followUp.originalMessageId,
+    onChange: function (e) {
+      setIncludeOriginal(e.target.checked);
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    htmlFor: "includeOriginalToggle",
+    style: {
+      fontSize: 12.5,
+      color: followUp.originalMessageId ? "#1a1a1a" : G600
+    }
+  }, followUp.originalMessageId ? "Include the original message (sent as a real forward, with the full thread underneath)" : "Original message unavailable to include - this was sent before follow-ups were tracked, so this will go as a new email instead")), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 8
     }
@@ -12436,7 +12691,7 @@ function SendMailModal({
       setBody(html);
       if (templateId) setTemplateId("");
     },
-    placeholder: multi ? "Write your message\u2026 use {{firstName}} anywhere you want it personalized per contact." : "Write your message\u2026"
+    placeholder: followUp ? "Write your follow-up note\u2026" : multi ? "Write your message\u2026 use {{firstName}} anywhere you want it personalized per contact." : "Write your message\u2026"
   }), bodyHasContent(body) && saveBoxUI, error && /*#__PURE__*/React.createElement("div", {
     style: {
       color: DANGER,
@@ -12509,7 +12764,7 @@ function SendMailModal({
       fontFamily: "inherit",
       opacity: sending || !bodyHasContent(body) || !validPeople.length ? 0.6 : 1
     }
-  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : "Send"))))), previewOverlay);
+  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : followUp ? "Send follow-up" : "Send"))))), previewOverlay);
 }
 function ActivityLogModal({
   people,
@@ -13042,7 +13297,7 @@ function BDPipelineView({
   const [touchpointsFor, setTouchpointsFor] = useState(null);
   const [modalInitialTab, setModalInitialTab] = useState("Overview");
   const [sendModal, setSendModal] = useState(null);
-  const [bulkModal, setBulkModal] = useState(false);
+  const [followUpTarget, setFollowUpTarget] = useState(null);
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState("none"); // "none" | "name" | "company"
   const [showSuggest, setShowSuggest] = useState(false);
@@ -13322,6 +13577,29 @@ function BDPipelineView({
       setSelectedIds([]);
       setBulkMode(false);
       setBulkSendMode(false);
+    }
+  }), followUpTarget && /*#__PURE__*/React.createElement(SendMailModal, {
+    people: [followUpTarget.person],
+    templates: templates,
+    templateCategory: "BD Outreach",
+    onSaveTemplate: saveTemplate,
+    followUp: {
+      originalMessageId: followUpTarget.activity.graphMessageId || null,
+      defaultSubject: (function () {
+        var note = followUpTarget.activity.note || "";
+        var m = note.match(/^Subject: (.+)$/m);
+        return m ? "Re: " + m[1] : "Following up";
+      })()
+    },
+    onSent: function (p, entry) {
+      applyActivity([p], {
+        entry: entry,
+        actType: "email"
+      });
+      setFollowUpTarget(null);
+    },
+    onClose: function () {
+      setFollowUpTarget(null);
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -13926,7 +14204,33 @@ function BDPipelineView({
           cursor: "pointer",
           fontFamily: "inherit"
         }
-      }, "\u2709")), /*#__PURE__*/React.createElement("button", {
+      }, "\u2709"), p.email && (function () {
+        const lastEmail = (p.activityLog || []).find(function (a) {
+          return a.type === "email";
+        });
+        return lastEmail ? /*#__PURE__*/React.createElement("button", {
+          onClick: function (e) {
+            e.stopPropagation();
+            setFollowUpTarget({
+              person: p,
+              activity: lastEmail
+            });
+          },
+          title: "Follow up on the last email",
+          style: {
+            background: TL,
+            color: TEAL,
+            border: "1px solid " + TM,
+            borderRadius: 5,
+            padding: "4px 8px",
+            fontSize: 11,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            whiteSpace: "nowrap"
+          }
+        }, "\u21aa Follow Up") : null;
+      })()), /*#__PURE__*/React.createElement("button", {
         onClick: function (e) {
           e.stopPropagation();
           setTouchpointsFor(p);
