@@ -12065,6 +12065,7 @@ function SendMailModal({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [justSavedTemplate, setJustSavedTemplate] = useState(false);
   const [sending, setSending] = useState(false);
+  const [justSent, setJustSent] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(null);
@@ -12249,7 +12250,14 @@ function SendMailModal({
       // path already does.
       setError(failed[0].error || "Send failed - please try again.");
     } else {
-      onClose();
+      // A single-recipient send used to close the modal the instant it
+      // succeeded - the "Sending..." state and the modal vanishing could
+      // both happen within the same eye-blink, leaving nothing on screen
+      // to confirm the send actually went out. Hold a visible confirmation
+      // for a beat before auto-closing, same pattern as the "Saved" message
+      // after saving a template.
+      setJustSent(true);
+      setTimeout(onClose, 1800);
     }
   }
   const headerName = multi ? people.length + " contacts" : people[0] ? people[0].name : "";
@@ -12705,7 +12713,14 @@ function SendMailModal({
       fontWeight: 600,
       marginBottom: 10
     }
-  }, "Sending ", progress.i, " of ", progress.n, "\u2026"), /*#__PURE__*/React.createElement("div", {
+  }, "Sending ", progress.i, " of ", progress.n, "\u2026"), justSent && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      color: OK,
+      fontWeight: 600,
+      marginBottom: 10
+    }
+  }, "\u2713 Sent"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "flex-end",
@@ -12722,7 +12737,7 @@ function SendMailModal({
       marginTop: 4,
       borderTop: "1px solid " + G200
     }
-  }, !sending && bodyHasContent(body) && /*#__PURE__*/React.createElement("button", {
+  }, !sending && !justSent && bodyHasContent(body) && /*#__PURE__*/React.createElement("button", {
     onClick: function () {
       setShowPreview(true);
     },
@@ -12737,7 +12752,7 @@ function SendMailModal({
       fontFamily: "inherit",
       marginRight: "auto"
     }
-  }, "Preview"), !sending && /*#__PURE__*/React.createElement("button", {
+  }, "Preview"), !sending && !justSent && /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     style: {
       background: "transparent",
@@ -12751,20 +12766,20 @@ function SendMailModal({
     }
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     onClick: send,
-    disabled: sending || !bodyHasContent(body) || !validPeople.length,
+    disabled: sending || justSent || !bodyHasContent(body) || !validPeople.length,
     style: {
-      background: TEAL,
+      background: justSent ? OK : TEAL,
       color: W,
       border: "none",
       borderRadius: 6,
       padding: "8px 22px",
       fontSize: 13,
       fontWeight: 700,
-      cursor: sending || !bodyHasContent(body) || !validPeople.length ? "default" : "pointer",
+      cursor: sending || justSent || !bodyHasContent(body) || !validPeople.length ? "default" : "pointer",
       fontFamily: "inherit",
       opacity: sending || !bodyHasContent(body) || !validPeople.length ? 0.6 : 1
     }
-  }, sending ? "Sending\u2026" : multi ? "Send " + validPeople.length + " emails" : followUp ? "Send follow-up" : "Send"))))), previewOverlay);
+  }, sending ? "Sending\u2026" : justSent ? "\u2713 Sent" : multi ? "Send " + validPeople.length + " emails" : followUp ? "Send follow-up" : "Send"))))), previewOverlay);
 }
 function ActivityLogModal({
   people,
