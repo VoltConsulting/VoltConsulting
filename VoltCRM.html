@@ -81,7 +81,7 @@ function getMsalInstance() {
   }
   return _msalInstance;
 }
-var MS_SCOPES = ["Mail.Send", "User.Read"];
+var MS_SCOPES = ["Mail.Send", "Mail.ReadWrite", "User.Read"];
 // Returns a valid Graph access token for the signed-in user, silently
 // refreshing if possible. Triggers a sign-in popup only if there's no
 // existing session (first use, or the cached session has expired).
